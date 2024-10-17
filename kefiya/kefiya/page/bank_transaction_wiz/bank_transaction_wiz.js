@@ -539,7 +539,7 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 					fieldtype: 'Small Text',
 					read_only:  me.data.description ? 1 : 0,
 					reqd: 1,
-					default: me.data.description,
+					default: me.data.description.substring(0, 140),
 				}, {
 					label: 'Posting Date',
 					fieldname: 'posting_date',
@@ -636,7 +636,13 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 				primary_action: function(/* values */) {
 
 					const bank_transaction_name = me.data.name
-					const reference_number = dialog.get_value("reference_number")
+
+					let ref_num = dialog.get_value("reference_number")
+					if (!me.data.description){
+						ref_num = ref_num.substring(0, 140)
+					}
+
+					const reference_number = ref_num
 					const reference_date = dialog.get_value("reference_date")
 					const posting_date = dialog.get_value("posting_date")
 					const entry_type = dialog.get_value("journal_entry_type")
