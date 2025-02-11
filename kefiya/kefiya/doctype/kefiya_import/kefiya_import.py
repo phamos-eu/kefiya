@@ -14,12 +14,12 @@ class KefiyaImport(Document):
     def validate_past(self, date, field_name):
         if isinstance(date, str):
             date = get_datetime(date).date()
-        if date >= now_datetime().date():
+        if date > now_datetime().date():
             frappe.msgprint(
                 _("'{0}' needs to be in the past").format(field_name)
             )
             return False
-        if (now_datetime().date() - date).days >= 90:
+        if (now_datetime().date() - date).days > 90:
             frappe.msgprint(
                 _("'{0}' is more then 90 days in the past").format(field_name)
             )
