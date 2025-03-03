@@ -94,7 +94,8 @@ before_install = "kefiya.utils.install.before_install"
 # Override standard doctype classes
 
 override_doctype_class = {
-    "Journal Entry": "kefiya.overrides.journal_entry.journal_entry.CustomJournalEntry"
+    "Journal Entry": "kefiya.overrides.journal_entry.journal_entry.CustomJournalEntry",
+    "Bank Transaction": "kefiya.overrides.bank_transaction.bank_transaction.CustomBankTransaction",
 }
 
 # Document Events

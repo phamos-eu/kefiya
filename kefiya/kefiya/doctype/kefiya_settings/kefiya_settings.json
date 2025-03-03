@@ -10,6 +10,7 @@
   "show_entries_in_payment_assignment_wizard",
   "overlap_days",
   "column_break_gv35w",
+  "cancel_payment_entries_on_unreconciliation",
   "column_break_qzdrd",
   "payment_request_csv_action",
   "recipient_email"
@@ -65,14 +66,20 @@
    "fieldname": "overlap_days",
    "fieldtype": "Int",
    "label": "Overlap Days",
-   "length": 0,
    "non_negative": 1
+  },
+  {
+   "default": "0",
+   "description": "Enable this option to automatically cancel any payment entries associated with a bank transaction when the transaction is unreconciled.",
+   "fieldname": "cancel_payment_entries_on_unreconciliation",
+   "fieldtype": "Check",
+   "label": "Cancel Payment Entries on Unreconciliation"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-02-10 14:09:32.312151",
+ "modified": "2025-02-28 14:39:41.487314",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Settings",
