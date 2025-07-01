@@ -73,7 +73,11 @@
       {{bank_party_name}}
     </div>
     <div class="col-sm-2 ellipsis">
-      {{ unallocated_amount }}
+      {% if deposit > withdrawal %}
+        + {{ unallocated_amount }}
+      {% else %}
+        - {{ unallocated_amount }}
+      {% endif %}
     </div>
     <div class="col-sm-2 ellipsis"> {{ date }}</div>
   </div>
