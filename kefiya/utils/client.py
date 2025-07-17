@@ -131,50 +131,94 @@ def auto_assign_payments():
 def create_payment_entry(bank_transaction_name, invoice_name, match_against):
     """Create payment entry document from sales or purchase invoice doctype.
     """
+    if match_against == "Refund":
+        match_against = "Purchase Invoice"
+        bank_transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
+        invoice_doc = frappe.get_doc(match_against, invoice_name)
 
-    bank_transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
-    invoice_doc = frappe.get_doc(match_against, invoice_name)
-    
-    unallocated_amount = bank_transaction.unallocated_amount
-    outstanding_amount = invoice_doc.outstanding_amount
-    diff = frappe.format(abs(unallocated_amount - outstanding_amount), "Currency")
-    paid_amount = outstanding_amount
+        unallocated_amount = bank_transaction.unallocated_amount
+        outstanding_amount = invoice_doc.outstanding_amount
 
-    if unallocated_amount <= outstanding_amount:
-        paid_amount = unallocated_amount
+        diff = frappe.format((unallocated_amount - abs(outstanding_amount)), "Currency")
+        paid_amount = outstanding_amount
+        if unallocated_amount <= abs(outstanding_amount):
+            paid_amount = 0 - unallocated_amount
 
-    payment_entry = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", match_against, invoice_name)
+        payment_entry = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", match_against, invoice_name)
+        payment_entry.paid_amount = abs(paid_amount)
+        payment_entry.reference_date = today()
+        payment_entry.reference_no = 'BTN Wizard '+ today()
+        payment_entry.payment_type = "Receive"
+        account_from_to = "paid_to"
 
-    payment_entry.paid_amount = paid_amount
-    payment_entry.reference_date = today()
-    payment_entry.reference_no = 'BTN Wizard '+ today()
-    payment_entry.payment_type = "Receive" if bank_transaction.deposit > 0.0 else "Pay"
-    account_from_to = "paid_to" if bank_transaction.deposit > 0.0 else "paid_from"
+        bank_account = ''
+        if bank_transaction.bank_account:
+            bank_account = frappe.db.get_values(
+                "Bank Account", bank_transaction.bank_account, ["account", "company"], as_dict=True
+            )[0]
 
-    bank_account = ''
-    if bank_transaction.bank_account:
-        bank_account = frappe.db.get_values(
-            "Bank Account", bank_transaction.bank_account, ["account", "company"], as_dict=True
-        )[0]
+        if bank_account and bank_account.account:
+            (gl_account, company) = (bank_account.account, bank_account.company)
 
-    if bank_account and bank_account.account:
-        (gl_account, company) = (bank_account.account, bank_account.company)
+            payment_entry.bank_account = bank_transaction.bank_account
 
-        payment_entry.bank_account = bank_transaction.bank_account
-
-        if account_from_to == "paid_to":
-            payment_entry.paid_to = gl_account
-        else:
-            payment_entry.paid_from = gl_account
+            if account_from_to == "paid_to":
+                payment_entry.paid_to = gl_account
+            else:
+                payment_entry.paid_from = gl_account
 
 
-    for reference in payment_entry.references:
-        reference.allocated_amount = paid_amount
+        for reference in payment_entry.references:
+            reference.allocated_amount = paid_amount
 
-    payment_entry.insert()
-    payment_entry.submit()
-    
-    return paid_amount, payment_entry.name, unallocated_amount, outstanding_amount, diff
+        payment_entry.insert()
+        payment_entry.submit()
+
+        return abs(paid_amount), payment_entry.name, unallocated_amount, abs(outstanding_amount), diff
+    else:
+        bank_transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
+        invoice_doc = frappe.get_doc(match_against, invoice_name)
+        
+        unallocated_amount = bank_transaction.unallocated_amount
+        outstanding_amount = invoice_doc.outstanding_amount
+        diff = frappe.format(abs(unallocated_amount - outstanding_amount), "Currency")
+        paid_amount = outstanding_amount
+
+        if unallocated_amount <= outstanding_amount:
+            paid_amount = unallocated_amount
+
+        payment_entry = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", match_against, invoice_name)
+
+        payment_entry.paid_amount = paid_amount
+        payment_entry.reference_date = today()
+        payment_entry.reference_no = 'BTN Wizard '+ today()
+        payment_entry.payment_type = "Receive" if bank_transaction.deposit > 0.0 else "Pay"
+        account_from_to = "paid_to" if bank_transaction.deposit > 0.0 else "paid_from"
+
+        bank_account = ''
+        if bank_transaction.bank_account:
+            bank_account = frappe.db.get_values(
+                "Bank Account", bank_transaction.bank_account, ["account", "company"], as_dict=True
+            )[0]
+
+        if bank_account and bank_account.account:
+            (gl_account, company) = (bank_account.account, bank_account.company)
+
+            payment_entry.bank_account = bank_transaction.bank_account
+
+            if account_from_to == "paid_to":
+                payment_entry.paid_to = gl_account
+            else:
+                payment_entry.paid_from = gl_account
+
+
+        for reference in payment_entry.references:
+            reference.allocated_amount = paid_amount
+
+        payment_entry.insert()
+        payment_entry.submit()
+        
+        return paid_amount, payment_entry.name, unallocated_amount, outstanding_amount, diff
 
 @frappe.whitelist()
 def change_match_against(selected_match):

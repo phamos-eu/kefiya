@@ -1,5 +1,5 @@
-<!-- Sales Invoice or Purchase Invoice -->
-{% if matchAgainst == "Sales Invoice" || matchAgainst == "Purchase Invoice" %}
+<!-- Sales Invoice, Purchase Invoice or Refund -->
+{% if matchAgainst == "Sales Invoice" || matchAgainst == "Purchase Invoice" || matchAgainst == "Refund" %}
 <div class="list-row payment-assign-wizard-item list-xs-height" data-fieldname="{{ name }}" style="height: auto;">
     <div class="clickable-section" data-name="{{ name }}">
       <div class="row">
@@ -24,7 +24,7 @@
         </div>
         {% endif %}
 
-        {% if matchAgainst == "Purchase Invoice" %}
+        {% if matchAgainst == "Purchase Invoice" || matchAgainst == "Refund" %}
         <div class="col-sm-2 ellipsis" style="white-space: normal">
           <a href="purchase-invoice/{{ name }}">{{ name }}</a>
           <br>
@@ -69,9 +69,15 @@
 
     <div class="col-sm-2 ellipsis hidden-xs">
       {{ party }}
+      <br>
+      {{bank_party_name}}
     </div>
     <div class="col-sm-2 ellipsis">
-      {{ unallocated_amount }}
+      {% if deposit > withdrawal %}
+        + {{ unallocated_amount }}
+      {% else %}
+        - {{ unallocated_amount }}
+      {% endif %}
     </div>
     <div class="col-sm-2 ellipsis"> {{ date }}</div>
   </div>
@@ -129,9 +135,19 @@
           </div>
           <div class="col-sm-2 ellipsis hidden-xs">
             {{ payment.party }}
+            <br>
+            {{ payment.bank_party_name }}
           </div>
           <div class="col-sm-2 ellipsis data-amount">
-            {{ payment.unallocated_amount }}
+            {% if matchAgainst == "Refund" %}
+              {% if payment.deposit > payment.withdrawal %}
+                + {{ payment.unallocated_amount }}
+              {% else %}
+                - {{ payment.unallocated_amount }}
+              {% endif %}
+            {% else %}
+              {{ payment.unallocated_amount }}
+            {% endif %}
           </div>
           <div class="col-sm-2 ellipsis">
             {{ payment.date }}

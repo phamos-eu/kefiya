@@ -89,6 +89,8 @@ def custom_create_journal_entry_bts(
     # convert transaction amount to company currency
     if is_multi_currency:
         exc_rate = get_exchange_rate(bank_transaction.currency, company_default_currency, posting_date)
+        if not exc_rate:
+            frappe.throw('Set the transaction exchange rate.')
         withdrawal_in_company_currency = flt(exc_rate * abs(bank_transaction.withdrawal))
         deposit_in_company_currency = flt(exc_rate * abs(bank_transaction.deposit))
     else:

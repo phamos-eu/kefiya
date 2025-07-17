@@ -18,10 +18,11 @@ kefiya.tools.assignWizard = class assignWizard {
 		this.parent = wrapper;
 		this.page = this.parent.page;
 		this.remove_page_buttons();
+		$(this.page.wrapper).addClass('bank-transaction-wiz-page');
 		this.make();
 	}
 	remove_page_buttons(){
-		$('.menu-btn-group').remove()
+		$(this.page.wrapper).find('.menu-btn-group').remove();
 	}
 
 	async fetchKefiyaSettings() {
@@ -162,6 +163,21 @@ kefiya.tools.assignWizard = class assignWizard {
 						window.location.reload(false);
 					};
 			});
+		} else if (kefiyaSettings.assign_against==='Refund'){
+			frappe.model.with_doctype("Purchase Invoice", () => {
+				kefiya.tools.assignWizardList =
+					new kefiya.tools.AssignWizardTool({
+						parent: me.parent,
+						doctype: "Purchase Invoice",
+						page_title: __(me.page.title),
+						kefiyaSettings: kefiyaSettings,
+						changeMatchAgainst: changeMatchAgainst,
+					});
+				frappe.pages["bank-transaction-wiz"].refresh =
+					function (/* wrapper */) {
+						window.location.reload(false);
+					};
+			});
 		}
 	}
 };
@@ -212,6 +228,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 				"description",
 				"party",
 				"party_type",
+				"bank_party_name",
 				"unallocated_amount",
 				"deposit",
 				"withdrawal",
@@ -219,13 +236,25 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 				"company",
 				"currency",
 				"bank_account",
-				"bank_party_name",
+			];
+		} else if (this.kefiyaSettings.assign_against === 'Refund'){
+			this.sort_by = "supplier";
+			this.fields = [
+				"name",
+				"supplier",
+				"supplier_name",
+				"outstanding_amount",
+				"posting_date",
+				"due_date",
+				"currency",
+				"paid_amount",
+				"bill_no",
 			];
 		}
 	}
 
 	setup_view() {
-		this.render_header();
+		this.render_header(this.kefiyaSettings.assign_against);
 	}
 
 	setup_side_bar() {
@@ -269,6 +298,14 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 					["Bank Transaction", "unallocated_amount", ">", 0]
 				),
 			});
+		} else if(this.kefiyaSettings.assign_against === 'Refund'){
+			return Object.assign({}, args, {
+				...args.filters.push(
+					["Purchase Invoice", "docstatus", "=", 1],
+					["Purchase Invoice", "status", "=", "Return"],
+					["Purchase Invoice", "outstanding_amount", "<", 0]
+				),
+			});
 		}
 
 	}
@@ -296,7 +333,10 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 				"name", 
 				"party",
 				"party_type",
+				"bank_party_name",
 				"date", 
+				"deposit",
+				"withdrawal",
 				"unallocated_amount", 
 				"description"
 			];
@@ -305,7 +345,8 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 				docstatus: 1,
 				unallocated_amount: [">", 0],
 				...(matchAgainst === "Sales Invoice" ? { party, deposit: [">", 0] } : {}),
-				...(matchAgainst === "Purchase Invoice" ? { party, withdrawal: [">", 0] } : {})
+				...(matchAgainst === "Purchase Invoice" ? { party, withdrawal: [">", 0] } : {}),
+				...(matchAgainst === "Refund" ? { party } : {})
 			};
 			order_by = "date";
 		} else {
@@ -333,6 +374,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 			{ label: 'Sales Invoice', value: 'Sales Invoice' },
 			{ label: 'Purchase Invoice', value: 'Purchase Invoice' },
 			{ label: 'Journal Entry', value: 'Journal Entry' },
+			{ label: 'Refund', value: 'Refund' },
 		];
 	
 		tabs.forEach((tab, index) => {
@@ -355,18 +397,18 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 
 		const me = this;
 		this.$result.find(".list-row-contain").remove();
-		$('[data-fieldname="name"]').remove();
-		$('[data-fieldname="status"]').remove();
-		$('[data-fieldname="title"]').remove();
-		$('[data-original-title="Refresh"]').remove();
-		$('[data-original-title="Reload List"]').remove();
-		$('[data-fieldname="bank_account"]').remove();
-		$('.custom-btn-group').remove();
-		$('.standard-filter-section').empty();	
+		$(this.page.wrapper).find('[data-fieldname="name"]').remove();
+		$(this.page.wrapper).find('[data-fieldname="status"]').remove();
+		$(this.page.wrapper).find('[data-fieldname="title"]').remove();
+		$(this.page.wrapper).find('[data-original-title="Refresh"]').remove();
+		$(this.page.wrapper).find('[data-original-title="Refresh"]').remove();
+		$(this.page.wrapper).find('[data-original-title="Reload List"]').remove();
+		$(this.page.wrapper).find('[data-fieldname="bank_account"]').remove();
+		$(this.page.wrapper).find('.custom-btn-group').remove();
+		$(this.page.wrapper).find('.standard-filter-section').empty();
 		const tab_container = await this.add_custom();
 		tab_container.appendTo('.standard-filter-section');
-		
-		
+
 		let rowHTML;
 		let party_value;
 		rowHTML = '<div class="list-row-contain"></div>';
@@ -388,7 +430,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 					
 				if (matchAgainst==="Sales Invoice"){
 					party_value = value.customer
-				} else if (matchAgainst === "Purchase Invoice"){
+				} else if (matchAgainst === "Purchase Invoice" || matchAgainst === "Refund"){
 					party_value = value.supplier
 				}
 	
@@ -412,10 +454,16 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 		}
 	}
 
-	render_header() {
+	render_header(assignAgainst) {
 		const me = this;
 		if ($(this.wrapper).find(".payment-assign-wizard-header").length === 0) {
-			me.$result.append(frappe.render_template("bank_transaction_header"));
+			me.$result.append(frappe.render_template("bank_transaction_header", {
+				party_label: assignAgainst === "Sales Invoice"
+				? __("Customer")
+				: assignAgainst === "Purchase Invoice" || assignAgainst === "Refund"
+					? __("Supplier")
+					: __("Party")
+			}));
 		}
 	}
 };
@@ -576,7 +624,7 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 					fieldtype: 'Small Text',
 					read_only:  me.data.description ? 1 : 0,
 					reqd: 1,
-					default: me.data.description.substring(0, 140),
+					default: me.data.description ? me.data.description.substring(0, 140) : '',
 				}, {
 					label: 'Posting Date',
 					fieldname: 'posting_date',
