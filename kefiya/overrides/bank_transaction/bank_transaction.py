@@ -16,6 +16,8 @@ class CustomBankTransaction(BankTransaction):
             for payment_entry in payment_entries:
                 if payment_entry.payment_document == "Payment Entry":
                     self.delete_payment_entry(payment_entry)
+                elif payment_entry.payment_document == "Journal Entry":
+                    self.delete_journal_entry(payment_entry)
 
     def delete_entries_on_unreconciling(self):
         settings = frappe.get_single("Kefiya Settings")
@@ -25,3 +27,8 @@ class CustomBankTransaction(BankTransaction):
         payment_entry = frappe.get_doc("Payment Entry", payment_entry.payment_entry)
         payment_entry.cancel()
         payment_entry.delete()
+    
+    def delete_journal_entry(self, payment_entry):
+        journal_entry = frappe.get_doc("Journal Entry", payment_entry.payment_entry)
+        journal_entry.cancel()
+        journal_entry.delete()

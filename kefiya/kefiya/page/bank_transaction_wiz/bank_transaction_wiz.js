@@ -547,58 +547,70 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 				callback: function (r) {
 					let vouchers = [];
 
-					const paid_amount = r.message[0];
-					const payment_entry_name = r.message[1];
-					const unallocated_amount = r.message[2];
-					const outstanding_amount = r.message[3];
-					const diff = r.message[4];
+					if (match_against == "Refund"){
 
-					vouchers.push({
-						payment_doctype: "Payment Entry",
-						payment_name: payment_entry_name,
-						amount: format_currency(paid_amount, currency),
-					});
-					
-					frappe.call({
-						method:
-							"erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.reconcile_vouchers",
-						args: {
-							bank_transaction_name: bank_transaction_name,
-							vouchers: vouchers,
-						},
-						callback(/* r */) {
-							// Refresh page after asignment		
-							// kefiya.tools.assignWizardList.refresh();
+						const unallocated_amount = r.message;
 
-							if (unallocated_amount > outstanding_amount){
+						$('.list-row-contain').filter(function() {
+							return $(this).find(`[data-fieldname="${invoice_name}"]`).length > 0;
+						}).remove();
+
+						$(`[data-fieldname="${bank_transaction_name}"]`).each(function() {
+							$(this).find('.data-amount').text(unallocated_amount);
+						});
+
+					} else {
+						const paid_amount = r.message[0];
+						const payment_entry_name = r.message[1];
+						const unallocated_amount = r.message[2];
+						const outstanding_amount = r.message[3];
+						const diff = r.message[4];
+
+						vouchers.push({
+							payment_doctype: "Payment Entry",
+							payment_name: payment_entry_name,
+							amount: format_currency(paid_amount, currency),
+						});
+						
+						frappe.call({
+							method:
+								"erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.reconcile_vouchers",
+							args: {
+								bank_transaction_name: bank_transaction_name,
+								vouchers: vouchers,
+							},
+							callback(/* r */) {
+								// Refresh page after asignment		
+								// kefiya.tools.assignWizardList.refresh();
+
+								if (unallocated_amount > outstanding_amount){
+
+									$('.list-row-contain').filter(function() {
+										return $(this).find(`[data-fieldname="${invoice_name}"]`).length > 0;
+									}).remove();
+
+									$(`[data-fieldname="${bank_transaction_name}"]`).each(function() {
+										$(this).find('.data-amount').text(diff);
+									});
+								}else if(unallocated_amount == outstanding_amount){
+
+									$('.list-row-contain').filter(function() {
+										return $(this).find(`[data-fieldname="${invoice_name}"]`).length > 0;
+									}).remove();
+
+									$(`[data-fieldname="${bank_transaction_name}"]`).remove();
+								}else{
+									
+									$(`[data-fieldname="${bank_transaction_name}"]`).remove();
+									$(`[data-fieldname="${invoice_name}"]`).find('.data-amount').text(diff);
+								}
 
 								$('.list-row-contain').filter(function() {
-									return $(this).find(`[data-fieldname="${invoice_name}"]`).length > 0;
+									return $(this).children().length === 1;
 								}).remove();
-
-								$(`[data-fieldname="${bank_transaction_name}"]`).each(function() {
-									$(this).find('.data-amount').text(diff);
-								});
-							}else if(unallocated_amount == outstanding_amount){
-
-								$('.list-row-contain').filter(function() {
-									return $(this).find(`[data-fieldname="${invoice_name}"]`).length > 0;
-								}).remove();
-
-								$(`[data-fieldname="${bank_transaction_name}"]`).remove();
-							}else{
-								
-								$(`[data-fieldname="${bank_transaction_name}"]`).remove();
-								$(`[data-fieldname="${invoice_name}"]`).find('.data-amount').text(diff);
-							}
-
-							$('.list-row-contain').filter(function() {
-								return $(this).children().length === 1;
-							}).remove();
-							
-
-						},
-					});
+							},
+						});
+					}
 				},
 			});
 

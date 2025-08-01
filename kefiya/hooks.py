@@ -155,7 +155,8 @@ scheduler_events = {
 # ------------------------------
 #
 override_whitelisted_methods = {
-    "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_journal_entry_bts": "kefiya.overrides.bank_reconciliation_tool.bank_reconciliation_tool.custom_create_journal_entry_bts"
+    "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_journal_entry_bts": "kefiya.overrides.bank_reconciliation_tool.bank_reconciliation_tool.custom_create_journal_entry_bts",
+    "frappe.core.doctype.user.user.update_password": "kefiya.overrides.user.update_password"
 }
 #
 # each overriding function accepts a `data` argument;
