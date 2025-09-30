@@ -1,5 +1,5 @@
-<!-- Sales Invoice, Purchase Invoice or Refund -->
-{% if matchAgainst == "Sales Invoice" || matchAgainst == "Purchase Invoice" || matchAgainst == "Refund" %}
+<!-- Sales Invoice, Purchase Invoice or Mastercard -->
+{% if matchAgainst == "Sales Invoice" || matchAgainst == "Purchase Invoice" || matchAgainst == "Mastercard" %}
 <div class="list-row payment-assign-wizard-item list-xs-height" data-fieldname="{{ name }}" style="height: auto;">
     <div class="clickable-section" data-name="{{ name }}">
       <div class="row">
@@ -24,7 +24,7 @@
         </div>
         {% endif %}
 
-        {% if matchAgainst == "Purchase Invoice" || matchAgainst == "Refund" %}
+        {% if matchAgainst == "Purchase Invoice" || matchAgainst == "Mastercard" %}
         <div class="col-sm-2 ellipsis" style="white-space: normal">
           <a href="purchase-invoice/{{ name }}">{{ name }}</a>
           <br>

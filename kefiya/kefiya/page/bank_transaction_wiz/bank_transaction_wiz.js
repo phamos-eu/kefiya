@@ -163,7 +163,7 @@ kefiya.tools.assignWizard = class assignWizard {
 						window.location.reload(false);
 					};
 			});
-		} else if (kefiyaSettings.assign_against==='Refund'){
+		} else if (kefiyaSettings.assign_against==='Mastercard'){
 			frappe.model.with_doctype("Purchase Invoice", () => {
 				kefiya.tools.assignWizardList =
 					new kefiya.tools.AssignWizardTool({
@@ -237,7 +237,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 				"currency",
 				"bank_account",
 			];
-		} else if (this.kefiyaSettings.assign_against === 'Refund'){
+		} else if (this.kefiyaSettings.assign_against === 'Mastercard'){
 			this.sort_by = "supplier";
 			this.fields = [
 				"name",
@@ -298,12 +298,12 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 					["Bank Transaction", "unallocated_amount", ">", 0]
 				),
 			});
-		} else if(this.kefiyaSettings.assign_against === 'Refund'){
+		} else if(this.kefiyaSettings.assign_against === 'Mastercard'){
 			return Object.assign({}, args, {
 				...args.filters.push(
 					["Purchase Invoice", "docstatus", "=", 1],
-					["Purchase Invoice", "status", "=", "Return"],
-					["Purchase Invoice", "outstanding_amount", "<", 0]
+					["Purchase Invoice", "supplier", "=", this.kefiyaSettings.mastercard],
+					["Purchase Invoice", "outstanding_amount", "!=", 0]
 				),
 			});
 		}
@@ -343,10 +343,10 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 			
 			filters = {
 				docstatus: 1,
-				unallocated_amount: [">", 0],
+				unallocated_amount: ["!=", 0],
 				...(matchAgainst === "Sales Invoice" ? { party, deposit: [">", 0] } : {}),
 				...(matchAgainst === "Purchase Invoice" ? { party, withdrawal: [">", 0] } : {}),
-				...(matchAgainst === "Refund" ? { party } : {})
+				...(matchAgainst === "Mastercard" ? { party, party_type: ["=", "Supplier"] } : {})
 			};
 			order_by = "date";
 		} else {
@@ -374,7 +374,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 			{ label: 'Sales Invoice', value: 'Sales Invoice' },
 			{ label: 'Purchase Invoice', value: 'Purchase Invoice' },
 			{ label: 'Journal Entry', value: 'Journal Entry' },
-			{ label: 'Refund', value: 'Refund' },
+			{ label: 'Mastercard', value: 'Mastercard' },
 		];
 	
 		tabs.forEach((tab, index) => {
@@ -430,7 +430,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 					
 				if (matchAgainst==="Sales Invoice"){
 					party_value = value.customer
-				} else if (matchAgainst === "Purchase Invoice" || matchAgainst === "Refund"){
+				} else if (matchAgainst === "Purchase Invoice" || matchAgainst === "Mastercard"){
 					party_value = value.supplier
 				}
 	
@@ -460,7 +460,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 			me.$result.append(frappe.render_template("bank_transaction_header", {
 				party_label: assignAgainst === "Sales Invoice"
 				? __("Customer")
-				: assignAgainst === "Purchase Invoice" || assignAgainst === "Refund"
+				: assignAgainst === "Purchase Invoice" || assignAgainst === "Mastercard"
 					? __("Supplier")
 					: __("Party")
 			}));
@@ -547,17 +547,26 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 				callback: function (r) {
 					let vouchers = [];
 
-					if (match_against == "Refund"){
+					if (match_against == "Mastercard"){
 
-						const unallocated_amount = r.message;
+						const unallocated_amount = r.message[0];
+						const formatted_unallocated_amount = r.message[1];
 
 						$('.list-row-contain').filter(function() {
 							return $(this).find(`[data-fieldname="${invoice_name}"]`).length > 0;
 						}).remove();
 
-						$(`[data-fieldname="${bank_transaction_name}"]`).each(function() {
-							$(this).find('.data-amount').text(unallocated_amount);
-						});
+						if (unallocated_amount !== 0) {
+							$(`[data-fieldname="${bank_transaction_name}"]`).each(function() {
+								$(this).find('.data-amount').text(formatted_unallocated_amount);
+							});
+						} else {
+							$(`[data-fieldname="${bank_transaction_name}"]`).remove();
+						}
+
+						$('.list-row-contain').filter(function() {
+							return $(this).children().length === 1;
+						}).remove();
 
 					} else {
 						const paid_amount = r.message[0];
