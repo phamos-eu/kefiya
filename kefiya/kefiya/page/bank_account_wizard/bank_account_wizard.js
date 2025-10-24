@@ -165,8 +165,7 @@ kefiya.tools.bankWizardRow = class BankWizardRow {
 		this.bind_events();
 	}
 
-	make() {		
-		this.data.date = frappe.datetime.str_to_user(this.data.date);
+	make() {
 		this.data.deposit = format_currency(this.data.deposit, this.data.currency);
 		this.data.withdrawal = format_currency(this.data.withdrawal, this.data.currency);
 		$(this.row).append(frappe.render_template("bank_account_wizard_row",

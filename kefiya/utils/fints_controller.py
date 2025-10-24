@@ -261,7 +261,7 @@ class FinTSController:
 
             # auto_assignment = AssignmentController().auto_assign_payments()
             return {
-                "transactions": tansactions[:10],
+                "transactions": tansactions,
                 "payments": new_bank_transactions,
                 # "assignment": auto_assignment
             }

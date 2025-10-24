@@ -4,7 +4,6 @@
 from __future__ import unicode_literals
 
 import frappe
-from frappe.utils import getdate
 from frappe.utils import today
 
 @frappe.whitelist()
@@ -125,55 +124,137 @@ def auto_assign_payments():
     return AssignmentController().auto_assign_payments()
 
 
+def create_mastercard_journal_entry_from_purchase_invoice(invoice_doc, bank_transaction_name, mastercard_account):
+    """Create a journal entry/payment entry for refund/normal a purchase invoice."""
+    bt = frappe.get_doc("Bank Transaction", bank_transaction_name)
+    paid_amount = abs(invoice_doc.outstanding_amount)
+    payment_document, payment_entry = '',''
+    allocated_amount = 0
+
+    if invoice_doc.status == "Return":
+        je = frappe.new_doc("Journal Entry")
+        je.posting_date = today()
+        je.company = invoice_doc.company
+        je.voucher_type = "Journal Entry"
+        je.user_remark = f"Refund for Return Invoice {invoice_doc.name}"
+        payment_document = "Journal Entry"
+
+        
+        je.append("accounts", {
+            "account": mastercard_account,
+            "debit_in_account_currency": paid_amount,
+            "credit_in_account_currency": 0,
+        })
+
+        je.append("accounts", {
+            "account": invoice_doc.credit_to,
+            "party_type": "Supplier",
+            "party": invoice_doc.supplier,
+            "credit_in_account_currency": paid_amount,
+            "debit_in_account_currency": 0,
+            "reference_type": "Purchase Invoice",
+            "reference_name": invoice_doc.name
+        })
+
+        je.insert()
+        je.submit()
+        payment_entry = je.name
+        if bt.deposit > 0:
+            allocated_amount = paid_amount
+        elif bt.withdrawal > 0:
+            allocated_amount= -paid_amount # NEGATIVE to increase unallocated
+    else: # create payment entry for normal purchase invoice
+        payment_entry_doc = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", "Purchase Invoice", invoice_doc.name)
+        payment_entry_doc.payment_type = "Pay"
+        payment_entry_doc.paid_amount = paid_amount
+        payment_entry_doc.reference_date = today()
+        payment_entry_doc.reference_no = 'BTN Wizard '+ today()
+        payment_entry_doc.bank_account = bt.bank_account
+        payment_entry_doc.paid_from = mastercard_account
+
+        for reference in payment_entry_doc.references:
+            reference.allocated_amount = paid_amount
+
+        payment_entry_doc.insert()
+        payment_entry_doc.submit()
+        payment_document = "Payment Entry"
+        payment_entry = payment_entry_doc.name
+        if bt.deposit > 0:
+            allocated_amount = -paid_amount # NEGATIVE to increase unallocated
+        elif bt.withdrawal > 0:
+            allocated_amount = paid_amount
+
+    bt.append("payment_entries", {
+        "payment_document": payment_document,
+        "payment_entry": payment_entry,
+        "allocated_amount": allocated_amount
+    })
+    bt.save()
+
+    return bt.unallocated_amount, frappe.format(bt.unallocated_amount, "Currency")
+
 
 # Create Payment Entry record when reconcile button is clicked
 @frappe.whitelist()
 def create_payment_entry(bank_transaction_name, invoice_name, match_against):
     """Create payment entry document from sales or purchase invoice doctype.
     """
+    if match_against == "Mastercard":
+        invoice_doc = frappe.get_doc("Purchase Invoice", invoice_name)
+        bank_transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
+        bank_account = ''
+        if bank_transaction.bank_account:
+            bank_account = frappe.db.get_values(
+                "Bank Account", bank_transaction.bank_account, ["account", "company"], as_dict=True
+            )[0]
+        if bank_account:
+            if bank_account.account:
+                return create_mastercard_journal_entry_from_purchase_invoice(invoice_doc, bank_transaction_name, bank_account.account)
+            else:
+                frappe.throw("Bank Account {} has no account set.".format(bank_transaction.bank_account))
+    else:
+        bank_transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
+        invoice_doc = frappe.get_doc(match_against, invoice_name)
+        
+        unallocated_amount = bank_transaction.unallocated_amount
+        outstanding_amount = invoice_doc.outstanding_amount
+        diff = frappe.format(abs(unallocated_amount - outstanding_amount), "Currency")
+        paid_amount = outstanding_amount
 
-    bank_transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
-    invoice_doc = frappe.get_doc(match_against, invoice_name)
-    
-    unallocated_amount = bank_transaction.unallocated_amount
-    outstanding_amount = invoice_doc.outstanding_amount
-    paid_amount = outstanding_amount
+        if unallocated_amount <= outstanding_amount:
+            paid_amount = unallocated_amount
 
-    if unallocated_amount <= outstanding_amount:
-        paid_amount = unallocated_amount
+        payment_entry = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", match_against, invoice_name)
 
-    payment_entry = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", match_against, invoice_name)
+        payment_entry.paid_amount = paid_amount
+        payment_entry.reference_date = today()
+        payment_entry.reference_no = 'BTN Wizard '+ today()
+        payment_entry.payment_type = "Receive" if bank_transaction.deposit > 0.0 else "Pay"
+        account_from_to = "paid_to" if bank_transaction.deposit > 0.0 else "paid_from"
 
-    payment_entry.paid_amount = paid_amount
-    payment_entry.reference_date = today()
-    payment_entry.reference_no = 'BTN Wizard '+ today()
-    payment_entry.payment_type = "Receive" if bank_transaction.deposit > 0.0 else "Pay"
-    account_from_to = "paid_to" if bank_transaction.deposit > 0.0 else "paid_from"
+        bank_account = ''
+        if bank_transaction.bank_account:
+            bank_account = frappe.db.get_values(
+                "Bank Account", bank_transaction.bank_account, ["account", "company"], as_dict=True
+            )[0]
 
-    bank_account = ''
-    if bank_transaction.bank_account:
-        bank_account = frappe.db.get_values(
-            "Bank Account", bank_transaction.bank_account, ["account", "company"], as_dict=True
-        )[0]
+        if bank_account and bank_account.account:
+            (gl_account, company) = (bank_account.account, bank_account.company)
 
-    if bank_account and bank_account.account:
-        (gl_account, company) = (bank_account.account, bank_account.company)
+            payment_entry.bank_account = bank_transaction.bank_account
 
-        payment_entry.bank_account = bank_transaction.bank_account
+            if account_from_to == "paid_to":
+                payment_entry.paid_to = gl_account
+            else:
+                payment_entry.paid_from = gl_account
 
-        if account_from_to == "paid_to":
-            payment_entry.paid_to = gl_account
-        else:
-            payment_entry.paid_from = gl_account
+        for reference in payment_entry.references:
+            reference.allocated_amount = paid_amount
 
-
-    for reference in payment_entry.references:
-        reference.allocated_amount = paid_amount
-
-    payment_entry.insert()
-    payment_entry.submit()
-    
-    return paid_amount, payment_entry.name
+        payment_entry.insert()
+        payment_entry.submit()
+        
+        return paid_amount, payment_entry.name, unallocated_amount, outstanding_amount, diff
 
 @frappe.whitelist()
 def change_match_against(selected_match):

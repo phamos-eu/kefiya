@@ -5,8 +5,6 @@ import hashlib
 import frappe
 from frappe import _
 
-from kefiya.kefiya.doctype.kefiya_bank_statement_import.kefiya_bank_statement_import import get_bank_account_data
-
 class ImportBankTransaction:
     def __init__(self, kefiya_login, interactive, allow_error=False):
         self.allow_error = allow_error
@@ -88,14 +86,8 @@ class ImportBankTransaction:
                     deposit = 0
                     withdrawal = amount
 
-                party, party_type = get_bank_account_data(applicant_iban)
-
-                default_bank_account = None
-                if party and party_type and frappe.db.exists(party_type, party):
-                    default_bank_account = frappe.db.get_value(party_type, party, "default_bank_account")
-                bank_party_account_number = ""
-                if default_bank_account:
-                    bank_party_account_number = frappe.db.get_value("Bank Account", default_bank_account, "bank_account_no")             
+      
+                party, party_type, bank_party_account_number = self.get_bank_account_data(applicant_iban)         
 
                 bank_transaction = frappe.get_doc({
                     'doctype': 'Bank Transaction',
@@ -121,3 +113,15 @@ class ImportBankTransaction:
             except Exception as e:
                 frappe.log_error("Error importing bank transaction", "{}\n\n{}".format(t, frappe.get_traceback()))
                 frappe.msgprint("There were some transactions with error. Please, have a look on Error Log.")
+
+    def get_bank_account_data(self, IBAN):
+        party, party_type, bank_party_account_number = '', '', ''
+        bank_account_exists = frappe.db.exists('Bank Account', {'iban': IBAN})
+        
+        if bank_account_exists:
+            bank_account_doc = frappe.get_doc('Bank Account', {'iban': IBAN})
+            party = bank_account_doc.party
+            party_type = bank_account_doc.party_type
+            bank_party_account_number = bank_account_doc.bank_account_no
+
+        return [party, party_type, bank_party_account_number]

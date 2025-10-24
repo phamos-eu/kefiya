@@ -37,7 +37,8 @@ app_license = "MIT"
 
 # include js in doctype views
 doctype_js = {
-	"Payment Request": "public/js/payment_request.js"
+	"Payment Request": "public/js/payment_request.js",
+    "Bank Transaction": "public/js/bank_transaction.js"
 }
 # doctype_js = {"doctype" : "public/js/doctype.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
@@ -93,9 +94,10 @@ before_install = "kefiya.utils.install.before_install"
 # ---------------
 # Override standard doctype classes
 
-# override_doctype_class = {
-#     "ToDo": "custom_app.overrides.CustomToDo"
-# }
+override_doctype_class = {
+    "Journal Entry": "kefiya.overrides.journal_entry.journal_entry.CustomJournalEntry",
+    "Bank Transaction": "kefiya.overrides.bank_transaction.bank_transaction.CustomBankTransaction",
+}
 
 # Document Events
 # ---------------
@@ -135,10 +137,13 @@ doc_events = {
 #         "kefiya.tasks.monthly"
 #     ]
 # }
+
 scheduler_events = {
-    "daily_long": [
-        "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_fints_payments"  # noqa: E501
-    ]
+    "cron": {
+        "*/20 * * * *": [
+            "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_fints_payments"  # noqa: E501
+        ]
+    }
 }
 
 # Testing
@@ -150,7 +155,8 @@ scheduler_events = {
 # ------------------------------
 #
 override_whitelisted_methods = {
-    "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_journal_entry_bts": "kefiya.overrides.bank_reconciliation_tool.bank_reconciliation_tool.custom_create_journal_entry_bts"
+    "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_journal_entry_bts": "kefiya.overrides.bank_reconciliation_tool.bank_reconciliation_tool.custom_create_journal_entry_bts",
+    "frappe.core.doctype.user.user.update_password": "kefiya.overrides.user.update_password"
 }
 #
 # each overriding function accepts a `data` argument;

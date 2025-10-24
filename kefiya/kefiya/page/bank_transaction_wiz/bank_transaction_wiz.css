@@ -1,14 +1,48 @@
-.list-row-contain {
+.bank-transaction-wiz-page .list-row-contain {
     border: 1px solid #ccc;
     border-radius: 5px;
     margin-bottom: 10px;
     padding: 10px;
 }
 
-.list-row-contain:nth-of-type(odd) {
+.bank-transaction-wiz-page .list-row-contain:nth-of-type(odd) {
     background-color: #F3F3F3;
 }
 
-.list-row-contain:nth-of-type(even) {
+.bank-transaction-wiz-page .list-row-contain:nth-of-type(even) {
     background-color: #FFFFFF;
+}
+
+/* Hide the Refresh button */
+.bank-transaction-wiz-page .icon-btn {
+    display: none !important;
+}
+
+.bank-transaction-wiz-page [data-original-title="Refresh"] {
+    display: none !important;
+}
+
+.bank-transaction-wiz-page [data-original-title="Reload List"] {
+    display: none !important;
+}
+
+/* Hide the Button group */
+.bank-transaction-wiz-page .custom-btn-group {
+    display: none !important;
+}
+
+.bank-transaction-wiz-page [data-fieldname="name"] {
+    display: none !important;
+}
+
+.bank-transaction-wiz-page [data-fieldname="status"] {
+    display: none !important;
+}
+
+.bank-transaction-wiz-page [data-fieldname="bank_account"] {
+    display: none !important;
+}
+
+.bank-transaction-wiz-page [data-fieldname="company"] {
+    display: none !important;
 }

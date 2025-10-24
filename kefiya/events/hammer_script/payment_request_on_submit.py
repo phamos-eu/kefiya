@@ -64,10 +64,10 @@ def export_request(payment_request_name):
         postext += (doc.mode_of_payment or '') + ';'
 
         if doc.payment_request_type == "Outward":
-            postext += str(frappe.format(invoicedoc.grand_total)) + ';'
+            postext += str(frappe.format(invoicedoc.grand_total)).replace('.','') + ';'
         elif doc.payment_request_type == "Inward":
             postext += "-"
-            postext += str(frappe.format(invoicedoc.grand_total)) + ';'
+            postext += str(frappe.format(invoicedoc.grand_total)).replace('.','') + ';'
 
         postext += (doc.currency or '') + '\n'
         buffer.write(postext)

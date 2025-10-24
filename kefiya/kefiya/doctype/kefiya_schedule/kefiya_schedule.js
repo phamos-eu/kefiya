@@ -15,7 +15,7 @@ frappe.ui.form.on('Kefiya Schedule', {
 		frm.add_custom_button(__("Import Transaction"), function(){
 			frm.save().then(() => {
 				frappe.call({
-					method: "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_kefiya_payments",
+					method: "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_fints_payments",
 					args: {
 						'manual': true
 					}

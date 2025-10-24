@@ -1,7 +1,6 @@
-<!-- Sales Invoice or Purchase Invoice -->
-{% if matchAgainst == "Sales Invoice" || matchAgainst == "Purchase Invoice" %}
-<div class="list-row payment-assign-wizard-item list-xs-height mb-4">
-  <div>
+<!-- Sales Invoice, Purchase Invoice or Mastercard -->
+{% if matchAgainst == "Sales Invoice" || matchAgainst == "Purchase Invoice" || matchAgainst == "Mastercard" %}
+<div class="list-row payment-assign-wizard-item list-xs-height" data-fieldname="{{ name }}" style="height: auto;">
     <div class="clickable-section" data-name="{{ name }}">
       <div class="row">
         <div class="col-sm-2 hidden-xs" style="padding-right: 0px">
@@ -25,9 +24,11 @@
         </div>
         {% endif %}
 
-        {% if matchAgainst == "Purchase Invoice" %}
-        <div class="col-sm-2 ellipsis">
+        {% if matchAgainst == "Purchase Invoice" || matchAgainst == "Mastercard" %}
+        <div class="col-sm-2 ellipsis" style="white-space: normal">
           <a href="purchase-invoice/{{ name }}">{{ name }}</a>
+          <br>
+          <p>{{bill_no}}</p>
         </div>
         <div class="col-sm-2 ellipsis hidden-xs">
           {{ supplier }} 
@@ -36,20 +37,19 @@
         </div>
         {% endif %}
 
-        <div class="col-sm-2 ellipsis">
+        <div class="col-sm-2 ellipsis data-amount">
           {{ outstanding_amount }}
         </div>
         <div class="col-sm-2 ellipsis hidden-xs">{{ posting_date }}</div>
         <!-- <div class="col-sm-3 ellipsis">{{ due_date }}</div> -->
       </div>
     </div>
-  </div>
 </div>
 {% endif %}
 
 
 {% if matchAgainst === "Journal Entry" %}
-<div class="list-row payment-assign-wizard-item" style="height: auto">
+<div class="list-row payment-assign-wizard-item" data-fieldname="{{ name }}" style="height: auto">
   <div class="row">
     <div class="col-sm-2" style="padding-right: 0px">
       <button
@@ -69,9 +69,15 @@
 
     <div class="col-sm-2 ellipsis hidden-xs">
       {{ party }}
+      <br>
+      {{bank_party_name}}
     </div>
     <div class="col-sm-2 ellipsis">
-      {{ unallocated_amount }}
+      {% if deposit > withdrawal %}
+        + {{ unallocated_amount }}
+      {% else %}
+        - {{ unallocated_amount }}
+      {% endif %}
     </div>
     <div class="col-sm-2 ellipsis"> {{ date }}</div>
   </div>
@@ -82,7 +88,7 @@
 <!-- Payment Entries -->
 {% if optionValue == "Payment Entry" %}
   {% for payment in payments %}
-    <div class="list-row payment-assign-wizard-item" style="height: auto">
+    <div class="list-row payment-assign-wizard-item" data-fieldname="{{ payment.name }}" style="height: auto">
       <div class="row">
         <div class="col-sm-1" style="padding-right: 0px">
           <button
@@ -111,7 +117,7 @@
 <!-- Bank Transactions -->
 {% if  optionValue == "Bank Transaction" %} 
     {% for payment in payments %}
-      <div class="list-row payment-assign-wizard-item" style="height: auto">
+      <div class="list-row payment-assign-wizard-item" data-fieldname="{{ payment.name }}" style="height: auto">
         <div class="row">
           <div class="col-sm-2" style="padding-right: 0px">
               <button
@@ -129,9 +135,11 @@
           </div>
           <div class="col-sm-2 ellipsis hidden-xs">
             {{ payment.party }}
+            <br>
+            {{ payment.bank_party_name }}
           </div>
-          <div class="col-sm-2 ellipsis">
-            {{ payment.unallocated_amount }}
+          <div class="col-sm-2 ellipsis data-amount">
+              {{ payment.unallocated_amount }}
           </div>
           <div class="col-sm-2 ellipsis">
             {{ payment.date }}

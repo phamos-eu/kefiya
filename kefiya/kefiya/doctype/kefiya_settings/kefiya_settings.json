@@ -8,7 +8,10 @@
   "bank_account",
   "assign_against",
   "show_entries_in_payment_assignment_wizard",
+  "overlap_days",
   "column_break_gv35w",
+  "delete_payment_entries_on_unreconciliation",
+  "mastercard",
   "column_break_qzdrd",
   "payment_request_csv_action",
   "recipient_email"
@@ -26,7 +29,7 @@
    "fieldtype": "Select",
    "hidden": 1,
    "label": "Match Against",
-   "options": "Sales Invoice\nPurchase Invoice\nJournal Entry"
+   "options": "Sales Invoice\nPurchase Invoice\nJournal Entry\nMastercard"
   },
   {
    "fieldname": "column_break_qzdrd",
@@ -57,12 +60,34 @@
    "fieldname": "bank_account",
    "fieldtype": "Section Break",
    "label": "Bank Transaction Wizard"
+  },
+  {
+   "default": "0",
+   "description": "The number of days to overlap between consecutive imports, ensuring all transactions are captured and re-checked from previous imports.",
+   "fieldname": "overlap_days",
+   "fieldtype": "Int",
+   "label": "Overlap Days",
+   "non_negative": 1
+  },
+  {
+   "default": "0",
+   "description": "Enable this option to automatically delete any payment entries associated with a bank transaction when the transaction is unreconciled.",
+   "fieldname": "delete_payment_entries_on_unreconciliation",
+   "fieldtype": "Check",
+   "label": "Delete Payment Entries on Unreconciliation"
+  },
+  {
+   "description": "Supplier associated with the Mastercard transactions",
+   "fieldname": "mastercard",
+   "fieldtype": "Link",
+   "label": "Mastercard",
+   "options": "Supplier"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2024-10-28 12:00:42.496298",
+ "modified": "2025-09-29 20:47:56.333517",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Settings",

@@ -76,7 +76,6 @@ kefiya.iban_tools = {
 				}
 			});
 		}else{
-			
 			data = {
 				valid: false,
 				messages: 'Invalid IBAN',
@@ -89,6 +88,32 @@ kefiya.iban_tools = {
 			// frappe.throw(__("Unsupported IBAN country code: {0}",["<b>"+ibanCountryCode+"</b>"]));
 		}
 	},
+	getPartyName: function(party_type, party) {
+		return new Promise((resolve, reject) => {
+			frappe.call({
+				method: 'frappe.client.get',
+				args: {
+					doctype: party_type,
+					name: party
+				},
+				callback: function(r) {
+					if (r.message) {
+						if (party_type === "Customer"){
+							resolve(r.message.customer_name);
+						}
+						else if (party_type === "Supplier"){
+							resolve(r.message.supplier_name);
+						}
+					} else {
+						reject("No party found");
+					}
+				},
+				error: function(err) {
+					reject(err);
+				}
+			});
+		});
+	},	
 	createPartyBankAccount: function(frm, bankInfo, resultCallback) {
 		frappe.call({
 			method: "kefiya.utils.client.new_bank_account",
@@ -104,13 +129,18 @@ kefiya.iban_tools = {
 		});
 	},
 	setPartyBankAccount: function(frm, callback) {
-		
 		kefiya.iban_tools.getBankDetailsByIBAN(frm.doc.bank_party_iban
-			, function(data) {
+			, async function(data) {
 			
 			if (data.checkResults.bankCode) {
 				
 				let defalutValue = frm.doc.party_type ? frm.doc.party_type:frm.doc.deposit > 0 ? 'Customer': 'Supplier'
+
+				let party_name = ""
+				if (defalutValue && frm.doc.party){
+					party_name = await kefiya.iban_tools.getPartyName(defalutValue, frm.doc.party)
+				}
+				
 				let dialog = new frappe.ui.Dialog({
 					title: __('Create Bank Account'),
 					fields: [{
@@ -127,7 +157,6 @@ kefiya.iban_tools = {
 						label: 'Date',
 						fieldname: 'date',
 						fieldtype: 'Date',
-						read_only: 1,
 						default: frm.doc.date,
 					}, {
 						label: 'Depost',
@@ -168,7 +197,18 @@ kefiya.iban_tools = {
 						fieldtype: 'Link',
 						reqd: 1,
 						default: frm.doc.party,
-						options: defalutValue
+						options: defalutValue,
+						onchange: async function(){
+							party_name = await kefiya.iban_tools.getPartyName(dialog.get_value('party_type'), dialog.get_value('party'))
+							dialog.set_value('party_name', party_name);
+							dialog.fields_dict['party'].refresh();
+						}
+					}, {
+						label: 'Party Name',
+						fieldname: 'party_name',
+						fieldtype: 'Data',
+						default: party_name
+						
 					},  {
 						label: 'Description',
 						fieldname: 'description',

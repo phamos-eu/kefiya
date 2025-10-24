@@ -92,7 +92,7 @@ class BankAccountController:
                 'party': payment_doc.get('party'),
                 'iban': payment_doc.get('bank_party_iban'),
                 'bank_account_no': bankCode,
-                'swift_number': swiftNumber,
+                'branch_code': swiftNumber,
                 'is_company_account': False,
                 'is_default': False,
             })
