@@ -235,8 +235,13 @@ class FinTSController:
                 except Exception as e:
                     frappe.throw(_("Failed to attach file"), e)
 
-                curr_doc.start_date = tansactions[0]["date"]
-                curr_doc.end_date = tansactions[-1]["date"]
+                # curr_doc.start_date = tansactions[0]["date"]
+                # curr_doc.end_date = tansactions[-1]["date"]
+                first_txn = tansactions[0][0]
+                last_txn = tansactions[0][-1]
+
+                curr_doc.start_date = first_txn.get("date") or first_txn.get("ValueDate.Date")
+                curr_doc.end_date   = last_txn.get("date") or last_txn.get("ValueDate.Date")
 
                 importer = ImportBankTransaction(self.kefiya_login, self.interactive)
                 importer.kefiya_import(tansactions)
