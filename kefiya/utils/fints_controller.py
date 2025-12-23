@@ -422,7 +422,7 @@ class FinTSController:
                 curr_doc.end_date = tansactions[-1]["date"]
 
                 importer = ImportBankTransaction(self.kefiya_login, self.interactive)
-                importer.kefiya_import(tansactions)
+                importer.old_kefiya_import(tansactions)
 
                 if len(importer.bank_transactions) == 0:
                     frappe.msgprint(_("No new payments found"))
