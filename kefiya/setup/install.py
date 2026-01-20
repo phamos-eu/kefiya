@@ -4,7 +4,7 @@ from frappe.custom.doctype.property_setter.property_setter import make_property_
 
 def after_migrate():
 	create_custom_fields(get_custom_fields())
-	
+
 def before_uninstall():
 	delete_custom_fields(get_custom_fields())
 
