@@ -394,6 +394,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 		// Extract the selected value from "Kefiya Settings" doctype
 		const optionValue = this.kefiyaSettings.show_entries_in_payment_assignment_wizard
 		const matchAgainst = this.kefiyaSettings.assign_against
+		const tab_container = await this.add_custom();
 
 		const me = this;
 		this.$result.find(".list-row-contain").remove();
@@ -406,8 +407,7 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 		$(this.page.wrapper).find('[data-fieldname="bank_account"]').remove();
 		$(this.page.wrapper).find('.custom-btn-group').remove();
 		$(this.page.wrapper).find('.standard-filter-section').empty();
-		const tab_container = await this.add_custom();
-		tab_container.appendTo('.standard-filter-section');
+		$(this.page.wrapper).find('.standard-filter-section').append(tab_container);
 
 		let rowHTML;
 		let party_value;

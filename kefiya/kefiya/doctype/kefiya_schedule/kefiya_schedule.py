@@ -12,6 +12,7 @@ from frappe.utils.scheduler import is_scheduler_inactive
 from frappe import _
 from kefiya.utils.client import import_fints_transactions
 from kefiya.utils.fints_controller import FinTSController
+from kefiya.utils.fints_controller_legacy import FinTSController as FinTSControllerLegacy
 
 
 class KefiyaSchedule(Document):
@@ -102,7 +103,11 @@ def scheduled_import_fints_payments(manual=None):
                             schedule_settings.name
                         )
                     else:
-                        FinTSController(child_item.kefiya_login) \
-                            .import_fints_transactions(kefiya_import.name)
+                        if frappe.db.get_single_value("Kefiya Settings", "enable_tan_authentication"):
+                            FinTSController(child_item.kefiya_login) \
+                                .import_fints_transactions(kefiya_import.name)
+                        else:
+                            FinTSControllerLegacy(child_item.kefiya_login) \
+                                .import_fints_transactions(kefiya_import.name)
             except Exception:
                 frappe.log_error(frappe.get_traceback())
