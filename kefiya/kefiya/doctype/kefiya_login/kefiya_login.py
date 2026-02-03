@@ -18,6 +18,7 @@ class KefiyaLogin(Document):
         self.stored_tan_state_decoupled = None
         self.iban_list = None
         self.account_iban = None
+        self.needs_reauth = 0
 
     @property
     def stored_client_blob(self):

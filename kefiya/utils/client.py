@@ -56,17 +56,41 @@ def get_accounts(kefiya_login, user_scope):
     # New controller may raise TanInteractionRequired – we just ignore and let
     # the realtime handler + UI deal with it. Legacy controller won’t raise it.
     try:
-        return {
+        result = {
             "accounts": FinTSController(
                 kefiya_login,
                 interactive
             ).get_fints_accounts()
         }
+        # Clear needs_reauth on success so scheduler/desk no longer prompt for this login
+        doc = frappe.get_doc("Kefiya Login", kefiya_login)
+        if doc.get("needs_reauth"):
+            doc.needs_reauth = 0
+            doc.save(ignore_permissions=True)
+        return result
     except Exception:
         # In TAN mode this can be TanInteractionRequired – handled via socket.
         # For legacy mode we re-raise to not hide real errors.
         if not _use_tan_authentication():
             raise
+
+
+@frappe.whitelist()
+def get_logins_needing_reauth():
+    """Return Kefiya Login names that need re-auth (TAN enabled and needs_reauth set).
+
+    Used on desk load to auto-trigger the same Load Accounts flow so the
+    Verification required dialog appears.
+    """
+    if not _use_tan_authentication():
+        return []
+    logins = frappe.get_all(
+        "Kefiya Login",
+        filters={"needs_reauth": 1},
+        pluck="name",
+    )
+    # Only return logins the current user has write permission on
+    return [n for n in logins if frappe.has_permission("Kefiya Login", "write", doc=n)]
 
 
 @frappe.whitelist()
@@ -323,6 +347,11 @@ def resolve_tan_interaction(fints_login: str, values: str | dict):
         else:
             # get index of tan_mode in possible_tan_modes
             FinTSController(fints_login, {"docname": fints_login, "enabled": True}, tan_mode=tan_mode, tan_medium=tan_medium)
+        # TAN resolved successfully; clear needs_reauth so desk no longer prompts
+        doc = frappe.get_doc("Kefiya Login", fints_login)
+        if doc.get("needs_reauth"):
+            doc.needs_reauth = 0
+            doc.save(ignore_permissions=True)
     except TanInteractionRequired:
         # will have triggered user interaction via socket
         pass

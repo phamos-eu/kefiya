@@ -30,6 +30,7 @@
   "column_break_jlnnd",
   "bank_account",
   "hidden_section",
+  "needs_reauth",
   "iban_list",
   "stored_client_state",
   "stored_dialog_state",
@@ -122,10 +123,17 @@
    "reqd": 1
   },
   {
-   "fieldname": "hidden_section",
-   "fieldtype": "Section Break",
+  "fieldname": "hidden_section",
+  "fieldtype": "Section Break",
+  "hidden": 1,
+  "label": "Hidden"
+  },
+  {
+   "default": "0",
+   "fieldname": "needs_reauth",
+   "fieldtype": "Check",
    "hidden": 1,
-   "label": "Hidden"
+   "label": "Needs Re-auth"
   },
   {
    "fieldname": "iban_list",

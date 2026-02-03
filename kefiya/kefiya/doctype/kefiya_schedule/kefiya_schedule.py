@@ -11,7 +11,7 @@ from frappe.utils import now_datetime
 from frappe.utils.scheduler import is_scheduler_inactive
 from frappe import _
 from kefiya.utils.client import import_fints_transactions
-from kefiya.utils.fints_controller import FinTSController
+from kefiya.utils.fints_controller import FinTSController, TanInteractionRequired
 from kefiya.utils.fints_controller_legacy import FinTSController as FinTSControllerLegacy
 
 
@@ -109,5 +109,21 @@ def scheduled_import_fints_payments(manual=None):
                         else:
                             FinTSControllerLegacy(child_item.kefiya_login) \
                                 .import_fints_transactions(kefiya_import.name)
+            except TanInteractionRequired:
+                # TAN required but no user present; mark login so desk can show Verification dialog
+                frappe.db.set_value(
+                    "Kefiya Login",
+                    child_item.kefiya_login,
+                    "needs_reauth",
+                    1,
+                    update_modified=False,
+                )
+                frappe.db.commit()
+                frappe.log_error(
+                    _("TAN re-auth required for {0}. User will be prompted on next login.").format(
+                        child_item.kefiya_login
+                    ),
+                    "FinTS scheduled import",
+                )
             except Exception:
                 frappe.log_error(frappe.get_traceback())

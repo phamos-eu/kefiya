@@ -24,6 +24,17 @@ frappe.ui.form.on('Kefiya Login', {
 		});
 	},
 	refresh: function(frm) {
+		// Auto-trigger Load Accounts when form was opened for re-auth (same Verification required dialog)
+		try {
+			const reauth_login = localStorage.getItem("kefiya_reauth_login");
+			if (reauth_login && reauth_login === frm.doc.name) {
+				localStorage.removeItem("kefiya_reauth_login");
+				setTimeout(function() {
+					frm.events.call_get_login_accounts(frm);
+				}, 500);
+			}
+		} catch (e) { /* ignore */ }
+
 		// If iban_list exists, it's stored as JSON list of IBAN strings.
 		if(frm.doc.iban_list){
 			try {
