@@ -125,14 +125,14 @@
   {
   "fieldname": "hidden_section",
   "fieldtype": "Section Break",
-  "hidden": 1,
+  "hidden": 0,
   "label": "Hidden"
   },
   {
    "default": "0",
    "fieldname": "needs_reauth",
    "fieldtype": "Check",
-   "hidden": 1,
+   "hidden": 0,
    "label": "Needs Re-auth"
   },
   {
