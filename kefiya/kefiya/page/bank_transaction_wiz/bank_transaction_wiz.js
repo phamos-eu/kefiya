@@ -299,10 +299,15 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 				),
 			});
 		} else if(this.kefiyaSettings.assign_against === 'Mastercard'){
+
+			const mastercard_rows = this.kefiyaSettings.mastercard || [];
+			const supplier_list = Array.isArray(mastercard_rows)
+				? mastercard_rows.map((row) => (typeof row === 'string' ? row : row.supplier)).filter(Boolean)
+				: [];
 			return Object.assign({}, args, {
 				...args.filters.push(
 					["Purchase Invoice", "docstatus", "=", 1],
-					["Purchase Invoice", "supplier", "=", this.kefiyaSettings.mastercard],
+					["Purchase Invoice", "supplier", "in", supplier_list],
 					["Purchase Invoice", "outstanding_amount", "!=", 0]
 				),
 			});

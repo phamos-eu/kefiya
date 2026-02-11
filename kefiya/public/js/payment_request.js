@@ -36,25 +36,29 @@ frappe.ui.form.on('Payment Request', {
             },
             callback: function(r) {
                 if (r.message.status == "success") {
-                    if (r.message.csv_action == "Download CSV"){
-						var csvContent = r.message.data;
-						var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    var export_action = r.message.export_action;
+                    var is_download = export_action == "Download SEPA XML";
+                    var is_email = export_action == "Send SEPA XML via Email";
 
-						var link = document.createElement("a");
-						if (link.download !== undefined) {
-							var url = URL.createObjectURL(blob);
-							link.setAttribute("href", url);
-							link.setAttribute("download", "moneyplex_" + frm.doc.name + ".csv");
-							link.style.visibility = 'hidden';
-							document.body.appendChild(link);
-							link.click();
-							document.body.removeChild(link);
-						}
-					}
-					else if (r.message.csv_action == "Send CSV via Email") {
+                    if (is_download) {
+                        var content = r.message.data;
+                        var blob = new Blob([content], { type: "application/xml;charset=utf-8;" });
 
-						const recipient_email = r.message.recipient_email;
-						const csv_content = r.message.data;
+                        var link = document.createElement("a");
+                        if (link.download !== undefined) {
+                            var url = URL.createObjectURL(blob);
+                            link.setAttribute("href", url);
+                            link.setAttribute("download", "moneyplex_" + frm.doc.name + ".xml");
+                            link.style.visibility = 'hidden';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }
+                    }
+                    else if (is_email) {
+
+                        var recipient_email = r.message.recipient_email;
+                        var file_content = r.message.data;
 
                         frappe.msgprint({
                             title: __('Sending Email'),
@@ -62,35 +66,35 @@ frappe.ui.form.on('Payment Request', {
                             message: __('Email is being sent to {0}. Please wait...', [recipient_email])
                         });
 
-						frappe.call({
-							method: "kefiya.events.hammer_script.payment_request_on_submit.send_csv_via_email",
-							args: {
-								recipient_email,
-								csv_content
-							},
-							callback: function (r) {
-								
-								if (r.message) {
-									if (r.message.status === "success") {
-										frappe.show_alert({
+                        frappe.call({
+                            method: "kefiya.events.hammer_script.payment_request_on_submit.send_sepa_xml_via_email",
+                            args: {
+                                recipient_email: recipient_email,
+                                xml_content: file_content
+                            },
+                            callback: function (r) {
+
+                                if (r.message) {
+                                    if (r.message.status === "success") {
+                                        frappe.show_alert({
                                             message: __('Email sent successfully to {0}', [recipient_email]),
                                             indicator: 'green'
                                         });
-									} else {
-										frappe.msgprint({
-											title: __('Error'),
-											indicator: 'red',
-											message: r.message.message
-										});
-										frappe.validated = false;
-									}
-								}
-							}
-						})
-					}
+                                    } else {
+                                        frappe.msgprint({
+                                            title: __('Error'),
+                                            indicator: 'red',
+                                            message: r.message.message
+                                        });
+                                        frappe.validated = false;
+                                    }
+                                }
+                            }
+                        });
+                    }
                 } else {
-					frappe.msgprint(__('Error during CSV export: {0}', [r.message.message]));
-					frappe.validated = false;
+                    frappe.msgprint(__('Error during export: {0}', [r.message.message]));
+                    frappe.validated = false;
                 }
             }
         });
