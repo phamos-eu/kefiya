@@ -4,7 +4,6 @@
 from __future__ import unicode_literals
 
 import frappe
-from frappe.utils import today
 
 
 def _use_tan_authentication() -> bool:
@@ -163,7 +162,7 @@ def create_mastercard_journal_entry_from_purchase_invoice(invoice_doc, bank_tran
 
     if invoice_doc.status == "Return":
         je = frappe.new_doc("Journal Entry")
-        je.posting_date = today()
+        je.posting_date = bt.date
         je.company = invoice_doc.company
         je.voucher_type = "Journal Entry"
         je.user_remark = f"Refund for Return Invoice {invoice_doc.name}"
@@ -197,8 +196,9 @@ def create_mastercard_journal_entry_from_purchase_invoice(invoice_doc, bank_tran
         payment_entry_doc = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", "Purchase Invoice", invoice_doc.name)
         payment_entry_doc.payment_type = "Pay"
         payment_entry_doc.paid_amount = paid_amount
-        payment_entry_doc.reference_date = today()
-        payment_entry_doc.reference_no = 'BTN Wizard '+ today()
+        payment_entry_doc.posting_date = bt.date
+        payment_entry_doc.reference_date = bt.date
+        payment_entry_doc.reference_no = 'BTN Wizard ' + bt.date.strftime("%Y-%m-%d") if hasattr(bt.date, "strftime") else 'BTN Wizard ' + str(bt.date)
         payment_entry_doc.bank_account = bt.bank_account
         payment_entry_doc.paid_from = mastercard_account
 
@@ -257,8 +257,9 @@ def create_payment_entry(bank_transaction_name, invoice_name, match_against):
         payment_entry = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", match_against, invoice_name)
 
         payment_entry.paid_amount = paid_amount
-        payment_entry.reference_date = today()
-        payment_entry.reference_no = 'BTN Wizard '+ today()
+        payment_entry.posting_date = bank_transaction.date
+        payment_entry.reference_date = bank_transaction.date
+        payment_entry.reference_no = 'BTN Wizard ' + str(bank_transaction.date)
         payment_entry.payment_type = "Receive" if bank_transaction.deposit > 0.0 else "Pay"
         account_from_to = "paid_to" if bank_transaction.deposit > 0.0 else "paid_from"
 
