@@ -104,6 +104,12 @@ kefiya.iban_tools = {
 						else if (party_type === "Supplier"){
 							resolve(r.message.supplier_name);
 						}
+						else if (party_type === "Employee"){
+							resolve(r.message.employee_name);
+						}
+						else if (party_type === "Shareholder"){
+							resolve(r.message.title);
+						}
 					} else {
 						reject("No party found");
 					}
