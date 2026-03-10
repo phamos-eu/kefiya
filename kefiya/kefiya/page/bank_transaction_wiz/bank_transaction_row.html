@@ -128,8 +128,14 @@
               💰 {{ __("Reconcile") }}
               </button>
           </div>
-          <div class="col-sm-2 ellipsis hidden-xs" style="white-space: normal">
-            {{ payment.description}}
+          <div class="col-sm-2 ellipsis hidden-xs">
+            <div class="description-container"
+              style="width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;"
+              data-toggle="tooltip"
+              data-placement="top"
+              title="{{ payment.description }}">
+              {{ payment.description }}
+            </div>
             <br>
             <a href="bank-transaction/{{ payment.name }}">{{ payment.name }}</a>
           </div>
