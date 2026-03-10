@@ -288,6 +288,168 @@ def create_payment_entry(bank_transaction_name, invoice_name, match_against):
         return paid_amount, payment_entry.name, unallocated_amount, outstanding_amount, diff
 
 
+def _get_priority_parties(assign_against):
+	"""Return set of party names (customer/supplier) that have at least one
+	unreconciled Bank Transaction, so we can show those invoices first in the wizard.
+	"""
+	if assign_against == "Sales Invoice":
+		bt_filters = [
+			["docstatus", "=", 1],
+			["party_type", "=", "Customer"],
+			["deposit", ">", 0],
+			["unallocated_amount", "!=", 0],
+		]
+	elif assign_against == "Purchase Invoice":
+		bt_filters = [
+			["docstatus", "=", 1],
+			["party_type", "=", "Supplier"],
+			["withdrawal", ">", 0],
+			["unallocated_amount", "!=", 0],
+		]
+	elif assign_against == "Mastercard":
+		bt_filters = [
+			["docstatus", "=", 1],
+			["party_type", "=", "Supplier"],
+			["unallocated_amount", "!=", 0],
+		]
+	else:
+		return set()
+	parties = frappe.get_all(
+		"Bank Transaction",
+		filters=bt_filters,
+		pluck="party",
+		distinct=True,
+		ignore_permissions=True,
+	)
+	return set(p for p in parties if p)
+
+
+# Params that must not be passed to reportview execute (request-only / reserved)
+_REPORTVIEW_DISALLOWED = frozenset(
+	("cmd", "data", "ignore_permissions", "view", "user", "csrf_token", "join", "assign_against")
+)
+
+
+def _reportview_kwargs(kwargs):
+	"""Return kwargs suitable for reportview.execute (strip request-only params)."""
+	return {k: v for k, v in kwargs.items() if k not in _REPORTVIEW_DISALLOWED}
+
+
+@frappe.whitelist()
+def get_bank_transaction_wizard_list(doctype, fields, filters, order_by, start, page_length, assign_against=None, **kwargs):
+	"""Return list data for Bank Transaction Wizard with invoices that have
+	matching bank transactions prioritised (first in the list), so the first
+	page shows reconcilable items even when pagination is 20 or 100.
+	Returns the same compressed format as frappe.desk.reportview.get.
+	"""
+	from frappe.desk.reportview import compress, execute
+
+	if isinstance(filters, str):
+		filters = frappe.parse_json(filters) or []
+	if isinstance(fields, str):
+		fields = frappe.parse_json(fields) if fields != "*" else ["*"]
+
+	start = int(start or 0)
+	page_length = int(page_length or 20)
+	assign_against = assign_against or "Sales Invoice"
+	rv_kw = _reportview_kwargs(kwargs)
+
+	# Journal Entry view lists Bank Transactions directly; no prioritisation needed
+	if assign_against == "Journal Entry":
+		result = execute(
+			doctype=doctype,
+			fields=fields,
+			filters=filters,
+			order_by=order_by,
+			start=start,
+			page_length=page_length,
+			**rv_kw,
+		)
+		return compress(result, {"doctype": doctype, **rv_kw})
+
+	# For Sales Invoice / Purchase Invoice / Mastercard, put invoices with matching BT first
+	party_field = "customer" if assign_against == "Sales Invoice" else "supplier"
+	priority_parties = _get_priority_parties(assign_against)
+
+	if not priority_parties:
+		result = execute(
+			doctype=doctype,
+			fields=fields,
+			filters=filters,
+			order_by=order_by,
+			start=start,
+			page_length=page_length,
+			**rv_kw,
+		)
+		return compress(result, {"doctype": doctype, **rv_kw})
+
+	# Build priority and non-priority filters (same base filters + party in/not in)
+	priority_filters = list(filters or []) + [[doctype, party_field, "in", list(priority_parties)]]
+	non_priority_filters = list(filters or []) + [[doctype, party_field, "not in", list(priority_parties)]]
+
+	# Count priority rows: pass only allowed args so "fields" is always a list of strings
+	_count_args = {
+		"doctype": doctype,
+		"fields": [f"`tab{doctype}`.name"],
+		"filters": priority_filters,
+		"order_by": None,
+		"start": 0,
+		"page_length": 0,
+		"run": 0,
+	}
+	partial_query = execute(**_count_args)
+	total_priority = int(
+		frappe.db.sql(f"""select count(*) from ( {partial_query} ) _p""")[0][0]
+	)
+
+	if start >= total_priority:
+		# Page is entirely in non-priority range
+		result = execute(
+			doctype=doctype,
+			fields=fields,
+			filters=non_priority_filters,
+			order_by=order_by,
+			start=start - total_priority,
+			page_length=page_length,
+			**rv_kw,
+		)
+	elif start + page_length <= total_priority:
+		# Page is entirely in priority range
+		result = execute(
+			doctype=doctype,
+			fields=fields,
+			filters=priority_filters,
+			order_by=order_by,
+			start=start,
+			page_length=page_length,
+			**rv_kw,
+		)
+	else:
+		# Page spans priority and non-priority
+		priority_len = total_priority - start
+		priority_result = execute(
+			doctype=doctype,
+			fields=fields,
+			filters=priority_filters,
+			order_by=order_by,
+			start=start,
+			page_length=priority_len,
+			**rv_kw,
+		)
+		non_priority_result = execute(
+			doctype=doctype,
+			fields=fields,
+			filters=non_priority_filters,
+			order_by=order_by,
+			start=0,
+			page_length=page_length - priority_len,
+			**rv_kw,
+		)
+		result = list(priority_result) + list(non_priority_result)
+
+	return compress(result, {"doctype": doctype, **rv_kw})
+
+
 @frappe.whitelist()
 def change_match_against(selected_match):
     kefiya_setting = frappe.get_single("Kefiya Settings")

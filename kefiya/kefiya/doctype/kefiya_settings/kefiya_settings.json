@@ -11,6 +11,7 @@
   "overlap_days",
   "column_break_gv35w",
   "delete_payment_entries_on_unreconciliation",
+  "show_reconcile_confirmation_dialog",
   "mastercard",
   "column_break_qzdrd",
   "payment_request_export_action",
@@ -77,6 +78,13 @@
    "fieldname": "delete_payment_entries_on_unreconciliation",
    "fieldtype": "Check",
    "label": "Delete Payment Entries on Unreconciliation"
+  },
+  {
+   "default": "0",
+   "description": "When enabled, shows a confirmation dialog before reconciling a payment to an invoice in the Bank Transaction Wizard.",
+   "fieldname": "show_reconcile_confirmation_dialog",
+   "fieldtype": "Check",
+   "label": "Show Reconcile Confirmation Dialog"
   },
   {
    "description": "Supplier associated with the Mastercard transactions",
