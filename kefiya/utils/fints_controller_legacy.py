@@ -319,5 +319,5 @@ class FinTSInteractive:
                     "progress": progress,
                     "docname": self.docname,
                     "message": message,
-                    "reload": False
+                    "reload": reload
                 }, user=frappe.session.user)

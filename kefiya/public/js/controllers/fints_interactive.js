@@ -5,6 +5,7 @@ frappe.provide("kefiya.interactive");
 
 kefiya.interactive = {
 	updateQueue: Promise.resolve(),
+	progressState: {},
 
 	enqueueUpdate: function(fn, delay) {
 		this.updateQueue = this.updateQueue
@@ -13,17 +14,43 @@ kefiya.interactive = {
 				return Promise.resolve(fn());
 			})
 			.then(() => {
-				// delay the next update
-				return new Promise((resolve) => setTimeout(resolve, delay || 500));
+				if (!delay) {
+					return;
+				}
+
+				// delay the next update only when explicitly requested
+				return new Promise((resolve) => setTimeout(resolve, delay));
 			});
 
 		return this.updateQueue;
 	},
 
 	progressbar: function(frm) {
+		this.progressState[frm.doc.name] = {
+			progress: 0,
+			completed: false,
+		};
+
 		frappe.realtime.off("fints_progressbar");
 		frappe.realtime.on("fints_progressbar", function(data) {
 			if(data.docname === frm.doc.name) {
+				const state = kefiya.interactive.progressState[frm.doc.name] || {
+					progress: 0,
+					completed: false,
+				};
+
+				if (state.completed && data.progress < 100) {
+					return;
+				}
+
+				if (data.progress < state.progress) {
+					return;
+				}
+
+				state.progress = data.progress;
+				state.completed = data.progress >= 100;
+				kefiya.interactive.progressState[frm.doc.name] = state;
+
 				kefiya.interactive.enqueueUpdate(() => {
 					if(data.reload && data.reload === true) {
 						frm.reload_doc();
@@ -40,7 +67,7 @@ kefiya.interactive = {
 							frm.reload_doc()
 						}, 500);
 					}
-				});
+				}, 0);
 			}
 		});
 

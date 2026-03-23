@@ -1,16 +1,16 @@
 .bank-transaction-wiz-page .list-row-contain {
-    border: 1px solid #ccc;
-    border-radius: 5px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
     margin-bottom: 10px;
     padding: 10px;
 }
 
 .bank-transaction-wiz-page .list-row-contain:nth-of-type(odd) {
-    background-color: #F3F3F3;
+    background-color: var(--control-bg);
 }
 
 .bank-transaction-wiz-page .list-row-contain:nth-of-type(even) {
-    background-color: #FFFFFF;
+    background-color: var(--fg-color);
 }
 
 /* Hide the Refresh button */
