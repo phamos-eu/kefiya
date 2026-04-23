@@ -732,9 +732,7 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 						return {
 							filters: {
 								is_group: 0,
-								company: frappe.defaults.get_default("company"),
-								// account_type: partyType === 'Supplier' ? 'Expense Account' : 'Income Account',
-
+								company: me.data.company,
 							},
 						};
 					},
@@ -749,7 +747,7 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 						return {
 							filters: {
 								is_group: 0,
-								company: frappe.defaults.get_default("company"),
+								company: me.data.company,
 								account_type: partyType === 'Supplier' ? 'Payable' : 'Receivable',
 
 							},
