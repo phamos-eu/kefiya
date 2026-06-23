@@ -1,0 +1,20 @@
+[project]
+name = "kefiya"
+authors = [
+    { name = "Phamos GmbH", email = "support@phamos.eu" },
+]
+description = "FinTS Connector for ERPNext (Germany)"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = [
+    "fints==5.0.0b1",
+]
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<17.0.0"
+erpnext = ">=15.0.0,<17.0.0"
