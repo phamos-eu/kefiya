@@ -35,7 +35,13 @@ def _build_sepa_xml(payment_request_name):
 	if not party_bank.iban:
 		return None, _("Party bank account {0} has no IBAN.").format(doc.bank_account)
 
-	amount_cents = int(round(flt(invoicedoc.grand_total, 2) * 100))
+	# Pay the Payment Request amount, never more than what is still outstanding
+	# on the invoice -- avoids overpaying a partially settled invoice.
+	pay_amount = flt(doc.grand_total) or flt(invoicedoc.grand_total)
+	outstanding = flt(invoicedoc.get("outstanding_amount"))
+	if outstanding and pay_amount > outstanding:
+		pay_amount = outstanding
+	amount_cents = int(round(pay_amount * 100))
 	if amount_cents <= 0:
 		return None, _("Payment amount must be greater than zero.")
 

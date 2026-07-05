@@ -1,7 +1,22 @@
 import frappe
-from erpnext.accounts.doctype.bank_transaction.bank_transaction import BankTransaction
 
-class CustomBankTransaction(BankTransaction):
+# When the ALYF `banking` app is installed, both apps override "Bank Transaction" via
+# `override_doctype_class`. Kefiya's class wins as the controller, but banking still
+# registers a `before_submit` doc-event that calls `doc.get_rounded(...)` -- a method
+# defined on banking's BankTransaction subclass. If Kefiya extends the plain ERPNext
+# BankTransaction instead, that method is missing and every bank-transaction import
+# fails with `AttributeError: ... has no attribute 'get_rounded'`. Extending banking's
+# class when present makes the two overrides compose; we fall back to the ERPNext base
+# when `banking` is not installed (banking is not a Kefiya dependency).
+try:
+    from banking.overrides.bank_transaction import CustomBankTransaction as BankTransactionBase
+except Exception:
+    from erpnext.accounts.doctype.bank_transaction.bank_transaction import (
+        BankTransaction as BankTransactionBase,
+    )
+
+
+class CustomBankTransaction(BankTransactionBase):
     @frappe.whitelist()
     def remove_payment_entries(self):
         payment_entries = []

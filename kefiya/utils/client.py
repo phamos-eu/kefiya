@@ -42,6 +42,277 @@ def import_fints_transactions(kefiya_import, kefiya_login, user_scope):
 
 
 @frappe.whitelist()
+def import_fints_holdings(kefiya_login, user_scope):
+    """Fetch securities holdings (Depot) for a login and store a snapshot.
+
+    :param kefiya_login: kefiya_login doc name
+    :param user_scope: current open doctype page (for progress/TAN UI)
+    :return: dict with created/updated counts
+    """
+    from kefiya.utils.securities import refresh_holdings
+
+    FinTSController = _get_fints_controller()
+    interactive = {"docname": user_scope, "enabled": True}
+
+    controller = FinTSController(kefiya_login, interactive)
+    holdings = controller.get_fints_holdings()
+    return refresh_holdings(kefiya_login, holdings)
+
+
+@frappe.whitelist()
+def fetch_all(kefiya_login, user_scope=None):
+    """Fetch everything the bank offers for one login in a single action.
+
+    Runs the real transaction import first (the "Umsaetze"), then best-effort
+    fetches balance, standing orders / scheduled debits, the statement/document
+    list and credit-card transactions. Every extra fetch is wrapped so that a
+    failure of one (or a bank that does not support it) never aborts the others
+    or the transaction import. Standing orders are additionally fed into the
+    Kefiya Planned Payment forecast table.
+
+    A single confirmation/TAN covers the session because the login's stored
+    client state is shared across the calls.
+
+    :return: dict summary {transactions, balance, planned, statements,
+        credit_card, errors}
+    """
+    from frappe.utils import now_datetime
+    from kefiya.utils.import_bank_transaction import resolve_incremental_from_date
+
+    # Permission gate: a user-triggered bank fetch that creates Bank
+    # Transactions / Payment Entries must hold write rights on the login.
+    frappe.has_permission("Kefiya Login", ptype="write",
+                          doc=kefiya_login, throw=True)
+
+    scope = user_scope or kefiya_login
+    summary = {
+        "transactions": None,
+        "balance": None,
+        "planned": None,
+        "statements": None,
+        "credit_card": None,
+        "errors": [],
+    }
+
+    bank_account, allowed_days = (frappe.db.get_value(
+        "Kefiya Login", kefiya_login,
+        ["bank_account", "allowed_sync_days_in_past"]
+    ) or (None, None))
+
+    # 1) Transactions (the primary purpose: "aktuelle Umsaetze abrufen").
+    #    A failure here IS reported to the user (unlike the best-effort extras).
+    kefiya_import = frappe.get_doc({
+        "doctype": "Kefiya Import",
+        "kefiya_login": kefiya_login,
+        "from_date": resolve_incremental_from_date(bank_account, allowed_days),
+        "to_date": now_datetime().date(),
+    })
+    kefiya_import.save()
+    try:
+        new_txns = import_fints_transactions(
+            kefiya_import.name, kefiya_login, scope)
+    except Exception as e:
+        # A TAN/SCA request raises TanInteractionRequired after the interactive
+        # socket event was already published, so the caller (form or cockpit)
+        # can prompt for the TAN. Report it as a status instead of a raw error
+        # and stop here: nothing else can be fetched until the session is
+        # authenticated. Any other error is surfaced truthfully.
+        try:
+            from kefiya.utils.fints_controller import TanInteractionRequired
+        except Exception:
+            TanInteractionRequired = ()
+        if TanInteractionRequired and isinstance(e, TanInteractionRequired):
+            summary["transactions"] = {"status": "tan_required"}
+            summary["tan_required"] = True
+            return summary
+        raise
+    summary["transactions"] = {
+        "import": kefiya_import.name,
+        "new_count": len(new_txns) if new_txns else 0,
+    }
+
+    # The FinTS-capability reads (balance, scheduled debits, statements, credit
+    # card) live on the new FinTSController regardless of the TAN toggle.
+    from kefiya.utils.fints_controller import FinTSController as FetchCtl
+    from kefiya.utils.fints_controller import _to_jsonable
+
+    # 2) Balance incl. credit line (best effort).
+    try:
+        summary["balance"] = FetchCtl(kefiya_login).get_fints_balance()
+    except Exception:
+        summary["errors"].append("balance")
+        frappe.log_error(title="Kefiya fetch_all: balance failed",
+                         message=frappe.get_traceback())
+
+    # 3) Standing orders / scheduled debits -> forecast table (best effort).
+    try:
+        from kefiya.utils.planned_payment import (
+            normalize_scheduled_debits, refresh_planned_payments,
+        )
+        raw = _to_jsonable(FetchCtl(kefiya_login).get_fints_scheduled_debits())
+        norm = normalize_scheduled_debits(raw if isinstance(raw, list) else [])
+        planned = refresh_planned_payments(kefiya_login, norm["items"])
+        planned["skipped"] = norm["skipped"]
+        summary["planned"] = planned
+    except Exception:
+        summary["errors"].append("scheduled_debits")
+        frappe.log_error(title="Kefiya fetch_all: scheduled debits failed",
+                         message=frappe.get_traceback())
+
+    # 4) Electronic statement / document list (best effort).
+    try:
+        stmts = _to_jsonable(FetchCtl(kefiya_login).get_fints_statements())
+        summary["statements"] = {
+            "count": len(stmts) if isinstance(stmts, list) else 0,
+        }
+    except Exception:
+        summary["errors"].append("statements")
+        frappe.log_error(title="Kefiya fetch_all: statements failed",
+                         message=frappe.get_traceback())
+
+    # 5) Credit-card transactions (best effort).
+    try:
+        cc = _to_jsonable(
+            FetchCtl(kefiya_login).get_fints_credit_card_transactions())
+        summary["credit_card"] = {
+            "count": len(cc) if isinstance(cc, list) else 0,
+        }
+    except Exception:
+        summary["errors"].append("credit_card")
+        frappe.log_error(title="Kefiya fetch_all: credit card failed",
+                         message=frappe.get_traceback())
+
+    return summary
+
+
+@frappe.whitelist()
+def submit_payment_request_via_fints(payment_request_name, user_scope, confirmed=0, instant_payment=0):
+    """Prepare a SEPA credit transfer (pain.001) for an Outward Payment Request
+    and submit it directly via FinTS -- no manual file upload.
+
+    Money movement stays human-in-the-loop: the caller must pass
+    ``confirmed=1`` (set only after an explicit user confirmation dialog), and
+    the bank's TAN is supplied by the user (the UI prompts via the realtime TAN
+    handler, then calls ``send_transfer_tan``). This never sends money on its
+    own.
+
+    :return: {"status": "submitted" | "tan_required" | "error", ...}
+    """
+    from frappe.utils import cint
+
+    # Hard gate: never reach sepa_transfer without explicit confirmation.
+    if not cint(confirmed):
+        return {"status": "error", "message": _(
+            "Transfer not confirmed. Money is only sent after explicit"
+            " confirmation."
+        )}
+
+    # Permission gate: whitelisted endpoints are callable by any logged-in user,
+    # so a money-moving transfer must require submit rights on the Payment
+    # Request (and read rights on the paying Kefiya Login below).
+    frappe.has_permission(
+        "Payment Request", ptype="submit",
+        doc=payment_request_name, throw=True)
+
+    from kefiya.events.hammer_script.payment_request_on_submit import (
+        _build_sepa_xml,
+    )
+
+    pr = frappe.get_doc("Payment Request", payment_request_name)
+    if pr.payment_request_type != "Outward":
+        return {"status": "error",
+                "message": _("Only Outward Payment Requests can be paid out.")}
+    if pr.docstatus != 1:
+        return {"status": "error",
+                "message": _("Payment Request must be submitted before payout.")}
+    if not pr.company_bank_account:
+        return {"status": "error",
+                "message": _("Payment Request has no company bank account.")}
+
+    # B2: guard against double submission (double click / retry).
+    lock_key = "kefiya_transfer:" + payment_request_name
+    if frappe.cache().get_value(lock_key):
+        return {"status": "error", "message": _(
+            "A transfer for this Payment Request is already in progress."
+        )}
+
+    # B7: the company bank account must map to exactly one Kefiya Login.
+    logins = frappe.get_all(
+        "Kefiya Login",
+        filters={"bank_account": pr.company_bank_account},
+        pluck="name",
+    )
+    if len(logins) != 1:
+        return {"status": "error", "message": _(
+            "Expected exactly one Kefiya Login for bank account {0}, found {1}."
+        ).format(pr.company_bank_account, len(logins))}
+    kefiya_login = logins[0]
+
+    xml_content, error = _build_sepa_xml(payment_request_name)
+    if error:
+        return {"status": "error", "message": error}
+    if not xml_content:
+        return {"status": "error", "message": _("Failed to generate SEPA XML.")}
+
+    # B8: audit every attempt to move money before contacting the bank.
+    frappe.logger("kefiya").info(
+        "SEPA transfer attempt: pr=%s login=%s user=%s",
+        payment_request_name, kefiya_login, frappe.session.user,
+    )
+    frappe.cache().set_value(lock_key, frappe.session.user, expires_in_sec=600)
+
+    # Transfers always require strong authentication (PSD2), so always use the
+    # TAN-capable controller regardless of the import-mode setting.
+    from kefiya.utils.fints_controller import FinTSController
+    interactive = {"docname": user_scope, "enabled": True}
+    try:
+        controller = FinTSController(kefiya_login, interactive)
+        return controller.submit_sepa_transfer(
+            xml_content, instant_payment=instant_payment)
+    except Exception:
+        # release the lock on hard failure so the user can retry deliberately;
+        # the audit log + bank statement remain the source of truth.
+        frappe.cache().delete_value(lock_key)
+        raise
+
+
+@frappe.whitelist()
+def send_transfer_tan(kefiya_login, tan, user_scope):
+    """Continue a pending SEPA transfer by sending the user's TAN.
+
+    Reuses the controller's stored-TAN resume mechanism (the pending transfer
+    dialog was persisted when the TAN was requested). The bank response is
+    reported truthfully: the transfer is only "submitted" when the bank accepted
+    the TAN without asking for a further challenge, so a money movement is never
+    reported as done on a guess.
+    """
+    # Permission gate: continuing a money transfer with a TAN requires write
+    # rights on the paying Kefiya Login (whitelisted endpoint would otherwise be
+    # callable by any logged-in user).
+    frappe.has_permission(
+        "Kefiya Login", ptype="write", doc=kefiya_login, throw=True)
+
+    from kefiya.utils.fints_controller import (
+        FinTSController,
+        TanInteractionRequired,
+    )
+    interactive = {"docname": user_scope, "enabled": True}
+    try:
+        # Re-instantiating with the TAN resumes the stored dialog and sends it.
+        FinTSController(kefiya_login, interactive, tan=tan)
+    except TanInteractionRequired:
+        # The bank requested a further/renewed challenge; the UI re-prompts.
+        return {"status": "tan_required", "docname": kefiya_login}
+    except Exception as e:
+        frappe.log_error(
+            title="Kefiya SEPA transfer TAN submission failed",
+            message=frappe.get_traceback(),
+        )
+        return {"status": "error", "message": str(e)}
+    return {"status": "submitted"}
+
+
+@frappe.whitelist()
 def get_accounts(kefiya_login, user_scope):
     """Return FinTS accounts for a given login.
 
@@ -127,6 +398,9 @@ def add_payment_reference(payment_entry, sales_invoice):
     :type sales_invoice: str
     :return: Payment reference name
     """
+    # Permission gate: creating/attaching Payment Entries requires write rights.
+    frappe.has_permission("Payment Entry", ptype="write", throw=True)
+
     from kefiya.utils.assign_payment_controller import \
         AssignmentController
 
@@ -147,6 +421,9 @@ def auto_assign_payments():
 
     :return: List of assigned payments
     """
+    # Permission gate: bulk-creating Payment Entries requires write rights.
+    frappe.has_permission("Payment Entry", ptype="write", throw=True)
+
     from kefiya.utils.assign_payment_controller import \
         AssignmentController
 
@@ -229,6 +506,12 @@ def create_mastercard_journal_entry_from_purchase_invoice(invoice_doc, bank_tran
 def create_payment_entry(bank_transaction_name, invoice_name, match_against):
     """Create payment entry document from sales or purchase invoice doctype.
     """
+    # Permission gate: reconciling a Bank Transaction into a Payment Entry
+    # requires write rights on that Bank Transaction.
+    frappe.has_permission(
+        "Bank Transaction", ptype="write",
+        doc=bank_transaction_name, throw=True)
+
     if match_against == "Mastercard":
         invoice_doc = frappe.get_doc("Purchase Invoice", invoice_name)
         bank_transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
@@ -452,6 +735,10 @@ def get_bank_transaction_wizard_list(doctype, fields, filters, order_by, start, 
 
 @frappe.whitelist()
 def change_match_against(selected_match):
+    # Permission gate: changing the global match strategy requires write rights
+    # on Kefiya Settings.
+    frappe.has_permission("Kefiya Settings", ptype="write", throw=True)
+
     kefiya_setting = frappe.get_single("Kefiya Settings")
     kefiya_setting.assign_against = selected_match
     kefiya_setting.save()

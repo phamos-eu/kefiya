@@ -2,8 +2,105 @@
 from __future__ import unicode_literals
 
 import hashlib
+import re
 import frappe
 from frappe import _
+from frappe.utils import now_datetime, getdate, add_days, cint
+
+# Fallback look-back window when a Kefiya Login has no explicit
+# allowed_sync_days_in_past configured.
+DEFAULT_SYNC_DAYS_IN_PAST = 90
+
+
+def resolve_incremental_from_date(bank_account, max_days_in_past=DEFAULT_SYNC_DAYS_IN_PAST):
+    """Start date for an incremental FinTS fetch.
+
+    Returns the date of the most recently imported (submitted) Bank
+    Transaction for the given bank account (so the next fetch continues where
+    the last one ended), clamped to the login's allowed look-back window
+    (``max_days_in_past``). When there is no history yet, falls back to that
+    full window.
+
+    :param bank_account: Bank Account name (kefiya_login.bank_account)
+    :param max_days_in_past: Kefiya Login.allowed_sync_days_in_past
+    :return: datetime.date
+    """
+    max_days_in_past = cint(max_days_in_past) or DEFAULT_SYNC_DAYS_IN_PAST
+    today = now_datetime().date()
+    earliest = getdate(add_days(today, -max_days_in_past))
+
+    last_date = None
+    if bank_account:
+        rows = frappe.db.get_all(
+            "Bank Transaction",
+            # only submitted transactions; cancelled/draft rows must not
+            # determine where the next fetch starts.
+            filters={"bank_account": bank_account, "docstatus": 1},
+            fields=["date"],
+            order_by="date desc",
+            limit=1,
+        )
+        if rows and rows[0].date:
+            # never start in the future: value-dated / pre-booked entries can
+            # carry a date ahead of today; cap at today so from_date <= to_date.
+            last_date = min(getdate(rows[0].date), today)
+
+    if last_date and last_date > earliest:
+        return last_date
+    return earliest
+
+# IBAN total length per ISO 13616 for common SEPA countries (country code -> length)
+IBAN_LENGTHS = {
+    "DE": 22, "AT": 20, "CH": 21, "LI": 21, "LU": 20, "NL": 18, "BE": 16,
+    "FR": 27, "IT": 27, "ES": 24, "PT": 25, "DK": 18, "FI": 18, "SE": 24,
+    "NO": 15, "PL": 28, "CZ": 24, "SK": 24, "HU": 28, "GB": 22, "IE": 22,
+}
+
+IBAN_PATTERN = re.compile(r"[A-Z]{2}[0-9]{2}[A-Z0-9]{10,30}")
+
+
+def iban_is_valid(iban):
+    """Validate an IBAN via expected country length and ISO 7064 mod-97 checksum."""
+    if not iban:
+        return False
+    iban = iban.replace(" ", "").upper()
+    if len(iban) < 15 or len(iban) > 34:
+        return False
+    expected = IBAN_LENGTHS.get(iban[:2])
+    if expected and len(iban) != expected:
+        return False
+    rearranged = iban[4:] + iban[:4]
+    converted = ""
+    for char in rearranged:
+        if char.isdigit():
+            converted += char
+        elif "A" <= char <= "Z":
+            converted += str(ord(char) - 55)
+        else:
+            return False
+    return int(converted) % 97 == 1
+
+
+def extract_iban_from_name(name):
+    """Some banks concatenate the counterparty IBAN into the name field
+    (e.g. 'DE21....409Max Mustermann'). Return a tuple (iban_or_None,
+    cleaned_name). The name is changed only when a valid IBAN can be
+    removed cleanly."""
+    if not name:
+        return None, name
+    compact = name.replace(" ", "")
+    for match in IBAN_PATTERN.finditer(compact):
+        candidate = match.group(0)
+        # the greedy match may swallow an uppercase initial of the name;
+        # trim from the end until a structurally valid IBAN remains
+        for end in range(len(candidate), 14, -1):
+            trimmed = candidate[:end]
+            if iban_is_valid(trimmed):
+                # remove the IBAN and collapse leftover whitespace runs
+                cleaned = re.sub(r"\s+", " ", name.replace(trimmed, "")).strip()
+                return trimmed, (cleaned or None)
+    return None, name
+
 
 class ImportBankTransaction:
     def __init__(self, kefiya_login, interactive, allow_error=False):
@@ -126,9 +223,25 @@ class ImportBankTransaction:
 
         for idx, t in enumerate(fints_transaction):
             try:
-                # Convert to positive value if required
-                amount = abs(float(t['amount']['amount']))
-                status = t['status'].lower()
+                # Convert to positive value if required. Guard amount/status:
+                # unlike the date/name fields below, these used hard subscripts,
+                # so any key drift in the parser output raised and the whole
+                # transaction was silently dropped by the except block.
+                amount_field = t.get('amount')
+                raw_amount = (
+                    amount_field.get('amount')
+                    if isinstance(amount_field, dict) else amount_field
+                )
+                status = (t.get('status') or '').lower()
+
+                if raw_amount in (None, '') or not status:
+                    frappe.log_error(
+                        _('Transaction missing amount or status'),
+                        'Kefiya Import Error'
+                    )
+                    continue
+
+                amount = abs(float(raw_amount))
 
                 if amount == 0:
                     continue
@@ -151,12 +264,25 @@ class ImportBankTransaction:
                 )
 
                 # date is in YYYY.MM.DD (json)
-                date = t['date']
-                applicant_name = t['applicant_name']
-                posting_text = t['posting_text']
-                purpose = t['purpose']
-                applicant_iban = t['applicant_iban']
-                applicant_bin = t['applicant_bin']
+                date = t.get('date')
+                applicant_name = t.get('applicant_name')
+                # keep the raw name for the dedup hash so that display-only
+                # cleaning (IBAN extraction below) never changes the hash and
+                # re-imports transactions that were already imported.
+                original_applicant_name = applicant_name
+                posting_text = t.get('posting_text')
+                purpose = t.get('purpose')
+                # mt-940 key drift: 'applicant_iban' is absent in the current
+                # parser output; fall back to 'gvc_applicant_iban'.
+                applicant_iban = t.get('applicant_iban') or t.get('gvc_applicant_iban')
+                applicant_bin = t.get('applicant_bin') or t.get('gvc_applicant_bin')
+
+                # some banks concatenate the counterparty IBAN into the name
+                # field (e.g. 'DE21...Max Mustermann'); pull it out when no
+                # IBAN was provided and clean up the displayed name
+                if not applicant_iban:
+                    applicant_iban, applicant_name = extract_iban_from_name(applicant_name)
+
 
                 remarkType = ''
                 paid_to = None
@@ -165,7 +291,7 @@ class ImportBankTransaction:
                 uniquestr = "{0},{1},{2},{3},{4}".format(
                     date,
                     amount,
-                    applicant_name,
+                    original_applicant_name,
                     posting_text,
                     purpose
                 )

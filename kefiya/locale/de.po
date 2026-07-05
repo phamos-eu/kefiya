@@ -1,0 +1,114 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: kefiya\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-28 00:00+0000\n"
+"PO-Revision-Date: 2026-06-28 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Securities Account"
+msgstr "Depot"
+
+msgid "Kefiya Securities Account"
+msgstr "Kefiya Depot"
+
+msgid "Account Number"
+msgstr "Kontonummer"
+
+msgid "Account Name"
+msgstr "Kontoname"
+
+msgid "Security Holding"
+msgstr "Wertpapierbestand"
+
+msgid "Kefiya Security Holding"
+msgstr "Wertpapierbestand"
+
+msgid "Valuation Date"
+msgstr "Bewertungsdatum"
+
+msgid "Market Value"
+msgstr "Marktwert"
+
+msgid "Price (per unit)"
+msgstr "Kurs (pro Stück)"
+
+msgid "Quantity"
+msgstr "Stückzahl"
+
+msgid "Counterparty"
+msgstr "Gegenpartei"
+
+msgid "Counterparty Name"
+msgstr "Name der Gegenpartei"
+
+msgid "Counterparty IBAN"
+msgstr "IBAN der Gegenpartei"
+
+msgid "Planned Date"
+msgstr "Geplantes Datum"
+
+msgid "Planned Payment"
+msgstr "Geplante Zahlung"
+
+msgid "Kefiya Planned Payment"
+msgstr "Geplante Zahlung"
+
+msgid "Payment Kind"
+msgstr "Zahlungsart"
+
+msgid "Scheduled Transfer"
+msgstr "Terminüberweisung"
+
+msgid "Standing Order"
+msgstr "Dauerauftrag"
+
+msgid "Pending"
+msgstr "Vormerkposten"
+
+msgid "Auto Reconcile After Import"
+msgstr "Automatischer Abgleich nach Import"
+
+msgid "Auto Create Advance Payments"
+msgstr "Anzahlungen automatisch anlegen"
+
+msgid "Send via FinTS"
+msgstr "Per FinTS senden"
+
+msgid "Submitting transfer via FinTS..."
+msgstr "Überweisung wird via FinTS übermittelt..."
+
+msgid "Transfer submitted."
+msgstr "Überweisung übermittelt."
+
+msgid "Transfer failed"
+msgstr "Überweisung fehlgeschlagen"
+
+msgid "No response from server."
+msgstr "Keine Antwort vom Server."
+
+msgid "Enter TAN to authorise the transfer"
+msgstr "TAN zur Freigabe der Überweisung eingeben"
+
+msgid "Enter the TAN from your bank's app/device. For push-TAN, confirm in the app, then submit."
+msgstr "TAN aus der App/dem Gerät der Bank eingeben. Bei push-TAN in der App bestätigen, dann absenden."
+
+msgid "Confirm transfer"
+msgstr "Überweisung bestätigen"
+
+msgid "Sending TAN..."
+msgstr "TAN wird gesendet..."
+
+msgid "Transfer authorised and submitted."
+msgstr "Überweisung freigegeben und übermittelt."
+
+msgid "TAN failed"
+msgstr "TAN fehlgeschlagen"
+
+msgid "Unknown error"
+msgstr "Unbekannter Fehler"

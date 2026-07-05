@@ -17,7 +17,10 @@
   "payment_request_export_action",
   "recipient_email",
   "toggle_tan_authentication_section",
-  "enable_tan_authentication"
+  "enable_tan_authentication",
+  "auto_reconcile_section",
+  "auto_reconcile_after_import",
+  "auto_create_advance_payments"
  ],
  "fields": [
   {
@@ -103,6 +106,26 @@
    "fieldname": "enable_tan_authentication",
    "fieldtype": "Check",
    "label": "Enable TAN Authentication"
+  },
+  {
+   "fieldname": "auto_reconcile_section",
+   "fieldtype": "Section Break",
+   "label": "Automatic Reconciliation"
+  },
+  {
+   "default": "0",
+   "description": "After a FinTS import, automatically reconcile the imported transactions using exact matches and Bank Reconciliation Rules (ALYF Banking).",
+   "fieldname": "auto_reconcile_after_import",
+   "fieldtype": "Check",
+   "label": "Auto Reconcile After Import"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.auto_reconcile_after_import",
+   "description": "For still-unreconciled incoming payments whose payer is identifiable by IBAN, create an on-account Payment Entry (advance). Handles tenants paying before the invoice exists. Creates financial documents -- validate on a test site first.",
+   "fieldname": "auto_create_advance_payments",
+   "fieldtype": "Check",
+   "label": "Auto Create Advance Payments"
   }
  ],
  "index_web_pages_for_search": 1,
