@@ -114,6 +114,9 @@ override_doctype_class = {
 doc_events = {
     "Bank Account": {
         "validate": "kefiya.utils.bank_account_controller.validate_unique_iban"  # noqa: E501
+    },
+    "Bank Transaction": {
+        "after_insert": "kefiya.utils.planned_payment.match_on_bank_transaction"  # noqa: E501
     }
 }
 
@@ -144,7 +147,10 @@ scheduler_events = {
         "*/20 * * * *": [
             "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_fints_payments"  # noqa: E501
         ]
-    }
+    },
+    "daily": [
+        "kefiya.utils.planned_payment.expire_stale_planned_payments"
+    ]
 }
 
 # Testing

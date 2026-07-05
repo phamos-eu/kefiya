@@ -7,7 +7,7 @@ from __future__ import unicode_literals
 import frappe
 from frappe.model.document import Document
 from dateutil.relativedelta import relativedelta
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, cint
 from frappe.utils.scheduler import is_scheduler_inactive
 from frappe import _
 from kefiya.utils.client import import_fints_transactions
@@ -83,8 +83,14 @@ def scheduled_import_fints_payments(manual=None):
                                 lastruns[0].end_date <= checkdate or manual
                             )
                         ):
-                            if (now_datetime().date() - new_from_date).days > 90:
-                                new_from_date = now_datetime().date() - relativedelta(days=90)
+                            allowed_days = cint(frappe.db.get_value(
+                                "Kefiya Login", child_item.kefiya_login,
+                                "allowed_sync_days_in_past"
+                            )) or 90
+                            if (now_datetime().date() - new_from_date).days > allowed_days:
+                                new_from_date = now_datetime().date() - relativedelta(
+                                    days=allowed_days
+                                )
 
                             kefiya_import.from_date = new_from_date
                         else:
