@@ -1,208 +1,82 @@
+# Copyright (c) 2024, jHetzer and contributors
+# For license information, please see license.txt
+
+"""Import a statement file.
+
+This document is a form and a status; the reading lives in
+statement_formats.py and the booking in statement_import.py.
+
+It used to hold both, twice: two near-identical methods that differed only in
+the file's encoding, each with its own amount parser -- one of which divided
+by a hundred whenever an amount carried no decimal separator. The encoding is
+now handled once, the layout that needed them is declared as a profile, and
+those 250 lines are gone with the bug in them.
+"""
+
 import frappe
-from frappe.model.document import Document
-import csv
-import os
-from frappe.utils.file_manager import get_file_path
-from datetime import datetime
 from frappe import _
-import chardet
-import locale
+from frappe.model.document import Document
+
+from kefiya.utils import statement_import
+
 
 class KefiyaBankStatementImport(Document):
-	
+
 	@frappe.whitelist()
-	def start_import(self, file_url, bank_account, company):
-		file_path = self.get_file_from_url(file_url)
-		# Detect encoding
-		with open(file_path, 'rb') as f:
-			rawdata = f.read()
-			result = chardet.detect(rawdata)
-			encoding = result['encoding']
+	def plan_import(self, file_url, bank_account=None):
+		"""Report what an import would do, without writing anything.
 
-		total_rows = sum(1 for _ in open(file_path, mode='r', encoding=encoding))-7
-		self.db_set('payload_count', total_rows)
+		A bulk insert of bookings is the kind of write that should be looked
+		at before it happens, not explained afterwards: which format was
+		recognised, how the first bookings were understood -- above all which
+		way round the signs came out -- and how many rows are already present.
+		"""
+		frappe.has_permission(
+			"Kefiya Bank Statement Import", ptype="read", doc=self, throw=True)
+		return statement_import.without_entries(
+			statement_import.plan(file_url, bank_account or self.bank_account))
 
-		try:
-			with open(file_path, mode='r', encoding=encoding, errors='replace') as csvfile:
-				csv_reader = csv.reader(csvfile)
-                # Skip header (the first 7 rows)
-				for _ in range(7):
-					next(csv_reader)
+	@frappe.whitelist()
+	def start_import(self, file_url, bank_account=None, company=None):
+		"""Book the file.
 
-				frappe.publish_progress(0, title='Importing Bank Transaction', description='Starting import...')
-                
-				for index, row in enumerate(csv_reader):
-					if encoding == 'utf-8':
-						self.create_new_doc_utf8(row, bank_account, company, index, total_rows)
-					elif encoding == 'ISO-8859-1':
-						self.create_new_doc_iso(row, bank_account, company, index, total_rows)
-					else:
-						frappe.msgprint("Unsupported file format. Only utf-8 and ISO-8859-1 formats are supported currently.")
-						
-						self.update_status('Error')
-						return
+		:param company: accepted and unused. The company comes from each
+			booking's own Bank Account -- a file covering twenty accounts
+			covers a dozen companies with them, and one field on this form
+			cannot speak for all of them.
+		"""
+		# Permission gate: a whitelisted document method is callable by anyone
+		# who may read the document; importing creates Bank Transactions.
+		frappe.has_permission(
+			"Kefiya Bank Statement Import", ptype="write", doc=self, throw=True)
 
-					index += 1
-					progress = int((index / total_rows) * 100)
-					frappe.publish_progress(progress, title='Importing Bank Transaction', description=f'Processing row {index}/{total_rows}')
+		summary = statement_import.plan(
+			file_url, bank_account or self.bank_account, dry_run=False)
 
-		except Exception as e:
-			frappe.msgprint(f'Error during import: {e}')
+		self.db_set('payload_count', summary.get("total") or 0)
+		self.db_set('imported_records', summary.get("created") or 0)
+
+		if not summary.get("profile"):
 			self.update_status('Error')
+		elif summary.get("failed") or summary.get("unreadable"):
+			self.update_status('Partial Success')
+		else:
+			self.update_status('Success')
 
+		if self.submit_after_success:
+			# Deliberately not submitted. Submitting a booking is an approval,
+			# and an approval is given at the document, not by a checkbox on an
+			# import that ran unattended. Said out loud rather than ignored, so
+			# the setting does not look as if it worked.
+			frappe.msgprint(_(
+				"{0} bookings were created as drafts. Submitting them is left"
+				" to the Bank Transaction list."
+			).format(summary.get("created") or 0))
+
+		return statement_import.without_entries(summary)
 
 	def update_status(self, status):
 		self.db_set('status', status)
-		frappe.publish_realtime('update_import_status', {'docname': self.name, 'status': status}, user=frappe.session.user)
-
-	def get_file_from_url(self, file_url):
-		
-		base = frappe.local.site_path
-		file_path = base + file_url
-
-		if not os.path.exists(file_path):
-			frappe.throw(_('File not found: {0}').format(file_path))
-		
-		return file_path
-
-	# utf-8
-	def create_new_doc_utf8(self, row_data, bank_account, company, index, total_rows):
-        # This function create a new document from a csv row
-		try:
-			bank_transaction = frappe.new_doc("Bank Transaction")
-			date =  datetime.strptime( row_data[0], '%d.%m.%Y')
-			description = row_data[4]
-			bank_party_iban = row_data[5]
-			bank_party_name = row_data[3]
-			party, party_type = get_bank_account_data(bank_party_iban)
-			deposit, withdrawal = self.format_amount_utf8(row_data[7])	
-
-			bank_transaction.update({
-				"date": date.strftime('%Y-%m-%d'),
-				"deposit": deposit,
-				"withdrawal": withdrawal, 
-				"bank_account": bank_account,
-				"company": company,
-				"description": description,
-				'bank_party_iban': bank_party_iban,
-				'allocated_amount': 0,
-				'unallocated_amount': abs(withdrawal - deposit),
-				'party': party,
-				'party_type': party_type,
-				"bank_party_name": bank_party_name
-			})
-
-			bank_transaction.insert()
-			if self.submit_after_success:
-				bank_transaction.submit()
-				
-			if index+1==total_rows and self.status=='Not Started':
-				self.db_set('imported_records', index+1)
-				self.update_status('Success')
-
-		except Exception as e:
-			frappe.msgprint(f'Error creating document for row: {row_data} - {e}')
-			self.db_set('imported_records', index)
-			self.update_status('Partial Success')
-
-	def format_amount_utf8(self, amount):
-		deposit, withdrawal = 0,0
-
-		if '.' in amount:
-			amount = amount.replace('.', '')
-		if ',' in amount:
-			amount = amount.replace(',', '.')
-
-		amount = float(amount)
-		if amount >= 0:
-			deposit = amount
-		else:
-			withdrawal = abs(amount)
-
-		return [deposit, withdrawal]
-
-
-	# ISO-8859-1
-	def create_new_doc_iso(self, row_data, bank_account, company, index, total_rows):
-        # This function create a new document from a csv row
-		
-		row_data = ''.join(row_data)
-		row_data = row_data.split(';')
-		try:
-			bank_transaction = frappe.new_doc("Bank Transaction")
-			date =  datetime.strptime( row_data[0], '%d.%m.%Y')
-			description = row_data[4].replace('"', '')
-			bank_party_iban = row_data[5].replace('"', '')
-			bank_party_name = row_data[3].replace('"', '')
-			party, party_type = get_bank_account_data(bank_party_iban)
-			deposit, withdrawal = self.format_amount_iso(row_data[7])			
-
-			bank_transaction.update({
-				"date": date.strftime('%Y-%m-%d'),
-				"deposit": deposit,
-				"withdrawal": withdrawal, 
-				"bank_account": bank_account,
-				"company": company,
-				"description": description,
-				'bank_party_iban': bank_party_iban,
-				'allocated_amount': 0,
-				'unallocated_amount': abs(withdrawal - deposit),
-				'party': party,
-				'party_type': party_type,
-				"bank_party_name":  bank_party_name
-			})
-
-			bank_transaction.insert()
-			if self.submit_after_success:
-				bank_transaction.submit()
-
-			if index+1==total_rows and self.status=='Not Started':
-				self.db_set('imported_records', index+1)
-				self.update_status('Success')
-		except Exception as e:
-			frappe.msgprint(f'Error creating document for row: {row_data} - {e}')
-			
-			self.db_set('imported_records', index)
-			self.update_status('Partial Success')
-	
-	def format_amount_iso(self, amount):
-		deposit, withdrawal = 0,0
-
-		if '"' in amount:
-			amount = amount.replace('"', '')
-
-		if ',' in amount and '.' in amount:
-			amount = amount.replace('.', '').replace(',', '.')
-		elif ',' in amount:
-			amount = amount.replace(',', '.')
-		elif '.' in amount:
-			amount = amount.replace('.', '')
-			integer_part = amount[:-2]
-			decimal_part = amount[-2:]
-			amount = integer_part + '.' + decimal_part
-		else:
-			try:
-				integer_part = amount[:-2]
-				decimal_part = amount[-2:]
-				amount = integer_part + '.' + decimal_part
-			except Exception as e:
-				frappe.msgprint(f'currency formatting not supported for row: {row_data} - {e}')
-
-		amount = float(amount)
-		if amount >= 0:
-			deposit = amount
-		else:
-			withdrawal = abs(amount)
-
-		return [deposit, withdrawal]
-	
-def get_bank_account_data(IBAN):
-	party, party_type = '', ''
-	bank_account_exists = frappe.db.exists('Bank Account', {'iban': IBAN})
-	
-	if bank_account_exists:
-		bank_account_doc = frappe.get_doc('Bank Account', {'iban': IBAN})
-		party = bank_account_doc.party
-		party_type = bank_account_doc.party_type
-
-	return [party, party_type]
+		frappe.publish_realtime(
+			'update_import_status', {'docname': self.name, 'status': status},
+			user=frappe.session.user)

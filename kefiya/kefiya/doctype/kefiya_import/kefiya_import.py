@@ -7,10 +7,19 @@ from __future__ import unicode_literals
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import now_datetime, get_datetime
+from frappe.utils import now_datetime, get_datetime, cint
 
 
 class KefiyaImport(Document):
+    def get_allowed_sync_days(self):
+        """Look-back limit (days) from the linked Kefiya Login, default 90."""
+        allowed = None
+        if self.kefiya_login:
+            allowed = frappe.db.get_value(
+                "Kefiya Login", self.kefiya_login, "allowed_sync_days_in_past"
+            )
+        return cint(allowed) or 90
+
     def validate_past(self, date, field_name):
         if isinstance(date, str):
             date = get_datetime(date).date()
@@ -19,9 +28,12 @@ class KefiyaImport(Document):
                 _("'{0}' needs to be in the past").format(field_name)
             )
             return False
-        if (now_datetime().date() - date).days > 90:
+        allowed_days = self.get_allowed_sync_days()
+        if (now_datetime().date() - date).days > allowed_days:
             frappe.msgprint(
-                _("'{0}' is more then 90 days in the past").format(field_name)
+                _("'{0}' is more than the allowed {1} days in the past").format(
+                    field_name, allowed_days
+                )
             )
             return False
         return True

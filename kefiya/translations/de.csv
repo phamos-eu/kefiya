@@ -1,0 +1,350 @@
+Kefiya Document Service,Kefiya Dokumentendienst
+Kefiya Document Account,Kefiya Dokumentenkonto
+What to fetch,Was abgerufen wird
+Document Type Filter,Dokumentart (Filter)
+Lookback (days),Rückblick (Tage)
+Max Documents per Run,Höchstzahl Dokumente je Lauf
+Last Run,Letzter Lauf
+Last Run On,Zuletzt gelaufen am
+Last Run Summary,Ergebnis des letzten Laufs
+Credential Source,Quelle der Zugangsdaten
+Credential DocType,DocType der Zugangsdaten
+Credential Document,Dokument der Zugangsdaten
+Child Table Fieldname,Feldname der Kindtabelle
+Match Field,Vergleichsfeld
+Token Field,Feld mit dem Schlüssel
+Base URL Field,Feld mit der Basis-URL
+Inline,Direkt hier
+External DocType,Externer DocType
+Service Company ID,Kennung beim Dienst
+Last Fetched On,Zuletzt abgerufen am
+"While this is off, nothing is fetched and the scheduled run does nothing.","Solange dies aus ist, wird nichts abgerufen, und der geplante Lauf tut nichts."
+Endpoint of the document service. Only https is accepted.,Endpunkt des Dokumentendienstes. Nur https wird angenommen.
+"Created at the service under ""API access"". Stored encrypted and never written to a log.",Beim Dienst unter „API-Zugang“ erzeugt. Verschlüsselt abgelegt und niemals in ein Protokoll geschrieben.
+"Document type as the service names it, e.g. a statement type. Empty fetches every type.","Dokumentart, wie der Dienst sie benennt, etwa eine Auszugsart. Leer ruft jede Art ab."
+How far back a run looks. A first run may need more; afterwards a small window is enough.,Wie weit ein Lauf zurückschaut. Der erste Lauf braucht womöglich mehr; danach genügt ein kleines Fenster.
+"Upper bound per run. Each document is a separate download, so a first run works its backlog off over several runs rather than in one request.","Obergrenze je Lauf. Jedes Dokument ist ein eigener Download, deshalb arbeitet ein erster Lauf seinen Rückstand über mehrere Läufe ab statt in einer Anfrage."
+Which Bank Account a fetched document belongs to. Without an entry here nothing is filed -- a statement with no account has nowhere to go.,Zu welchem Bankkonto ein abgerufenes Dokument gehört. Ohne Eintrag hier wird nichts abgelegt — ein Auszug ohne Konto hat keinen Platz.
+"Identifier of the matching company/account at the document service. Left empty, every document the service returns for the configured filter is filed on this account.","Kennung der zugehörigen Firma bzw. des Kontos beim Dokumentendienst. Bleibt sie leer, wird jedes Dokument, das der Dienst zum eingestellten Filter liefert, auf dieses Konto abgelegt."
+"Inline keeps the key in the field below. External DocType reads it from wherever this instance already keeps its API credentials, so there is one place for them instead of two.","„Direkt hier“ hält den Schlüssel im Feld darunter. „Externer DocType“ liest ihn dort, wo diese Instanz ihre API-Zugangsdaten ohnehin führt — damit gibt es einen Ort dafür statt zwei."
+Leave empty for a Single DocType.,Bei einem Single-DocType leer lassen.
+Fieldname of the table holding one row per service. Empty means the fields sit on the document itself.,"Feldname der Tabelle mit einer Zeile je Dienst. Leer bedeutet, die Felder stehen am Dokument selbst."
+"Value identifying this service's row, e.g. its short name.","Wert, der die Zeile dieses Dienstes kennzeichnet, etwa sein Kurzname."
+Password field holding the key.,"Passwortfeld, das den Schlüssel enthält."
+"Optional. When set, the endpoint is taken from there instead of the Base URL above.","Optional. Ist es gesetzt, wird der Endpunkt von dort genommen statt aus der Basis-URL oben."
+Test connection,Verbindung testen
+Check field names,Feldnamen prüfen
+Dry run,Prüflauf
+Fetch now,Jetzt abrufen
+Asking the service …,Dienst wird angefragt …
+"Looking, writing nothing …","Nur ansehen, nichts schreiben …"
+Connection,Verbindung
+Connection failed,Verbindung fehlgeschlagen
+The service answered.,Der Dienst hat geantwortet.
+Field names,Feldnamen
+Dry run failed,Prüflauf fehlgeschlagen
+Fetch failed,Abruf fehlgeschlagen
+The call returned nothing. See the Error Log for details.,Der Aufruf hat nichts zurückgegeben. Einzelheiten stehen im Fehlerprotokoll.
+Fetch the statements and file them against the accounts?,Die Kontoauszüge abrufen und den Konten zuordnen?
+Response not understood,Antwort nicht verstanden
+Top level keys,Schlüssel der obersten Ebene
+Field names returned by the service,Vom Dienst gelieferte Feldnamen
+Documents found,Gefundene Dokumente
+Recognised,Erkannt
+Identifier,Kennung
+"Only field names are shown, never their values.","Es werden nur Feldnamen gezeigt, niemals deren Werte."
+Nothing to do,Nichts zu tun
+Dry run — nothing was filed,Prüflauf — nichts abgelegt
+Statements fetched,Kontoauszüge abgerufen
+Found,Gefunden
+Would file,Würde ablegen
+Filed,Abgelegt
+Already present,Schon vorhanden
+The document service is switched off.,Der Dokumentendienst ist ausgeschaltet.
+No API key is configured for the document service.,Für den Dokumentendienst ist kein API-Schlüssel hinterlegt.
+The base URL must be an https address.,Die Basis-URL muss eine https-Adresse sein.
+No credential DocType is configured.,Es ist kein DocType für die Zugangsdaten eingestellt.
+No credential document is named.,Es ist kein Dokument für die Zugangsdaten benannt.
+No credential row where {0} is {1}.,"Keine Zugangsdaten-Zeile, in der {0} gleich {1} ist."
+The credential row {0} is not active.,Die Zugangsdaten-Zeile {0} ist nicht aktiv.
+The document service could not be reached ({0}): {1},Der Dokumentendienst war nicht erreichbar ({0}): {1}
+The document service answered {0} on {1}: {2},Der Dokumentendienst hat auf {1} mit {0} geantwortet: {2}
+"The document service answered {0} on {1}, but not in JSON: {2}","Der Dokumentendienst hat auf {1} mit {0} geantwortet, aber nicht in JSON: {2}"
+no detail given,keine Einzelheiten genannt
+No account is configured. A statement with no bank account has nowhere to go.,Es ist kein Konto eingestellt. Ein Auszug ohne Bankkonto hat keinen Platz.
+The attached file could not be found: {0},Die angehängte Datei wurde nicht gefunden: {0}
+The document could not be decoded.,Das Dokument ließ sich nicht dekodieren.
+The document is empty.,Das Dokument ist leer.
+Bank Account {0} is listed more than once.,Das Bankkonto {0} ist mehr als einmal aufgeführt.
+The service is switched on but no account is configured. A statement with no bank account has nowhere to go.,"Der Dienst ist eingeschaltet, aber es ist kein Konto eingestellt. Ein Auszug ohne Bankkonto hat keinen Platz."
+No known column layout was recognised in this file.,In dieser Datei wurde kein bekannter Spaltenaufbau erkannt.
+the bank does not hand out statements for this account,die Bank gibt für dieses Konto keine Auszüge heraus
+{0} bookings were created as drafts. Submitting them is left to the Bank Transaction list.,{0} Buchungen wurden als Entwurf angelegt. Das Einreichen bleibt der Liste der Banktransaktionen überlassen.
+Unknown statement format {0}. Pass a known format or state the sign convention explicitly -- a card feed and a giro feed count the opposite way round.,Unbekanntes Auszugsformat {0}. Ein bekanntes Format angeben oder die Vorzeichenkonvention ausdrücklich nennen — ein Kartenfeed und ein Girofeed zählen entgegengesetzt.
+ingest expects a list of entries.,ingest erwartet eine Liste von Einträgen.
+Account mapping,Kontozuordnung
+Failures,Fehlgeschlagen
+Remark,Hinweis
+Assigned accounts,Zugeordnete Konten
+Access credentials,Zugangsdaten
+Open document,Im Dokument öffnen
+As soon as possible,So bald wie möglich
+On {0} — held here until then,Am {0} — bis dahin hier gehalten
+On {0} — the bank holds the order,Am {0} — die Bank hält den Auftrag
+Paying account,Abgehendes Konto
+Execution,Ausführung
+"Kept here, released on the day",Wird hier gehalten und am Tag freigegeben
+Left with the bank,Liegt bei der Bank
+Payee verification,Empfängerprüfung
+still open,noch offen
+Bank response,Rückmeldung der Bank
+Receipts,Belege
+The attachments could not be read.,Die Anhänge konnten nicht gelesen werden.
+No receipt is attached to this order.,An diesem Auftrag hängt kein Beleg.
+Correct,Korrigieren
+Correct transfer,Überweisung korrigieren
+New transfer,Neue Überweisung
+Enter,Erfassen
+On a date — the bank holds the order,Zu einem Termin — die Bank hält den Auftrag
+On a date — held here until then,Zu einem Termin — bis dahin hier gehalten
+The order goes out with the next send.,Der Auftrag geht mit der nächsten Sendung raus.
+"Sent now, executed by the bank on the day. The bank must support dated transfers for this account.","Geht sofort raus, die Bank führt ihn am Termin aus. Die Bank muss Terminüberweisungen für dieses Konto anbieten."
+Stays in the outbox and is offered for sending on the day. Use this where the bank takes no dated order.,"Bleibt im Ausgangskorb und wird am Termin zum Senden angeboten. Für Banken, die keinen Terminauftrag annehmen."
+No account available,Kein Konto verfügbar
+"No bank access is set up that a transfer can start from. A loan, a guarantee or a credit card cannot send money.","Es ist kein Bankzugang eingerichtet, von dem eine Überweisung ausgehen kann. Ein Darlehen, ein Aval oder eine Kreditkarte kann kein Geld senden."
+The paying account cannot be changed on an existing order. Delete it and enter a new one instead.,Das abgehende Konto lässt sich an einem bestehenden Auftrag nicht ändern. Stattdessen löschen und neu erfassen.
+"Free text. Known payees are suggested while you type, but any name may be entered.","Freitext. Bekannte Empfänger werden beim Tippen vorgeschlagen, eingeben lässt sich jeder Name."
+Checked against its checksum before it is stored.,Wird vor dem Speichern gegen ihre Prüfsumme geprüft.
+Execution date,Ausführungstermin
+"Arrives within seconds. The bank must offer it for this account, and it is usually capped.","Kommt binnen Sekunden an. Die Bank muss es für dieses Konto anbieten, meist gilt eine Betragsgrenze."
+Date missing,Termin fehlt
+A dated transfer needs a date.,Eine Terminüberweisung braucht einen Termin.
+Transfer saved.,Überweisung gespeichert.
+Transfer entered.,Überweisung erfasst.
+Not saved,Nicht gespeichert
+The transfer could not be saved.,Die Überweisung konnte nicht gespeichert werden.
+Please choose a paying account.,Bitte ein abgehendes Konto wählen.
+When,Wann
+Reference,Verwendungszweck
+Order state,Zustand
+Recipient / Reference,Empfänger / Verwendungszweck
+Due on,Fällig
+Failed to send,Fehlgeschlagen
+Held back,Zurückgestellt
+Sent to the bank,Abgesendet
+At the bank,Bei der Bank
+Approved for sending,Freigegeben
+Unknown error.,Unbekannter Fehler.
+Loading …,Lädt …
+The outgoing payments could not be loaded.,Der Zahlungsausgang konnte nicht geladen werden.
+"Search — recipient, IBAN, reference, amount","Suchen — Empfänger, IBAN, Verwendungszweck, Betrag"
+show sent,abgesendete zeigen
+Select all listed orders,Alle angezeigten Aufträge markieren
+"Sort by this column. Clicking the sorted column again reverses it, once more restores the default order.","Nach dieser Spalte sortieren. Ein zweiter Klick kehrt die Richtung um, ein dritter stellt die Standardreihenfolge wieder her."
+{0} recipients,{0} Empfänger
+as soon as possible,so bald wie möglich
+held here,bei uns gehalten
+dated at the bank,Termin bei der Bank
+Open this order,Diesen Auftrag öffnen
+Selected: {0} orders · {1},Markiert: {0} Aufträge · {1}
+Approved and still here: {0},Freigegeben und noch hier: {0}
+Cancel hold,Zurückstellung aufheben
+Approve for sending,Freigeben
+Sending needs the right to approve.,"Absenden darf nur, wer Freigaberecht hat."
+Nothing found.,Nichts gefunden.
+There is nothing to send. Transfers collect here until they go out.,"Der Zahlungsausgang ist leer. Erfasste Überweisungen sammeln sich hier, bis sie abgesendet werden."
+Approve {0} orders over {1}?,{0} Aufträge über {1} freigeben?
+"Approving locks the amounts and the recipients. No money moves: sending is the next, separate step and the bank asks for a TAN then.","Mit der Freigabe stehen Beträge und Empfänger fest. Es fließt kein Geld: Absenden ist der nächste, eigene Schritt, und dann verlangt die Bank eine TAN."
+Approving …,Gebe frei …
+Approved: {0},Freigegeben: {0}
+Not approved,Nicht freigegeben
+Held back: {0},Zurückgestellt: {0}
+Released again: {0},Zurückstellung aufgehoben: {0}
+Not changed,Nicht geändert
+Delete {0} drafts? They are gone afterwards.,{0} Entwürfe löschen? Sie sind danach weg.
+Deleted: {0},Gelöscht: {0}
+Not deleted,Nicht gelöscht
+One account at a time,Nur ein Konto auf einmal
+Orders from several accounts are selected. A collective order always leaves from exactly one account — please send them one account at a time.,Es sind Aufträge von mehreren Konten markiert. Ein Sammelauftrag geht immer von genau einem Konto ab — bitte je Konto einzeln senden.
+{0} orders over {1} go from {2} to the bank.,{0} Aufträge über {1} gehen von {2} an die Bank.
+The bank will usually ask for a release (TAN or a confirmation in its app). Nothing is debited until then.,Die Bank verlangt in aller Regel eine Freigabe (TAN oder Bestätigung in ihrer App). Bis dahin ist nichts abgebucht.
+Sending to the bank …,Sende an die Bank …
+Not sent,Nicht abgesendet
+The bank asks for a release.,Die Bank verlangt eine Freigabe.
+Handed to the bank: {0} orders,An die Bank übergeben: {0} Aufträge
+Not a draft any more.,Kein Entwurf mehr.
+No transfers selected.,Keine Überweisungen markiert.
+Ordering party,Auftraggeber
+This order is with the bank. Nothing about it can be changed here any more.,Dieser Auftrag liegt bei der Bank. Hier lässt sich nichts mehr daran ändern.
+"Approved orders are locked: amounts and recipients stand. To change something, cancel the order and enter a new one.",Freigegebene Aufträge sind festgeschrieben: Beträge und Empfänger stehen. Zum Ändern den Auftrag abbrechen und neu erfassen.
+"No receipt is attached, neither here nor on {0}.",Es hängt kein Beleg daran — weder hier noch an {0}.
+from {0} {1},aus {0} {1}
+Not sent — no signature,Nicht abgesendet — keine Signatur
+"The bank asked for no TAN, but it requires {0} signature(s) for ""{1}"" on this account. An order without the signature it needs is not executed, so it has NOT been marked as sent.
+
+Please check the online banking before sending again: if the transfer is there after all, cancel this order instead of repeating it.","Die Bank hat keine TAN verlangt, verlangt für „{1}“ auf diesem Konto aber {0} Signatur(en). Ein Auftrag ohne die nötige Signatur wird nicht ausgeführt — er wurde deshalb NICHT als abgesendet vermerkt.
+
+Bitte vor einem erneuten Senden im Online-Banking nachsehen: steht die Überweisung doch dort, diesen Auftrag stornieren statt ihn zu wiederholen."
+Bank challenge,Aufforderung der Bank
+"Scan this with your banking app, then enter the TAN it shows.","Mit der Banking-App scannen, dann die angezeigte TAN eintragen."
+"Comes from the paying account. Whose money is sent is decided by the account, not chosen here.","Kommt vom abgehenden Konto. Wessen Geld gesendet wird, entscheidet das Konto — nicht die Auswahl hier."
+"The paying account {0} does not name a company, so there is nothing to put on the order as the ordering party. Set the company on the Bank Account first.","Das abgehende Konto {0} nennt keine Gesellschaft, also steht nichts als Auftraggeber auf dem Auftrag. Bitte zuerst die Gesellschaft am Bankkonto setzen."
+Optional first: it narrows the accounts below to that company. Choosing an account sets it.,Zuerst wählbar: schränkt die Konten darunter auf diese Gesellschaft ein. Ein gewähltes Konto setzt sie.
+"{0} belongs to {1}, not to {2} — the paying account was cleared.","{0} gehört zu {1}, nicht zu {2} — das abgehende Konto wurde geleert."
+Balance {0},Saldo {0}
+overdraft {0},Dispo {0}
+available {0},verfügbar {0}
+as at {0},Stand {0}
+No balance has been fetched for this account yet.,Für dieses Konto wurde noch kein Saldo abgerufen.
+"The bank does not allow ""{0}"" on this account.",Die Bank erlaubt „{0}“ auf diesem Konto nicht.
+"The bank does not allow ""{0}"" on this account. Several payments go out as one collective order, which the bank rules on separately from a single one.","Die Bank erlaubt „{0}“ auf diesem Konto nicht. Mehrere Zahlungen gehen als ein Sammelauftrag raus, über den die Bank getrennt von einer einzelnen entscheidet."
+Not offered on this account,Auf diesem Konto nicht angeboten
+"An instant payment is executed within seconds, so the bank cannot hold it until {0}. Either let the date be kept here -- the order is then sent as an instant payment on the day -- or hand the date to the bank as an ordinary transfer.","Eine Echtzeitüberweisung wird binnen Sekunden ausgeführt, die Bank kann sie also nicht bis zum {0} halten. Entweder den Termin hier halten — dann geht der Auftrag am Tag als Echtzeitüberweisung raus — oder den Termin als gewöhnliche Überweisung an die Bank geben."
+Sent as an ordinary transfer,Geht als gewöhnliche Überweisung
+"The bank cannot hold an instant payment until a future date, so it was switched off. Tick ""keep the date here"" to send it as an instant payment on the day.",Die Bank kann eine Echtzeitüberweisung nicht bis zu einem künftigen Termin halten — sie wurde deshalb abgeschaltet. Mit „Termin bei uns halten“ geht sie am Tag als Echtzeitüberweisung raus.
+"The bank cannot hold an instant payment until a future date. Choose ""held here"" to send it as an instant payment on the day.",Die Bank kann eine Echtzeitüberweisung nicht bis zu einem künftigen Termin halten. Mit „bis dahin hier gehalten“ geht sie am Tag als Echtzeitüberweisung raus.
+Payee check,Empfängerprüfung
+Payee check detail,"Empfängerprüfung, Einzelheiten"
+"Checked against our own payment history when the order is entered, so it is a recorded fact by the time somebody sends it.",Wird beim Erfassen gegen unsere eigene Zahlungshistorie geprüft — beim Absenden steht das Ergebnis damit fest.
+Payee known,Empfänger bekannt
+"Known payee, new IBAN","Bekannter Empfänger, neue IBAN"
+IBAN known under another name,IBAN unter anderem Namen bekannt
+New payee,Neuer Empfänger
+This IBAN was paid before under this name.,An diese IBAN wurde unter diesem Namen bereits gezahlt.
+"This IBAN was paid before, but to somebody else.",An diese IBAN wurde bereits gezahlt — an jemand anderen.
+"We have paid this payee before, always to a different IBAN. Check the invoice against an earlier one before releasing this.","Diesen Empfänger haben wir schon bezahlt, bisher immer an eine andere IBAN. Bitte die Rechnung mit einer früheren vergleichen, bevor Sie freigeben."
+First payment to this IBAN. Worth a second pair of eyes.,Erste Zahlung an diese IBAN. Ein zweiter Blick lohnt sich.
+So far: {0},Bisher: {0}
+{0} of these recipients need a look,{0} Empfänger brauchen einen Blick
+Paid before under this name.,Vorher unter diesem Namen bezahlt.
+"This IBAN was paid before, but under: {0}","An diese IBAN wurde bereits gezahlt, aber unter: {0}"
+another name,einem anderen Namen
+"We have paid this payee before, always to a different IBAN: {0}. Check the invoice against an earlier one before releasing this.","Diesen Empfänger haben wir schon bezahlt, bisher immer an eine andere IBAN: {0}. Bitte die Rechnung mit einer früheren vergleichen, bevor Sie freigeben."
+"First payment to this IBAN, and this payee is not in our history. Worth a second pair of eyes.","Erste Zahlung an diese IBAN, und dieser Empfänger steht nicht in unserer Historie. Ein zweiter Blick lohnt sich."
+Already sent,Schon abgesendet
+Approve and send,Freigeben und senden
+Connected documents,Verbundene Dokumente
+"Named in the reference of this order. Amounts and receipts are changed there, not here.","Im Verwendungszweck dieses Auftrags genannt. Beträge und Belege werden dort geändert, nicht hier."
+No receipt,Kein Beleg
+Not approved yet,Noch nicht freigegeben
+Not due until {0},Fällig erst am {0}
+Nothing was approved.,Es wurde nichts freigegeben.
+Open the order to see the receipts,"Auftrag öffnen, um die Belege zu sehen"
+Payee verification still open,Empfängerprüfung offen
+This file type cannot be shown here — open it with the link above.,Dieser Dateityp lässt sich hier nicht anzeigen — bitte über den Link darüber öffnen.
+With the bank until its date,Liegt bei der Bank bis zum Termin
+{0} of them are still drafts and are approved as they are sent. Approving locks their amounts and recipients.,Davon sind {0} noch Entwürfe; sie werden mit dem Senden freigegeben. Die Freigabe schreibt Beträge und Empfänger fest.
+{0} orders are being sent; the rest were not approved.,{0} Aufträge gehen raus; der Rest wurde nicht freigegeben.
+"{0} selected orders are not being sent — they are held back, already sent, or not due yet.","{0} ausgewählte Aufträge gehen nicht raus — sie sind zurückgestellt, schon abgesendet oder noch nicht fällig."
+Approving and sending …,Freigeben und senden …
+We have paid this payee at these IBANs:,An diesen IBANs haben wir diesen Empfänger schon bezahlt:
+not found in this system,in diesem System nicht gefunden
+BIC,BIC
+Transfer type,Art der Überweisung
+Instant payment — arrives within seconds,Echtzeitüberweisung — kommt binnen Sekunden an
+SEPA transfer — one banking day,SEPA-Überweisung — ein Bankarbeitstag
+{0} receipts,{0} Belege
+Execution date has passed,Ausführungstermin liegt in der Vergangenheit
+"{0} is dated {1}, which has passed, and the bank is meant to hold it until then. A bank cannot execute an order in the past. Change the date, or set it to be held here and sent on the day.",{0} ist auf den {1} datiert — der ist vorbei — und die Bank soll den Auftrag bis dahin halten. Eine Bank kann keinen Auftrag in der Vergangenheit ausführen. Bitte das Datum ändern oder den Auftrag hier halten lassen und am Termin senden.
+Refused by the bank,Von der Bank abgelehnt
+"The bank refused this order. It was NOT sent.
+
+{0}","Die Bank hat diesen Auftrag abgelehnt. Er wurde NICHT abgesendet.
+
+{0}"
+What the bank said:,Was die Bank gesagt hat:
+What this means:,Was das bedeutet:
+The bank could not process the message at all. Nothing was sent.,Die Bank konnte die Nachricht gar nicht verarbeiten. Es wurde nichts gesendet.
+The bank rejected the order data. The detail in brackets usually names the field it objected to.,Die Bank hat die Auftragsdaten zurückgewiesen. Der Zusatz in Klammern nennt meist das beanstandete Feld.
+A SEPA order cannot be sent while a bank fetch is running. Wait for the fetch to finish and send it again.,"Während ein Bankabruf läuft, kann kein SEPA-Auftrag gesendet werden. Bitte den Abruf abwarten und dann erneut senden."
+A collective transfer requires a control sum.,Ein Sammelauftrag verlangt eine Kontrollsumme.
+An instant payment cannot be scheduled for a later date.,Eine Echtzeitüberweisung lässt sich nicht auf einen späteren Termin legen.
+Bank Transaction import completed,Import der Banktransaktionen abgeschlossen
+Connection established,Verbindung steht
+Could not conntect to fints server with error<br>{0},Verbindung zum FinTS-Server nicht möglich<br>{0}
+Could not load sepa accounts with error:<br>{0},Die SEPA-Konten konnten nicht geladen werden:<br>{0}
+Error parsing transactions<br>{0},Die Umsätze ließen sich nicht lesen<br>{0}
+Failed to attach file,Die Datei konnte nicht angehängt werden
+Found a total of '{0}' payments,Insgesamt {0} Zahlungen gefunden
+Initialise TAN settings,TAN-Einstellungen einrichten
+Initialise connection,Verbindung aufbauen
+Loading accounts,Konten werden geladen
+Loading accounts completed,Konten geladen
+No FinTS account matching IBAN {0} for login {1}. The bank offered: {2}. Accounts without an IBAN (e.g. credit cards) cannot be fetched this way.,Kein FinTS-Konto mit der IBAN {0} für den Zugang {1}. Die Bank hat angeboten: {2}. Konten ohne IBAN — etwa Kreditkarten — lassen sich auf diesem Weg nicht abrufen.
+No TAN mechanisms available,Kein TAN-Verfahren verfügbar
+No new payments found,Keine neuen Zahlungen gefunden
+No pending Verification of Payee for this login.,Für diesen Zugang steht keine Empfängerprüfung offen.
+No transaction found,Keine Umsätze gefunden
+SEPA account object has no key '{0}',Das SEPA-Konto hat keinen Schlüssel „{0}“
+Start date is more than the allowed {0} days in the past,Das Startdatum liegt weiter als die erlaubten {0} Tage in der Vergangenheit
+Start transaction import,Umsatzimport starten
+and {0} more,und {0} weitere
+no balance,kein Saldo
+bank returned no balance,die Bank hat keinen Saldo geliefert
+balance missing on the response,in der Antwort fehlt der Saldo
+no running balance for {0},{0} führt keinen fortlaufenden Saldo
+no bank account linked,kein Bankkonto verknüpft
+field bank_balance not installed,das Feld bank_balance ist nicht installiert
+no fetch window,kein Abrufzeitraum
+no bookings in the window,keine Buchungen im Zeitraum
+the bank sent no HIUPD,die Bank hat kein HIUPD gesendet
+no bank account with this IBAN,kein Bankkonto mit dieser IBAN
+capability fields not installed,die Felder für die Fähigkeiten sind nicht installiert
+already present,bereits vorhanden
+the bank named no limit,die Bank hat kein Limit genannt
+no limit known,kein Limit bekannt
+no list of documents found in the response,in der Antwort steht keine Dokumentenliste
+no list of documents in the response,in der Antwort steht keine Dokumentenliste
+run budget reached,Obergrenze des Laufs erreicht
+Fetch the {0} unfinished accesses again,Die {0} nicht abgeschlossenen Zugänge erneut abrufen
+None of these accesses is still configured.,Keiner dieser Zugänge ist noch eingerichtet.
+Due today — goes to the bank now,Heute fällig — geht jetzt an die Bank
+Due since {0} — goes to the bank today,Fällig seit {0} — geht heute an die Bank
+Today — the bank executes it today,Heute — die Bank führt ihn heute aus
+"Dated {0}, which has passed — the bank cannot execute this","Auf den {0} datiert, der vorbei ist — die Bank kann das nicht ausführen"
+"counted as cash in the books, but this is {0}","in der Buchhaltung als Guthaben geführt, ist aber {0}"
+Ledger,Buchhaltung
+{0}: the bank is waiting for the release in your banking app. Confirm it there -- this login uses a decoupled procedure and issues no TAN to type in.,{0}: Die Bank wartet auf die Freigabe in Ihrer Banking-App. Dort bestätigen — dieser Zugang nutzt ein entkoppeltes Verfahren und gibt keine TAN zum Eintippen aus.
+{0}: the bank requires a TAN before the bookings can be read. Enter it in the window.,"{0}: Die Bank verlangt eine TAN, bevor die Buchungen gelesen werden können. Bitte im Fenster eingeben."
+The session is then open: fetch this access once more and the bookings come through without another TAN. The panel offers that as a link once the run has finished.,"Danach ist die Sitzung offen: Diesen Zugang noch einmal abrufen, dann kommen die Buchungen ohne weitere TAN durch. Das Panel bietet dafür einen Link an, sobald der Lauf fertig ist."
+"Not attempted -- {0} is waiting for a release, and this bank access holds one dialog at a time.","Nicht versucht — {0} wartet auf eine Freigabe, und dieser Bankzugang hält immer nur einen Dialog offen."
+The worker stopped reporting. Fetch this access again.,Der Hintergrundlauf meldet sich nicht mehr. Diesen Zugang bitte erneut abrufen.
+Release accepted — fetching the {0} accounts that were waiting for it.,"Freigabe angenommen — die {0} Konten, die darauf gewartet haben, werden jetzt abgerufen."
+Connection could not be rebuilt,Verbindung ließ sich nicht wiederherstellen
+"The bank connection for {0} could not be rebuilt from its stored state, so this order was NOT sent as far as this app can tell. The stored state has been discarded and the next attempt will start a fresh connection.
+
+Before sending again, look in your online banking: if the transfer is there after all, cancel this order instead of repeating it.","Die Bankverbindung für {0} ließ sich aus dem gespeicherten Zustand nicht wiederherstellen. Nach allem, was diese App erkennen kann, wurde der Auftrag NICHT gesendet. Der gespeicherte Zustand wurde verworfen, der nächste Versuch baut die Verbindung neu auf.
+
+Bitte vor einem erneuten Senden im Online-Banking nachsehen: steht die Überweisung doch dort, diesen Auftrag stornieren statt ihn zu wiederholen."
+{0}: the release did not arrive in time. Confirm it in your banking app and fetch this access again -- the challenge is still open.,{0}: Die Freigabe ist nicht rechtzeitig eingetroffen. Bitte in der Banking-App bestätigen und diesen Zugang erneut abrufen — die Anfrage ist noch offen.
+Release received — carrying on.,Freigabe eingegangen — es geht weiter.
+the bank refuses this query for this account,die Bank lehnt diese Abfrage für dieses Konto ab
+Payee on the order,Empfänger laut Auftrag
+Name at the Bank,Name bei der Bank
+Bank's Answer,Antwort der Bank
+"Once you release it, this payee is remembered: a later payment to the same name and the same IBAN goes through without asking again.",Mit der Freigabe wird dieser Empfänger gemerkt: Eine spätere Zahlung an denselben Namen und dieselbe IBAN geht ohne erneute Rückfrage durch.
+Kefiya Accepted Payee,Kefiya Bestätigter Empfänger
+Payee Name,Empfängername
+Match Key,Vergleichsschlüssel
+Who decided,Wer entschieden hat
+Approved By,Freigegeben von
+Approved On,Freigegeben am
+Bank Access,Bankzugang
+"The payee name as it stood on the order somebody approved. A different spelling is a different payee here, on purpose.","Der Empfängername, wie er auf dem freigegebenen Auftrag stand. Eine andere Schreibweise gilt hier bewusst als anderer Empfänger."
+The account the money went to.,"Das Konto, auf das das Geld ging."
+"What the bank answered when it checked: RVMC close match, RVNM no match, RVNA could not check.","Was die Bank bei der Prüfung geantwortet hat: RVMC fast gleich, RVNM keine Übereinstimmung, RVNA nicht prüfbar."
+"The name the bank holds for that IBAN, where it named one.","Der Name, den die Bank zu dieser IBAN führt, sofern sie einen genannt hat."
+"IBAN and payee name, normalised. This is what a later order is looked up by; it is unique, so one decision is stored once.","IBAN und Empfängername, vereinheitlicht. Danach wird ein späterer Auftrag gesucht; er ist eindeutig, damit eine Entscheidung genau einmal gespeichert ist."
+The bank access the order went out through.,"Der Bankzugang, über den der Auftrag hinausging."
+Payee check open,Empfängerprüfung offen
+The bank is holding this order until the payee check is confirmed. Nothing has been sent. Send it to the bank again — the check then comes back for review and release.,"Die Bank hält diesen Auftrag zurück, bis die Empfängerprüfung bestätigt ist. Es wurde nichts gesendet. Den Auftrag erneut an die Bank senden — die Prüfung kommt dann zur Ansicht und Freigabe zurück."
+"What the bank answered about the payee, as JSON: the result code, the name the bank holds for that IBAN, and who the order pays. The parsed segment it came from is in the Error Log; this is the part a person can read.","Was die Bank zum Empfänger geantwortet hat, als JSON: das Prüfergebnis, der Name, den die Bank zu dieser IBAN führt, und wer bezahlt wird. Das Segment, aus dem es stammt, steht im Fehlerprotokoll; das hier ist der Teil, den ein Mensch lesen kann."
+The bank checked the payee for this order and will not release it until that check is confirmed. The order was NOT sent. Normally this app confirms the check itself and asks you only when the bank could not confirm the name. Why it did not get that far this time is in the Error Log -- most often the bank had not finished checking. Send this transfer from your online banking and report this message.,"Die Bank hat den Empfänger für diesen Auftrag geprüft und gibt ihn erst frei, wenn diese Prüfung bestätigt ist. Der Auftrag wurde NICHT gesendet. Normalerweise bestätigt die App die Prüfung selbst und fragt nur nach, wenn die Bank den Namen nicht bestätigen konnte. Warum es diesmal nicht so weit kam, steht im Fehlerprotokoll — meist hatte die Bank die Prüfung noch nicht abgeschlossen. Bitte diese Überweisung im Online-Banking auslösen und diese Meldung melden."
+"This bank returns its result in a format this app cannot read, so it is not shown above. Check the recipient against the original document yourself — here, you are the check.","Diese Bank liefert ihr Prüfergebnis in einem Format, das diese App nicht lesen kann; deshalb steht es oben nicht. Bitte den Empfänger selbst gegen den Originalbeleg prüfen — hier sind Sie die Prüfung."
+"The bank refused this order after the release. It was NOT sent.
+
+{0}","Die Bank hat diesen Auftrag nach der Freigabe abgelehnt. Er wurde NICHT gesendet.
+
+{0}"
+"This transfer has gone to the bank. Its date cannot be changed here -- recall it with your bank if it must not be executed as it stands.","Dieser Auftrag ist bei der Bank. Sein Datum kann hier nicht mehr geändert werden — bitte bei der Bank widerrufen, wenn er so nicht ausgeführt werden soll."
+"{0}: the bank is waiting for a release, but this could not be noted down here, so the release cannot be answered. Look in your online banking before sending again -- an order may have reached the bank.","{0}: Die Bank wartet auf eine Freigabe, aber der Vorgang konnte hier nicht festgehalten werden — die Freigabe kann deshalb nicht beantwortet werden. Bitte vor einem erneuten Senden im Online-Banking nachsehen: Ein Auftrag kann die Bank erreicht haben."

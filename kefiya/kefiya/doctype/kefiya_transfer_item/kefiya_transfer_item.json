@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "creation": "2026-07-28 21:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "own_account",
+  "recipient_name",
+  "recipient_iban",
+  "recipient_bic",
+  "column_break_amount",
+  "amount",
+  "purpose",
+  "end_to_end_id",
+  "payee_check",
+  "payee_check_detail"
+ ],
+ "fields": [
+  {
+   "description": "Pick one of the company's own accounts to move money between them. Name and IBAN are filled from it; both stay editable.",
+   "fieldname": "own_account",
+   "fieldtype": "Link",
+   "label": "Own Account",
+   "options": "Bank Account"
+  },
+  {
+   "columns": 2,
+   "fieldname": "recipient_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Recipient Name",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "recipient_iban",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Recipient IBAN",
+   "reqd": 1
+  },
+  {
+   "fieldname": "recipient_bic",
+   "fieldtype": "Data",
+   "label": "Recipient BIC"
+  },
+  {
+   "fieldname": "column_break_amount",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 1,
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "purpose",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Purpose",
+   "length": 140
+  },
+  {
+   "description": "Set automatically on submit; identifies this payment in the bank statement.",
+   "fieldname": "end_to_end_id",
+   "fieldtype": "Data",
+   "label": "End-To-End ID",
+   "length": 35,
+   "read_only": 1
+  },
+  {
+   "description": "Checked against our own payment history when the order is entered, so it is a recorded fact by the time somebody sends it.",
+   "fieldname": "payee_check",
+   "fieldtype": "Select",
+   "label": "Payee check",
+   "options": "\nknown\nother_iban\nname_differs\nnew",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payee_check_detail",
+   "fieldtype": "Small Text",
+   "label": "Payee check detail",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-28 21:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Kefiya",
+ "name": "Kefiya Transfer Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

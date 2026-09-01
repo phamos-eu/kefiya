@@ -1,7 +1,9 @@
 // Copyright (c) 2019, jHetzer and contributors
 // For license information, please see license.txt
 
+{% include "kefiya/public/js/controllers/fints_progress_log.js" %}
 {% include "kefiya/public/js/controllers/fints_interactive.js" %}
+{% include "kefiya/public/js/controllers/account_capabilities.js" %}
 
 frappe.ui.form.on('Kefiya Login', {
 	onload: function(frm) {
@@ -44,6 +46,94 @@ frappe.ui.form.on('Kefiya Login', {
 					frm.reload_doc();
 				});
 			});
+		}
+
+		if (frm.doc.account_iban) {
+			// Primary action: pull current transactions + everything else the
+			// bank offers. The button greys out while the fetch runs so it
+			// cannot be triggered twice (a second FinTS dialog / TAN in
+			// parallel).
+			const fetch_btn = frm.add_custom_button(__("Aktuelle Umsätze abrufen"), function() {
+				const $btn = fetch_btn;
+				$btn.prop("disabled", true).addClass("disabled");
+				frappe.call({
+					method: "kefiya.utils.client.fetch_all",
+					args: { kefiya_login: frm.doc.name, user_scope: frm.doc.name },
+					freeze: true,
+					freeze_message: __("Rufe Umsätze und alle weiteren Bankdaten ab ..."),
+					callback: function(r) {
+						const s = (r && r.message) || {};
+						const t = (s.transactions && s.transactions.new_count) || 0;
+						const parts = [__("New transactions: {0}", [t])];
+						if (s.planned) {
+							parts.push(__("Forecast: {0} new / {1} updated / {2} cancelled",
+								[s.planned.created || 0, s.planned.updated || 0, s.planned.cancelled || 0]));
+						}
+						if (s.statements) parts.push(__("Documents: {0}", [s.statements.count || 0]));
+						if (s.credit_card) parts.push(__("Credit-card txns: {0}", [s.credit_card.count || 0]));
+						if (s.errors && s.errors.length) {
+							parts.push(__("Not available from this bank: {0}", [s.errors.join(", ")]));
+						}
+						// The fetch re-read what the bank allows here, so the
+						// page's cached answer is now the older one.
+						kefiya.capabilities.forget(frm.doc.name);
+						frappe.msgprint({
+							title: __("Abruf abgeschlossen"),
+							indicator: (s.errors && s.errors.length) ? "orange" : "green",
+							message: parts.join("<br>")
+						});
+						frm.reload_doc();
+					},
+					always: function() {
+						// Re-enable even on error/TAN-abort so the user can retry.
+						$btn.prop("disabled", false).removeClass("disabled");
+					}
+				});
+			});
+
+			// The bank's own list decides whether the document button is
+			// offered: an account that does not do HKEKA answers the click
+			// with an empty dialog, every single time. The fetch below
+			// refreshes that list, so this is a button that can come back.
+			kefiya.capabilities.load(frm.doc.name).then(function (info) {
+				if (kefiya.capabilities.refuses(info, "statements")) {
+					frm.remove_custom_button(
+						__("Kontoauszüge / Dokumente"), __("FinTS"));
+				}
+			});
+
+			frm.add_custom_button(__("Kontoauszüge / Dokumente"), function() {
+				frappe.call({
+					method: "kefiya.utils.fints_controller.get_statements",
+					args: { kefiya_login: frm.doc.name },
+					freeze: true,
+					freeze_message: __("Fetching document list via FinTS ..."),
+					callback: function(r) {
+						const items = (r && r.message) || [];
+						let body;
+						if (!items.length) {
+							body = `<p>${__("No documents / statements available for this account.")}</p>`;
+						} else {
+							const keys = Object.keys(items[0] || {});
+							const head = keys.map(k => `<th>${frappe.utils.escape_html(k)}</th>`).join("");
+							const rows = items.map(it => {
+								const tds = keys.map(k => {
+									const v = it[k] == null ? "" : String(it[k]);
+									return `<td>${frappe.utils.escape_html(v)}</td>`;
+								}).join("");
+								return `<tr>${tds}</tr>`;
+							}).join("");
+							body = `<div style="overflow-x:auto"><table class="table table-bordered">`
+								+ `<thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+						}
+						new frappe.ui.Dialog({
+							title: __("Kontoauszüge / Dokumente"),
+							size: "large",
+							fields: [{ fieldtype: "HTML", fieldname: "doc_list", options: body }],
+						}).show();
+					}
+				});
+			}, __("FinTS"));
 		}
 
 		// TODO

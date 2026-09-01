@@ -179,18 +179,30 @@ def has_page_permission(page_name):
 
 
 def validate_unique_iban(doc, method):
-    """Bank Account IBAN should be unique."""
+    """Bank Account IBAN should be unique.
+
+    An account without an IBAN is not a duplicate of every other account
+    without one. The filter used to key on the document's own IBAN with no
+    guard, so an empty one matched `iban IS NULL` -- and on a book where
+    most accounts have no IBAN at all (supplier accounts, tenant accounts,
+    the hand-kept loan records) that made every one of them unsavable,
+    naming an unrelated account as the culprit.
+
+    IBANs are compared without spaces and in upper case. Banks and people
+    write the same IBAN both ways, and two spellings of one IBAN are one
+    IBAN, not two.
+    """
+    iban = (doc.iban or "").replace(" ", "").upper()
+    if not iban:
+        return
+
     doctype = "Bank Account"
-    bankAccountName = frappe.db.get_value(
-        doctype,
-        filters={
-            "iban": doc.iban,
-            "name": [
-                "!=",
-                doc.name
-            ]
-        })
-    if bankAccountName:
-        frappe.throw(_("IBAN already exists in bank account: {0}").format(
-            getlink(doctype, bankAccountName)
-        ))
+    for name, other in frappe.get_all(
+            doctype,
+            filters={"name": ["!=", doc.name], "iban": ["is", "set"]},
+            fields=["name", "iban"],
+            as_list=True):
+        if (other or "").replace(" ", "").upper() == iban:
+            frappe.throw(_("IBAN already exists in bank account: {0}").format(
+                getlink(doctype, name)
+            ))

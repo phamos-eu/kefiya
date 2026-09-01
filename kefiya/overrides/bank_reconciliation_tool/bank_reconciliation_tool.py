@@ -24,6 +24,12 @@ def custom_create_journal_entry_bts(
     party=None,
     allow_edit=None,
 ):
+    # Permission gate: creates and submits a Journal Entry against a Bank
+    # Transaction, so it needs write rights on that transaction rather than
+    # being callable by any logged-in user.
+    frappe.has_permission(
+        "Bank Transaction", ptype="write",
+        doc=bank_transaction_name, throw=True)
     # Create a new journal entry based on the bank transaction
     bank_transaction = frappe.db.get_values(
         "Bank Transaction",

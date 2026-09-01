@@ -292,7 +292,6 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 
 		// reconcile bank transaction against sales invoice
 		$(me.row).on("click", ".reconcile_transaction", function () {
-			const currency = me.data.currency;
 			const sales_invoice_name = me.data.name;
 			const bank_transaction_name = $(this).attr("data-name");
 			
@@ -310,7 +309,10 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 					vouchers.push({
 						payment_doctype: "Sales Invoice",
 						payment_name: sales_invoice_name,
-						amount: format_currency(paid_amount, currency),
+						// Raw number, not format_currency(): reconcile_vouchers
+						// runs flt() over this, and a localised string like
+						// "1.234,56 €" reduces to a nonsense allocation.
+						amount: paid_amount,
 					});
 				
 					frappe.call({

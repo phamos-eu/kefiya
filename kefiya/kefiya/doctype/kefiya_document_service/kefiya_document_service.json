@@ -1,0 +1,217 @@
+{
+ "actions": [],
+ "creation": "2026-08-15 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "provider",
+  "column_break_cfg",
+  "base_url",
+  "api_key",
+  "credential_section",
+  "credential_source",
+  "credential_doctype",
+  "credential_docname",
+  "credential_child_table",
+  "column_break_cred",
+  "credential_match_field",
+  "credential_match_value",
+  "credential_token_field",
+  "credential_url_field",
+  "scope_section",
+  "document_type_filter",
+  "lookback_days",
+  "column_break_scope",
+  "max_documents_per_run",
+  "accounts_section",
+  "accounts",
+  "state_section",
+  "last_run_on",
+  "last_run_summary"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "description": "While this is off, nothing is fetched and the scheduled run does nothing.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "default": "GetMyInvoices",
+   "fieldname": "provider",
+   "fieldtype": "Select",
+   "label": "Provider",
+   "options": "GetMyInvoices",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_cfg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "https://api.getmyinvoices.com/accounts/v2",
+   "description": "Endpoint of the document service. Only https is accepted.",
+   "fieldname": "base_url",
+   "fieldtype": "Data",
+   "label": "Base URL"
+  },
+  {
+   "description": "Created at the service under \"API access\". Stored encrypted and never written to a log.",
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API Key",
+   "depends_on": "eval:!doc.credential_source || doc.credential_source=='Inline'"
+  },
+  {
+   "fieldname": "credential_section",
+   "fieldtype": "Section Break",
+   "label": "Access credentials"
+  },
+  {
+   "default": "Inline",
+   "fieldname": "credential_source",
+   "fieldtype": "Select",
+   "label": "Credential Source",
+   "options": "Inline\nExternal DocType",
+   "description": "Inline keeps the key in the field below. External DocType reads it from wherever this instance already keeps its API credentials, so there is one place for them instead of two."
+  },
+  {
+   "fieldname": "credential_doctype",
+   "fieldtype": "Link",
+   "label": "Credential DocType",
+   "options": "DocType",
+   "depends_on": "eval:doc.credential_source=='External DocType'"
+  },
+  {
+   "fieldname": "credential_docname",
+   "fieldtype": "Data",
+   "label": "Credential Document",
+   "description": "Leave empty for a Single DocType.",
+   "depends_on": "eval:doc.credential_source=='External DocType'"
+  },
+  {
+   "fieldname": "credential_child_table",
+   "fieldtype": "Data",
+   "label": "Child Table Fieldname",
+   "description": "Fieldname of the table holding one row per service. Empty means the fields sit on the document itself.",
+   "depends_on": "eval:doc.credential_source=='External DocType'"
+  },
+  {
+   "fieldname": "column_break_cred",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "service",
+   "fieldname": "credential_match_field",
+   "fieldtype": "Data",
+   "label": "Match Field",
+   "depends_on": "eval:doc.credential_source=='External DocType' && doc.credential_child_table"
+  },
+  {
+   "fieldname": "credential_match_value",
+   "fieldtype": "Data",
+   "label": "Match Value",
+   "description": "Value identifying this service's row, e.g. its short name.",
+   "depends_on": "eval:doc.credential_source=='External DocType' && doc.credential_child_table"
+  },
+  {
+   "default": "api_token",
+   "fieldname": "credential_token_field",
+   "fieldtype": "Data",
+   "label": "Token Field",
+   "description": "Password field holding the key.",
+   "depends_on": "eval:doc.credential_source=='External DocType'"
+  },
+  {
+   "fieldname": "credential_url_field",
+   "fieldtype": "Data",
+   "label": "Base URL Field",
+   "description": "Optional. When set, the endpoint is taken from there instead of the Base URL above.",
+   "depends_on": "eval:doc.credential_source=='External DocType'"
+  },
+  {
+   "fieldname": "scope_section",
+   "fieldtype": "Section Break",
+   "label": "What to fetch"
+  },
+  {
+   "description": "Document type as the service names it, e.g. a statement type. Empty fetches every type.",
+   "fieldname": "document_type_filter",
+   "fieldtype": "Data",
+   "label": "Document Type Filter"
+  },
+  {
+   "default": "90",
+   "description": "How far back a run looks. A first run may need more; afterwards a small window is enough.",
+   "fieldname": "lookback_days",
+   "fieldtype": "Int",
+   "label": "Lookback (days)"
+  },
+  {
+   "fieldname": "column_break_scope",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "50",
+   "description": "Upper bound per run. Each document is a separate download, so a first run works its backlog off over several runs rather than in one request.",
+   "fieldname": "max_documents_per_run",
+   "fieldtype": "Int",
+   "label": "Max Documents per Run"
+  },
+  {
+   "fieldname": "accounts_section",
+   "fieldtype": "Section Break",
+   "label": "Account mapping"
+  },
+  {
+   "description": "Which Bank Account a fetched document belongs to. Without an entry here nothing is filed -- a statement with no account has nowhere to go.",
+   "fieldname": "accounts",
+   "fieldtype": "Table",
+   "label": "Assigned accounts",
+   "options": "Kefiya Document Account"
+  },
+  {
+   "fieldname": "state_section",
+   "fieldtype": "Section Break",
+   "label": "Last Run"
+  },
+  {
+   "fieldname": "last_run_on",
+   "fieldtype": "Datetime",
+   "label": "Last Run On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_run_summary",
+   "fieldtype": "Small Text",
+   "label": "Last Run Summary",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-15 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Kefiya",
+ "name": "Kefiya Document Service",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

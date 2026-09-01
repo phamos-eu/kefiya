@@ -53,6 +53,15 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Kefiya Accepted Payee",
+   "link_to": "Kefiya Accepted Payee",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Tools",
    "link_type": "DocType",
    "onboard": 0,

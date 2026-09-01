@@ -17,11 +17,20 @@
   "import_settings_section",
   "get_accounts",
   "account_iban",
+  "account_kind",
   "failed_connection",
+  "skip_fetch",
   "allowed_sync_days_in_past",
+  "transfer_limit_section",
+  "transfer_limit_amount",
+  "transfer_limit_type",
+  "column_break_limit",
+  "transfer_limit_days",
+  "transfer_limit_checked_on",
   "column_break_ydzf",
   "dialog_state_updated",
   "client_state_updated",
+  "last_fetch_attempt",
   "tan_state_updated",
   "stored_tan_state_decoupled",
   "erpnext_account_settings_section",
@@ -33,7 +42,12 @@
   "iban_list",
   "stored_client_state",
   "stored_dialog_state",
-  "stored_tan_state"
+  "stored_tan_state",
+  "stored_vop_state",
+  "stored_vop_dialog_state",
+  "stored_vop_id_state",
+  "vop_reference",
+  "vop_result"
  ],
  "fields": [
   {
@@ -95,6 +109,14 @@
    "label": "Account IBAN"
   },
   {
+   "default": "Current Account",
+   "description": "What lies behind this access. Only a payment account has its balance counted back over the bookings; for a loan, a guarantee, cooperative shares or a securities account the bank reports a number that is not the sum of any bookings.",
+   "fieldname": "account_kind",
+   "fieldtype": "Select",
+   "label": "Account Kind",
+   "options": "Current Account\nSavings\nCredit Card\nLoan\nGuarantee / Credit Line\nCooperative Shares\nSecurities Account"
+  },
+  {
    "default": "0",
    "fieldname": "failed_connection",
    "fieldtype": "Int",
@@ -151,12 +173,12 @@
   },
   {
    "fieldname": "stored_dialog_state",
-   "fieldtype": "Small Text",
+   "fieldtype": "Long Text",
    "label": "Stored Dialog State"
   },
   {
    "fieldname": "stored_tan_state",
-   "fieldtype": "Small Text",
+   "fieldtype": "Long Text",
    "label": "Stored TAN State"
   },
   {
@@ -166,8 +188,15 @@
    "read_only": 1
   },
   {
+   "description": "Wann zuletzt ein Abruf für diesen Zugang gestartet wurde -- unabhängig davon, ob er erfolgreich war. Der Zeitplan nutzt diesen Wert als Frequenzsperre.",
+   "fieldname": "last_fetch_attempt",
+   "fieldtype": "Datetime",
+   "label": "Letzter Abrufversuch",
+   "read_only": 1
+  },
+  {
    "fieldname": "stored_client_state",
-   "fieldtype": "Small Text",
+   "fieldtype": "Long Text",
    "label": "Stored Client State"
   },
   {
@@ -200,6 +229,77 @@
    "fieldname": "allowed_sync_days_in_past",
    "fieldtype": "Int",
    "label": "Allowed Sync Days in the Past"
+  },
+  {
+   "fieldname": "transfer_limit_section",
+   "fieldtype": "Section Break",
+   "label": "Transfer Limit (from the bank)",
+   "description": "Read from the bank's HIUPD account information. Blank means the bank names no limit for this account -- which is not the same as no limit existing, so treat a blank as unknown."
+  },
+  {
+   "fieldname": "transfer_limit_amount",
+   "fieldtype": "Currency",
+   "label": "Limit Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "transfer_limit_type",
+   "fieldtype": "Data",
+   "label": "Limit Type",
+   "read_only": 1,
+   "description": "FinTS Limitart: E per order, T per day, W per week, M per month, Z per period of the given number of days."
+  },
+  {
+   "fieldname": "column_break_limit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "transfer_limit_days",
+   "fieldtype": "Int",
+   "label": "Limit Period (days)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "transfer_limit_checked_on",
+   "fieldtype": "Datetime",
+   "label": "Limit Read On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "stored_vop_state",
+   "fieldtype": "Long Text",
+   "label": "Stored VoP State"
+  },
+  {
+   "fieldname": "stored_vop_dialog_state",
+   "fieldtype": "Long Text",
+   "label": "Stored VoP Dialog State"
+  },
+  {
+   "description": "The VoP-ID of the payee check the parked TAN challenge belongs to. python-fints does not serialise it with the challenge, so without this the approval segment goes missing the moment the challenge is parked and the bank refuses to release the order.",
+   "fieldname": "stored_vop_id_state",
+   "fieldtype": "Long Text",
+   "label": "Stored VoP-ID"
+  },
+  {
+   "fieldname": "vop_reference",
+   "fieldtype": "Data",
+   "label": "VoP Pending Reference",
+   "read_only": 1
+  },
+  {
+   "description": "What the bank answered about the payee, as JSON: the result code, the name the bank holds for that IBAN, and who the order pays. The parsed segment it came from is in the Error Log; this is the part a person can read.",
+   "fieldname": "vop_result",
+   "fieldtype": "Small Text",
+   "label": "VoP Result",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "skip_fetch",
+   "fieldtype": "Check",
+   "label": "Vom Abruf ausnehmen",
+   "description": "Loan and clearing accounts are not offered for statement retrieval over FinTS. Tick this to keep the login out of the scheduled and collective fetch instead of letting it fail every run."
   }
  ],
  "icon": "fa fa-university",
