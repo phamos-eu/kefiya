@@ -30,6 +30,7 @@ from .import_bank_transaction import (
 from .auto_reconcile import run_after_import
 from .assign_payment_controller import AssignmentController
 from kefiya.utils import accepted_payee
+from kefiya.utils import camt_shape
 from kefiya.utils import fints_vop
 from kefiya.utils import fints_vop_client
 from kefiya.utils import pain_payee
@@ -1076,9 +1077,11 @@ class FinTSController(TanSession):
         """
         conn = self.fints_connection
         try:
-            from fints.camt_parser import camt053_to_dict
+            # Only what this method itself reaches into. The camt parser and
+            # the Transaction type belong to _as_transactions, which imports
+            # them where it uses them -- a probe that names them here and
+            # uses them there is a probe that stops meaning anything.
             from fints.exceptions import FinTSUnsupportedOperation
-            from fints.models import Transaction
             from fints.segments.statement import (
                 HKCAZ1, HKKAZ5, HKKAZ6, HKKAZ7)
 
@@ -1104,20 +1107,45 @@ class FinTSController(TanSession):
                     dialog, hkcaz, account, start_date, end_date)
                 if isinstance(result, NeedRetryResponse):
                     return result
-                streams = [x for x in result[0] if x]
-                if include_pending:
-                    # python-fints appends seg.statement_pending unfiltered, so
-                    # a bank that sends no pending block yields [None] -- which
-                    # is truthy. camt053_to_dict(None) then dies on the parser,
-                    # the shared dialog is retired, and every later command of
-                    # that login fails with "could not fetch BPD". One missing
-                    # optional field took out holdings and statements too.
-                    streams += [x for x in (result[1] or []) if x]
-                return [
-                    Transaction(txn)
-                    for stream in streams
-                    for txn in camt053_to_dict(stream)
-                ]
+                # The unpacking lives in _as_transactions, because the
+                # resume after a release comes back here as well and used to
+                # hand the raw documents on untouched.
+                return self._as_transactions(result, include_pending)
+
+    def _as_transactions(self, result, include_pending=False):
+        """What the library handed back, as transactions.
+
+        python-fints turns camt documents into Transaction objects in its
+        public get_transactions() -- and both paths here enter one level
+        below that: the first fetch, to keep a TAN challenge instead of
+        losing it, and the resume after a release, which returns from the
+        same depth. The resume therefore came back as the raw pair of
+        document lists::
+
+            ([b"<?xml ... Document ...>"], [])
+
+        and that went straight into json.dumps: "Object of type bytes is not
+        JSON serializable". At a bank that asks for a release before every
+        fetch -- the Volksbank does, and it offers no MT940 at all any more
+        -- that is the ordinary path, and three accounts could not be
+        fetched at all.
+
+        Anything that is not such a pair is left exactly as it is: an MT940
+        collection, a list of transactions, or whatever a later library
+        version returns. See camt_shape for the rule.
+        """
+        streams = camt_shape.streams_in(result, include_pending)
+        if streams is None:
+            return result
+
+        from fints.camt_parser import camt053_to_dict
+        from fints.models import Transaction
+
+        return [
+            Transaction(txn)
+            for stream in streams
+            for txn in camt053_to_dict(stream)
+        ]
 
     def _get_transactions_checked(self, account, start_date, end_date):
         """Fetch transactions, turning a mid-fetch TAN request into a TAN flow.
@@ -1160,7 +1188,7 @@ class FinTSController(TanSession):
             self._publish_tan_prompt(response, decoupled=True)
             released = self._await_release(response)
             if released is not None:
-                return released
+                return self._as_transactions(released)
             # Out of patience. NOW park it, so the release still finds
             # something to unlock when it arrives; the prompt is already up.
             if not self._park_tan_challenge(response):

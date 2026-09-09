@@ -190,6 +190,21 @@ frappe.provide("kefiya");
         }).map(function (e) { return e.ln; });
     }
 
+    // The accesses a release actually unblocks: the one the bank held back,
+    // and the ones this run never attempted because that access holds a
+    // single dialog. NOT the ones that failed.
+    //
+    // The automatic continuation used to take everything unfinished, so an
+    // access that had failed for a reason no release touches was fetched
+    // again by itself -- the bank asked a second time, the same error came
+    // back, and the user had asked for none of it. Trying again after a
+    // failure is a decision, and the link below is where it is made.
+    function waitingForRelease() {
+        return ((run && run.log) || []).filter(function (e) {
+            return e.state === "tan";
+        }).map(function (e) { return e.ln; });
+    }
+
     // The shortest true sentence about one failed access: the reason the
     // server gave, or the first line that came back marked as an error.
     function shortProblem(entry) {
@@ -375,7 +390,7 @@ frappe.provide("kefiya");
         // loop. What is still unfetched after it stays on the panel, behind
         // the link that exists for exactly that.
         if (run && run.resumed) return;
-        var again = unfinished();
+        var again = waitingForRelease();
         if (!again.length) return;
         var opts = (run && run.options) || {};
         frappe.show_alert({

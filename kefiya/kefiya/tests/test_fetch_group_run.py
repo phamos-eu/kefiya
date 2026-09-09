@@ -194,3 +194,25 @@ class TestOneReleaseDoesNotBecomeALoop(unittest.TestCase):
         self.assertIn("if (run && run.resumed) return;", self.js)
         self.assertIn("resumed: true", self.js)
         self.assertIn("resumed: !!options.resumed", self.js)
+
+    def test_only_what_the_release_unblocks_is_fetched_again(self):
+        """A failure is not something a release fixes. The continuation took
+        everything unfinished, so an access that had failed was fetched again
+        by itself -- the bank asked a second time, the same error came back,
+        and the user had asked for none of it."""
+        weiter = self.js.split("function maybeResume()")[1].split(
+            "\n    function ")[0]
+        self.assertIn("waitingForRelease()", weiter)
+        self.assertNotIn("unfinished()", weiter)
+        regel = self.js.split("function waitingForRelease()")[1].split(
+            "\n    function ")[0]
+        self.assertIn('e.state === "tan"', regel)
+        self.assertNotIn('e.state === "err"', regel)
+
+    def test_the_link_still_offers_both(self):
+        """Trying again after a failure is a decision, and this is where it
+        is made -- by a click, not by itself."""
+        regel = self.js.split("function unfinished()")[1].split(
+            "\n    function ")[0]
+        self.assertIn('e.state === "err" || e.state === "tan"', regel)
+        self.assertIn("Fetch the {0} unfinished accesses again", self.js)
