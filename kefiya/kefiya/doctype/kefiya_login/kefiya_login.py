@@ -7,8 +7,11 @@ from __future__ import unicode_literals
 import base64
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 from frappe.utils.password import decrypt, encrypt
+
+from kefiya.utils import login_siblings
 
 class KefiyaLogin(Document):
     def clear_fints_caches(self):
@@ -119,6 +122,70 @@ class KefiyaLogin(Document):
         frappe.has_permission(ptype="write", doc=self, throw=True)
         self.clear_fints_caches()
         self.save()
+
+    @frappe.whitelist(allow_guest=False)
+    def accounts_without_login(self):
+        """Die Konten dieses Zugangs, die noch kein Login abruft.
+
+        Die Bank hat sie genannt, als "Konten laden" gedrueckt wurde; was
+        davon schon ein Login hat, steht in kefiya.
+        """
+        frappe.has_permission(ptype="read", doc=self, throw=True)
+        belegt = [row.account_iban for row in frappe.get_all(
+            "Kefiya Login", fields=["account_iban"], limit_page_length=0)]
+        return login_siblings.unclaimed(self.iban_list, belegt)
+
+    @frappe.whitelist(allow_guest=False)
+    def add_account(self, iban, bank_account, erpnext_account,
+                    login_name=None, account_kind=None):
+        """Ein weiteres Konto desselben Zugangs abrufbar machen.
+
+        Dieselbe Kennung, dieselbe PIN, ein anderes Konto: bisher wurde
+        dafuer alles noch einmal getippt, PIN und Produkt-ID eingeschlossen.
+        Die beiden werden hier serverseitig gelesen und weitergegeben -- sie
+        verlassen die Instanz nicht.
+
+        Die Bank entscheidet, ob es dieses Konto gibt: nur was in ihrer
+        Kontenliste steht, bekommt einen Login.
+        """
+        frappe.has_permission(ptype="write", doc=self, throw=True)
+        frappe.has_permission("Kefiya Login", ptype="create", throw=True)
+
+        iban = login_siblings.normalise(iban)
+        if iban not in login_siblings.named_by_bank(self.iban_list):
+            frappe.throw(_("The bank does not list {0} under this access."
+                           " Load the accounts first.").format(iban))
+        if iban not in self.accounts_without_login():
+            frappe.throw(_("{0} is already fetched by another access.")
+                         .format(iban))
+
+        konto = frappe.get_doc("Bank Account", bank_account)
+        if login_siblings.normalise(konto.iban) != iban:
+            frappe.throw(_("The bank account {0} has the IBAN {1}, not {2}.")
+                         .format(bank_account, konto.iban or "-", iban))
+
+        zugang = frappe.new_doc("Kefiya Login")
+        for feld in login_siblings.COPIED:
+            zugang.set(feld, self._carried_over(feld))
+        zugang.login_name = login_name or konto.name
+        zugang.account_iban = iban
+        zugang.account_kind = account_kind or self.account_kind
+        zugang.bank_account = konto.name
+        zugang.company = konto.company
+        zugang.erpnext_account = erpnext_account or konto.account
+        zugang.insert()
+        return zugang.name
+
+    def _carried_over(self, fieldname):
+        """Der Wert, den ein zweiter Login dieses Zugangs uebernimmt.
+
+        Die verschluesselten Felder liegen im Dokument nicht als Klartext,
+        sondern hinter get_password() -- ohne das erbt der neue Zugang eine
+        Maske statt der PIN und laeuft in eine gesperrte Kennung.
+        """
+        if fieldname in login_siblings.SECRETS:
+            return self.get_password(fieldname, raise_exception=False)
+        return self.get(fieldname)
 
     # TODO
     # @frappe.whitelist(allow_guest=False)

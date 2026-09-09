@@ -48,6 +48,22 @@ frappe.ui.form.on('Kefiya Login', {
 			});
 		}
 
+		// Eine Kennung, eine PIN, vierzig Konten: was die Bank unter diesem
+		// Zugang nennt, braucht je Konto ein eigenes Login. Die PIN wird
+		// dafuer nicht noch einmal getippt -- sie wird serverseitig kopiert.
+		if (frm.doc.iban_list && !frm.doc.__unsaved) {
+			frm.add_custom_button(__("Add another account of this access"), function() {
+				frm.call("accounts_without_login").then((r) => {
+					const open_ones = (r && r.message) || [];
+					if (!open_ones.length) {
+						frappe.msgprint(__("Every account the bank lists under this access already has its own login."));
+						return;
+					}
+					kefiya_add_account_dialog(frm, open_ones);
+				});
+			});
+		}
+
 		if (frm.doc.account_iban) {
 			// Primary action: pull current transactions + everything else the
 			// bank offers. The button greys out while the fetch runs so it
@@ -210,3 +226,66 @@ frappe.ui.form.on('Kefiya Login', {
 		});
 	}
 });
+
+// Ein weiteres Konto desselben Zugangs. Gefragt wird nur nach dem, was das
+// neue Login von diesem unterscheidet -- Konto, Bankkonto, Sachkonto. Kennung,
+// PIN und Produkt-ID stehen nicht im Dialog: sie werden auf dem Server aus
+// diesem Zugang gelesen und kommen nie in den Browser.
+function kefiya_add_account_dialog(frm, open_ones) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Add another account of this access"),
+		fields: [
+			{
+				fieldtype: "HTML",
+				fieldname: "hint",
+				options: `<p class="text-muted">${__("Username and PIN are taken from this access. They stay on the server.")}</p>`
+			},
+			{
+				fieldname: "iban", fieldtype: "Select", reqd: 1,
+				label: __("Account IBAN"), options: open_ones
+			},
+			{
+				fieldname: "bank_account", fieldtype: "Link", reqd: 1,
+				label: __("Bank Account"), options: "Bank Account",
+				get_query: () => ({filters: {iban: dialog.get_value("iban")}}),
+				onchange: () => {
+					const name = dialog.get_value("bank_account");
+					if (!name) return;
+					frappe.db.get_value("Bank Account", name, ["account", "company"])
+						.then((res) => {
+							const values = (res && res.message) || {};
+							if (values.account) dialog.set_value("erpnext_account", values.account);
+							if (!dialog.get_value("login_name")) dialog.set_value("login_name", name);
+						});
+				}
+			},
+			{
+				fieldname: "erpnext_account", fieldtype: "Link", reqd: 1,
+				label: __("Ledger account"), options: "Account",
+				get_query: () => ({filters: {account_type: "Bank", is_group: 0}})
+			},
+			{fieldname: "login_name", fieldtype: "Data", label: __("Login Name")},
+			{
+				fieldname: "account_kind", fieldtype: "Select",
+				label: __("Account Kind"),
+				options: frm.fields_dict.account_kind.df.options,
+				default: frm.doc.account_kind
+			}
+		],
+		primary_action_label: __("Create access"),
+		primary_action(values) {
+			dialog.hide();
+			frm.call("add_account", {
+				iban: values.iban,
+				bank_account: values.bank_account,
+				erpnext_account: values.erpnext_account,
+				login_name: values.login_name,
+				account_kind: values.account_kind
+			}).then((r) => {
+				if (!r || !r.message) return;
+				frappe.set_route("Form", "Kefiya Login", r.message);
+			});
+		}
+	});
+	dialog.show();
+}
