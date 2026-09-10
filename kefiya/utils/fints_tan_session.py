@@ -22,6 +22,7 @@ Hier stehen sie in der Reihenfolge des Lebenszyklus:
     _await_release              auf eine Freigabe warten (nur beim Abruf)
     _decoupled_parameters       was die Bank ueber das Warten sagt
     _tell_the_browser…          das Freigabefenster schliessen
+    _return_to_the_same_gateway zurueck zu dem Gateway, an dem sie haengt
     _resume_and_answer…         die geparkte Anforderung beantworten
 
 Als Mixin, nicht als Mitspieler: Die neun greifen auf kefiya_login,
@@ -40,6 +41,7 @@ from fints.client import NeedTANResponse, NeedRetryResponse
 
 from kefiya.utils import fints_vop
 from kefiya.utils import fints_vop_client
+from kefiya.utils import gateway_session
 from kefiya.utils import release_outcome
 from kefiya.utils import tan_challenge
 from kefiya.utils.decoupled_budget import decoupled_wait, job_budget_seconds
@@ -324,9 +326,28 @@ class TanSession:
         except Exception:
             pass
 
+    def _return_to_the_same_gateway(self):
+        """Zurueck zu dem Gateway, an dem der pausierte Dialog haengt.
+
+        Die Bank verteilt auf mehrere Gateways, und wer den Dialog woanders
+        fortsetzt, bekommt "9800 FGW Gatewaywechsel A/B" -- die Freigabe des
+        Nutzers ist dann verloren. Gehalten wird das ueber die Cookies der
+        HTTPS-Sitzung, die eine neue Anfrage nicht mehr hat.
+
+        Nie ein Grund zu scheitern: ohne gemerkte Cookies geschieht genau
+        das, was vorher geschah.
+        """
+        try:
+            gateway_session.restore(
+                self.fints_connection,
+                gateway_session.from_blob(self.kefiya_login.stored_gateway_blob))
+        except Exception:
+            pass
+
     def _resume_and_answer_the_parked_tan(self, tan):
         """Resume the parked dialog and answer the challenge waiting in it."""
         blob = self.kefiya_login.stored_dialog_blob
+        self._return_to_the_same_gateway()
         with self.fints_connection.resume_dialog(blob):
             tan_request = NeedRetryResponse.from_data(
                 self.kefiya_login.stored_tan_blob)

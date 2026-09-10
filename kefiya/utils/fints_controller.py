@@ -30,7 +30,7 @@ from .import_bank_transaction import (
 from .auto_reconcile import run_after_import
 from .assign_payment_controller import AssignmentController
 from kefiya.utils import accepted_payee
-from kefiya.utils import camt_shape
+from kefiya.utils import camt_shape, gateway_session
 from kefiya.utils import fints_vop
 from kefiya.utils import fints_vop_client
 from kefiya.utils import pain_payee
@@ -771,11 +771,20 @@ class FinTSController(TanSession):
             # transfer ended on.
             self.kefiya_login.stored_vop_id_blob = fints_vop.vop_id_of(tan_state)
             self.kefiya_login.stored_dialog_blob = self.fints_connection.pause_dialog()
+            # Und bei welchem Gateway der Bank dieser Dialog steht. Die
+            # Wiederaufnahme baut eine neue HTTPS-Sitzung auf und landete
+            # damit bei jedem zweiten Mal beim anderen Gateway, das den
+            # Dialog nicht kennt -- "9800 FGW Gatewaywechsel A/B". Die
+            # Freigabe, die der Nutzer da schon gegeben hatte, war damit
+            # verloren. Siehe gateway_session.
+            self.kefiya_login.stored_gateway_blob = gateway_session.to_blob(
+                gateway_session.cookies_of(self.fints_connection))
         else:
             self.kefiya_login.stored_tan_blob = None
             self.kefiya_login.stored_tan_state_decoupled = None
             self.kefiya_login.stored_vop_id_blob = None
             self.kefiya_login.stored_dialog_blob = None
+            self.kefiya_login.stored_gateway_blob = None
 
         self.kefiya_login.save()
 
@@ -1841,6 +1850,10 @@ class FinTSController(TanSession):
         self.kefiya_login.stored_vop_blob = response.get_data()
         self.kefiya_login.stored_vop_dialog_blob = \
             self.fints_connection.pause_dialog()
+        # Derselbe Gateway wie beim TAN-Parken: auch diese Freigabe wird in
+        # einer spaeteren Anfrage fortgesetzt.
+        self.kefiya_login.stored_gateway_blob = gateway_session.to_blob(
+            gateway_session.cookies_of(self.fints_connection))
         self.kefiya_login.vop_reference = payment_reference
         self.kefiya_login.vop_result = json.dumps(answer)[:2000]
         self.kefiya_login.save()
@@ -1869,6 +1882,8 @@ class FinTSController(TanSession):
         # Read before the state is cleared: this is the payee the reviewer is
         # about to approve, and clear_vop_state drops it.
         parked = vop_rule.parked_answer(self.kefiya_login.vop_result)
+
+        self._return_to_the_same_gateway()
 
         with self.fints_connection.resume_dialog(dialog_blob):
             challenge = NeedRetryResponse.from_data(blob)

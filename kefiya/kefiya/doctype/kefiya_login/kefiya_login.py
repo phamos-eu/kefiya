@@ -20,6 +20,7 @@ class KefiyaLogin(Document):
         self.stored_tan_blob = None
         self.stored_tan_state_decoupled = None
         self.stored_vop_id_blob = None
+        self.stored_gateway_blob = None
         self.clear_vop_state()
         self.iban_list = None
         self.account_iban = None
@@ -79,6 +80,21 @@ class KefiyaLogin(Document):
     @stored_vop_id_blob.setter
     def stored_vop_id_blob(self, value: bytes):
         self.stored_vop_id_state = self.conv_blob_to_encrypted_string(value)
+
+    @property
+    def stored_gateway_blob(self):
+        """Bei welchem Gateway der Bank dieser Zugang zuletzt war.
+
+        Die Cookies der HTTPS-Sitzung, mehr nicht -- aber ohne sie landet
+        die Wiederaufnahme eines pausierten Dialogs beim anderen Gateway
+        der Bank, das ihn nicht kennt: "9800 FGW Gatewaywechsel A/B". Siehe
+        gateway_session.
+        """
+        return self.read_crypted_string_to_blob(self.stored_gateway_state)
+
+    @stored_gateway_blob.setter
+    def stored_gateway_blob(self, value: bytes):
+        self.stored_gateway_state = self.conv_blob_to_encrypted_string(value)
 
     @property
     def stored_vop_dialog_blob(self):

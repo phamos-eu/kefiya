@@ -46,6 +46,7 @@
   "stored_vop_state",
   "stored_vop_dialog_state",
   "stored_vop_id_state",
+  "stored_gateway_state",
   "vop_reference",
   "vop_result"
  ],
@@ -280,6 +281,12 @@
    "fieldname": "stored_vop_id_state",
    "fieldtype": "Long Text",
    "label": "Stored VoP-ID"
+  },
+  {
+   "fieldname": "stored_gateway_state",
+   "fieldtype": "Long Text",
+   "label": "Stored Gateway Session",
+   "read_only": 1
   },
   {
    "fieldname": "vop_reference",
