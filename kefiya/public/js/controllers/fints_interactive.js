@@ -52,14 +52,12 @@ kefiya.interactive = {
 				kefiya.interactive.progressState[frm.doc.name] = state;
 
 				kefiya.interactive.enqueueUpdate(() => {
-					if(data.reload && data.reload === true) {
-						frm.reload_doc();
-					}
-					if(data.progress==100) {
-						frappe.hide_progress();
-					} else {
-						frappe.show_progress(data.docname,data.progress,100,data.message);
-					}
+					// One persistent window collecting every message, instead
+					// of show_progress/hide_progress flashing a separate one
+					// per step and per account.
+					kefiya.progress.update(
+						data.message, data.progress, data.docname
+					);
 
 					if(data.reload && data.reload === true) {
 						// reload with short delay, to have progress update come active before
@@ -83,8 +81,21 @@ kefiya.interactive = {
 				return;
 			}
 
+			// "Freigabe erforderlich" named no bank and no account. During a
+			// collective run one access after the other stops for a release
+			// and the box looked identical every time, so the user had to
+			// guess which banking app to open. The payload now carries the
+			// access it belongs to.
+			const title = data.account_label
+				? __("Verification required") + " – " + data.account_label
+				: __("Verification required");
+
 			await kefiya.interactive.enqueueUpdate(() => {
-				frappe.hide_progress();
+				// Step out of the way for the TAN prompt, but keep the session
+				// log: hide() retains the entries and the next update()
+				// restores the window with its history intact.
+				kefiya.progress.update(title, 0);
+				kefiya.progress.hide();
 			});
 
 			let fields = [];
@@ -163,19 +174,41 @@ kefiya.interactive = {
 				}
 			}
 
-			frappe.prompt(
+			// Prepended only now: everything above addresses the fields by
+			// index (fields[0] is the mode, fields[1] the medium), so an entry
+			// inserted ahead of them earlier would silently make the wrong
+			// field read-only.
+			if (data.account_detail) {
+				fields.unshift({
+					fieldtype: "HTML",
+					fieldname: "kefiya_tan_context",
+					options: '<div class="text-muted small" style="margin-bottom:8px">'
+						+ frappe.utils.escape_html(data.account_detail)
+						+ "</div>",
+				});
+			}
+
+			const dialog = frappe.prompt(
 				fields,
 				(values) => {
 					frappe.call({
 						method: "kefiya.utils.client.resolve_tan_interaction",
 						args: {
-							fints_login: frm.doc.name,
+							// The login the run belongs to, which is this form only
+							// on the Kefiya Login screen. A transfer's box used to
+							// answer against its own KEF-TRF-... name.
+							fints_login: data.fints_login || frm.doc.name,
 							values: { ...data, ...values },
 						},
 					});
 				},
-				__("Verification required")
+				title
 			);
+
+			// Straight into the TAN field: the mode and the medium above it
+			// are read-only, so the only thing to do here is type. The rule
+			// itself lives in bank_refresh.js, which owns the other TAN box.
+			if (kefiya.focus_tan_field) kefiya.focus_tan_field(dialog);
 		});
 	},
 }

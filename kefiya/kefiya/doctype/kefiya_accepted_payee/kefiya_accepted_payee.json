@@ -1,0 +1,146 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-08-27 14:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "payee_name",
+  "iban",
+  "column_break_head",
+  "vop_result",
+  "bank_name",
+  "match_key",
+  "section_break_audit",
+  "accepted_by",
+  "accepted_on",
+  "kefiya_login"
+ ],
+ "fields": [
+  {
+   "description": "The payee name as it stood on the order somebody approved. A different spelling is a different payee here, on purpose.",
+   "fieldname": "payee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Payee Name",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "description": "The account the money went to.",
+   "fieldname": "iban",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "IBAN",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "What the bank answered when it checked: RVMC close match, RVNM no match, RVNA could not check.",
+   "fieldname": "vop_result",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Bank's Answer",
+   "read_only": 1
+  },
+  {
+   "description": "The name the bank holds for that IBAN, where it named one.",
+   "fieldname": "bank_name",
+   "fieldtype": "Data",
+   "label": "Name at the Bank",
+   "read_only": 1
+  },
+  {
+   "description": "IBAN and payee name, normalised. This is what a later order is looked up by; it is unique, so one decision is stored once.",
+   "fieldname": "match_key",
+   "fieldtype": "Data",
+   "label": "Match Key",
+   "read_only": 1,
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "section_break_audit",
+   "fieldtype": "Section Break",
+   "label": "Who decided"
+  },
+  {
+   "fieldname": "accepted_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "accepted_on",
+   "fieldtype": "Datetime",
+   "label": "Approved On",
+   "read_only": 1
+  },
+  {
+   "description": "The bank access the order went out through.",
+   "fieldname": "kefiya_login",
+   "fieldtype": "Link",
+   "label": "Bank Access",
+   "options": "Kefiya Login",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-27 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Kefiya",
+ "name": "Kefiya Accepted Payee",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 0,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 0,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "delete": 1,
+   "email": 0,
+   "export": 1,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 0,
+   "write": 0
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 0,
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

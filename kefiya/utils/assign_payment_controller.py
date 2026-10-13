@@ -65,7 +65,13 @@ class AssignmentController:
                     )
                     matched_payments.append(item)
                 except Exception:
-                    frappe.log_error(frappe.get_traceback())
+                    # Title and message must stay separate: a lone positional
+                    # argument is taken as the title, which is capped at 140
+                    # characters and raises from inside this except block.
+                    frappe.log_error(
+                        title="Kefiya: assigning payment reference failed",
+                        message=frappe.get_traceback(),
+                    )
                     # Revert references
                     payment_doc = frappe.get_doc(
                         "Payment Entry",
@@ -147,7 +153,10 @@ class AssignmentController:
                     "No unallocated amount found. Please refresh page"
                 ))
         except Exception as e:
-            frappe.log_error(frappe.get_traceback())
+            frappe.log_error(
+                title="Kefiya: could not create payment reference",
+                message=frappe.get_traceback(),
+            )
             frappe.throw(_(
                 "Could not create payment reference: {0}"
             ).format(e))
