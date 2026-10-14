@@ -13,13 +13,17 @@ from dateutil.relativedelta import relativedelta
 from fints.client import FinTS3PinTanClient, FinTSClientMode, NeedTANResponse, NeedRetryResponse
 
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, cint
 from frappe.utils.file_manager import (
     save_file,
     get_file,
     get_content_hash,
 )
-from .import_bank_transaction import ImportBankTransaction
+from .import_bank_transaction import (
+    ImportBankTransaction,
+    resolve_incremental_from_date,
+)
+from .auto_reconcile import run_after_import
 from .assign_payment_controller import AssignmentController
 
 class InitFailedException(Exception):
@@ -346,8 +350,8 @@ class FinTSController:
     def get_fints_transactions(self, start_date=None, end_date=None):
         """Get FinTS transactions.
 
-        The code is not allowing to fetch transaction which are older
-        than 90 days. Also only transaction from atleast one day ago can be
+        The fetch window is limited to the login's allowed_sync_days_in_past
+        (default 90). Also only transaction from atleast one day ago can be
         fetched
 
         :param start_date: Date to start the fetch
@@ -356,15 +360,19 @@ class FinTSController:
         :type end_date: date
         :return: Transaction as json object list
         """
+        allowed_days = cint(self.kefiya_login.allowed_sync_days_in_past) or 90
+
         if start_date is None:
-            start_date = now_datetime().date() - relativedelta(days=90)
+            start_date = now_datetime().date() - relativedelta(days=allowed_days)
 
         if end_date is None:
             end_date = now_datetime().date() - relativedelta(days=1)
 
-        if (now_datetime().date() - start_date).days >= 90:
+        if (now_datetime().date() - start_date).days > allowed_days:
             raise NotImplementedError(
-                _("Start date more then 90 days in the past")
+                _("Start date is more than the allowed {0} days in the past").format(
+                    allowed_days
+                )
             )
 
         with self.fints_connection:
@@ -381,6 +389,60 @@ class FinTSController:
                 )
             )
 
+    def get_fints_holdings(self):
+        """Fetch securities holdings (Depot / Wertpapiere) for the account.
+
+        :return: list of plain dicts (isin, security_name, quantity, price,
+            market_value, currency, valuation_date, securities_account)
+        """
+        with self.fints_connection:
+            account = self.get_fints_account_by_iban(
+                self.kefiya_login.account_iban)
+            holdings = self.fints_connection.get_holdings(account)
+            result = []
+            for h in holdings or []:
+                result.append({
+                    "isin": getattr(h, "isin", None),
+                    "security_name": getattr(h, "name", None),
+                    "quantity": getattr(h, "pieces", None),
+                    "price": getattr(h, "market_value", None),
+                    "market_value": getattr(h, "total_value", None),
+                    "currency": getattr(h, "value_symbol", None),
+                    "valuation_date": getattr(h, "valuation_date", None),
+                    "securities_account": self.kefiya_login.account_iban,
+                })
+            return result
+
+    def submit_sepa_transfer(self, pain_xml):
+        """Submit a SEPA credit transfer (pain.001 XML) via FinTS.
+
+        Requires a TAN: if the bank asks for one, the request is persisted and
+        the UI is prompted (the user later calls send_transfer_tan). Never sends
+        money without the user's TAN.
+
+        :param pain_xml: pain.001 credit-transfer message
+        :return: {"status": "submitted" | "tan_required", ...}
+        """
+        with self.fints_connection:
+            account = self.get_fints_account_by_iban(
+                self.kefiya_login.account_iban)
+            response = self.fints_connection.sepa_transfer(account, pain_xml)
+            if self.is_tan_required_and_requested(response):
+                return {
+                    "status": "tan_required",
+                    "docname": self.kefiya_login.name,
+                }
+            # The bank accepted the order without asking for a TAN. For a credit
+            # transfer this is unexpected under PSD2 -- record it loudly so a
+            # transfer that moved money without strong auth is never silent.
+            frappe.log_error(
+                title="Kefiya SEPA transfer completed without TAN challenge",
+                message="login={0}: the bank did not request a TAN".format(
+                    self.kefiya_login.name
+                ),
+            )
+            return {"status": "submitted"}
+
     def import_fints_transactions(self, kefiya_import):
         """Create payment entries by FinTS transactions.
 
@@ -394,11 +456,35 @@ class FinTSController:
             )
             curr_doc = frappe.get_doc("Kefiya Import", kefiya_import)
             new_bank_transactions = None
+
+            # Incremental fetch: when no start date was entered, begin at the
+            # date of the most recently imported transaction for this account
+            # (clamped to the FinTS 90-day window) and fetch up to today.
+            if not curr_doc.from_date:
+                curr_doc.from_date = resolve_incremental_from_date(
+                    self.kefiya_login.bank_account,
+                    self.kefiya_login.allowed_sync_days_in_past,
+                )
+                curr_doc.to_date = now_datetime().date()
+
             tansactions = self.get_fints_transactions(
                 curr_doc.from_date,
                 curr_doc.to_date
             )
 
+            # normalise: some banks (e.g. Atruvia/VR) return a list of
+            # statements (list of lists); others (Finanz Informatik) return a
+            # flat list of transaction dicts. Flatten one nesting level so the
+            # downstream code (start/end date, old_kefiya_import) always sees a
+            # flat list of transactions.
+            flat_transactions = []
+            for statement in tansactions:
+                if isinstance(statement, list):
+                    flat_transactions.extend(statement)
+                else:
+                    flat_transactions.append(statement)
+            tansactions = flat_transactions
+            
             if(len(tansactions) == 0):
                 frappe.msgprint(_("No transaction found"))
             else:
@@ -422,7 +508,14 @@ class FinTSController:
                 curr_doc.end_date = tansactions[-1]["date"]
 
                 importer = ImportBankTransaction(self.kefiya_login, self.interactive)
-                importer.old_kefiya_import(tansactions)
+                # Banks differ in transaction format: Atruvia/VR deliver CAMT
+                # (ISO 20022, recognisable by the CreditDebitIndicator field),
+                # Finanz Informatik (Sparkasse, LBBW) deliver MT940. Route each
+                # set to the matching parser.
+                if tansactions and isinstance(tansactions[0], dict) and "CreditDebitIndicator" in tansactions[0]:
+                    importer.kefiya_import(tansactions)
+                else:
+                    importer.old_kefiya_import(tansactions)
 
                 if len(importer.bank_transactions) == 0:
                     frappe.msgprint(_("No new payments found"))
@@ -441,6 +534,22 @@ class FinTSController:
             self.interactive.show_progress_realtime(
                 _("Bank Transaction import completed"), 100, reload=False
             )
+
+            # Make the import durable before reconciliation runs, so a rollback
+            # inside reconciliation can never revert the submitted import.
+            frappe.db.commit()
+
+            # Optional automatic reconciliation of the freshly imported window
+            # (guarded so it can never break the import).
+            try:
+                run_after_import(
+                    self.kefiya_login.name, curr_doc.from_date, curr_doc.to_date
+                )
+            except Exception:
+                frappe.log_error(
+                    title="Kefiya auto-reconcile entrypoint failed",
+                    message=frappe.get_traceback(),
+                )
 
             # auto_assignment = AssignmentController().auto_assign_payments()
             return {

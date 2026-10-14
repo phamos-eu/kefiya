@@ -4,6 +4,14 @@ frappe.ui.form.on('Payment Request', {
         frm.set_df_property('company', 'reqd', 1);
         frm.set_df_property('bank_account', 'reqd', 1);
         frm.set_df_property('company_bank_account', 'reqd', 1);
+
+        // FinTS direct transfer (no manual upload) -- only for a submitted
+        // Outward request, and always behind an explicit confirmation + TAN.
+        if (frm.doc.docstatus === 1 && frm.doc.payment_request_type === "Outward") {
+            frm.add_custom_button(__("Send via FinTS"), function() {
+                kefiya_submit_transfer_via_fints(frm);
+            });
+        }
     },
 
     setup: function(frm) {
@@ -100,3 +108,95 @@ frappe.ui.form.on('Payment Request', {
         });
     }
 });
+
+
+// --- FinTS outgoing transfer (human-in-the-loop: confirm + TAN) ---------------
+
+function kefiya_submit_transfer_via_fints(frm) {
+    frappe.confirm(
+        __("Send a SEPA transfer of {0} to {1} ({2}) via FinTS? The amount is capped at the outstanding amount and you will be asked for a TAN.", [
+            format_currency(frm.doc.grand_total, frm.doc.currency),
+            frm.doc.party || "",
+            frm.doc.bank_account || ""
+        ]),
+        function () {
+            frappe.call({
+                method: "kefiya.utils.client.submit_payment_request_via_fints",
+                args: {
+                    payment_request_name: frm.doc.name,
+                    user_scope: frm.docname,
+                    confirmed: 1
+                },
+                freeze: true,
+                freeze_message: __("Submitting transfer via FinTS..."),
+                callback: function (r) {
+                    kefiya_handle_transfer_response(frm, r.message);
+                }
+            });
+        }
+    );
+}
+
+function kefiya_handle_transfer_response(frm, msg) {
+    if (!msg) {
+        frappe.msgprint(__("No response from server."));
+        return;
+    }
+    if (msg.status === "submitted") {
+        frappe.show_alert({ message: __("Transfer submitted."), indicator: "green" });
+        frm.reload_doc();
+    } else if (msg.status === "tan_required") {
+        kefiya_prompt_transfer_tan(frm, msg.docname);
+    } else {
+        frappe.msgprint({
+            title: __("Transfer failed"),
+            indicator: "red",
+            message: msg.message || __("Unknown error")
+        });
+    }
+}
+
+function kefiya_prompt_transfer_tan(frm, kefiya_login) {
+    const d = new frappe.ui.Dialog({
+        title: __("Enter TAN to authorise the transfer"),
+        fields: [
+            {
+                fieldname: "tan",
+                fieldtype: "Data",
+                label: __("TAN"),
+                reqd: 1,
+                description: __("Enter the TAN from your bank's app/device. For push-TAN, confirm in the app, then submit.")
+            }
+        ],
+        primary_action_label: __("Confirm transfer"),
+        primary_action: function (values) {
+            d.hide();
+            frappe.call({
+                method: "kefiya.utils.client.send_transfer_tan",
+                args: {
+                    kefiya_login: kefiya_login,
+                    tan: values.tan,
+                    user_scope: frm.docname
+                },
+                freeze: true,
+                freeze_message: __("Sending TAN..."),
+                callback: function (r) {
+                    if (r.message && r.message.status === "submitted") {
+                        frappe.show_alert({
+                            message: __("Transfer authorised and submitted."),
+                            indicator: "green"
+                        });
+                        frm.reload_doc();
+                    } else {
+                        frappe.msgprint({
+                            title: __("TAN failed"),
+                            indicator: "red",
+                            message: (r.message && r.message.message) || __("Unknown error")
+                        });
+                    }
+                }
+            });
+        }
+    });
+    d.show();
+}

@@ -42,6 +42,131 @@ def import_fints_transactions(kefiya_import, kefiya_login, user_scope):
 
 
 @frappe.whitelist()
+def import_fints_holdings(kefiya_login, user_scope):
+    """Fetch securities holdings (Depot) for a login and store a snapshot.
+
+    :param kefiya_login: kefiya_login doc name
+    :param user_scope: current open doctype page (for progress/TAN UI)
+    :return: dict with created/updated counts
+    """
+    from kefiya.utils.securities import refresh_holdings
+
+    FinTSController = _get_fints_controller()
+    interactive = {"docname": user_scope, "enabled": True}
+
+    controller = FinTSController(kefiya_login, interactive)
+    holdings = controller.get_fints_holdings()
+    return refresh_holdings(kefiya_login, holdings)
+
+
+@frappe.whitelist()
+def submit_payment_request_via_fints(payment_request_name, user_scope, confirmed=0):
+    """Prepare a SEPA credit transfer (pain.001) for an Outward Payment Request
+    and submit it directly via FinTS -- no manual file upload.
+
+    Money movement stays human-in-the-loop: the caller must pass
+    ``confirmed=1`` (set only after an explicit user confirmation dialog), and
+    the bank's TAN is supplied by the user (the UI prompts via the realtime TAN
+    handler, then calls ``send_transfer_tan``). This never sends money on its
+    own.
+
+    :return: {"status": "submitted" | "tan_required" | "error", ...}
+    """
+    from frappe.utils import cint
+
+    # Hard gate: never reach sepa_transfer without explicit confirmation.
+    if not cint(confirmed):
+        return {"status": "error", "message": _(
+            "Transfer not confirmed. Money is only sent after explicit"
+            " confirmation."
+        )}
+
+    from kefiya.events.hammer_script.payment_request_on_submit import (
+        _build_sepa_xml,
+    )
+
+    pr = frappe.get_doc("Payment Request", payment_request_name)
+    if not pr.company_bank_account:
+        return {"status": "error",
+                "message": _("Payment Request has no company bank account.")}
+
+    # B2: guard against double submission (double click / retry).
+    lock_key = "kefiya_transfer:" + payment_request_name
+    if frappe.cache().get_value(lock_key):
+        return {"status": "error", "message": _(
+            "A transfer for this Payment Request is already in progress."
+        )}
+
+    # B7: the company bank account must map to exactly one Kefiya Login.
+    logins = frappe.get_all(
+        "Kefiya Login",
+        filters={"bank_account": pr.company_bank_account},
+        pluck="name",
+    )
+    if len(logins) != 1:
+        return {"status": "error", "message": _(
+            "Expected exactly one Kefiya Login for bank account {0}, found {1}."
+        ).format(pr.company_bank_account, len(logins))}
+    kefiya_login = logins[0]
+
+    xml_content, error = _build_sepa_xml(payment_request_name)
+    if error:
+        return {"status": "error", "message": error}
+    if not xml_content:
+        return {"status": "error", "message": _("Failed to generate SEPA XML.")}
+
+    # B8: audit every attempt to move money before contacting the bank.
+    frappe.logger("kefiya").info(
+        "SEPA transfer attempt: pr=%s login=%s user=%s",
+        payment_request_name, kefiya_login, frappe.session.user,
+    )
+    frappe.cache().set_value(lock_key, frappe.session.user, expires_in_sec=600)
+
+    # Transfers always require strong authentication (PSD2), so always use the
+    # TAN-capable controller regardless of the import-mode setting.
+    from kefiya.utils.fints_controller import FinTSController
+    interactive = {"docname": user_scope, "enabled": True}
+    try:
+        controller = FinTSController(kefiya_login, interactive)
+        return controller.submit_sepa_transfer(xml_content)
+    except Exception:
+        # release the lock on hard failure so the user can retry deliberately;
+        # the audit log + bank statement remain the source of truth.
+        frappe.cache().delete_value(lock_key)
+        raise
+
+
+@frappe.whitelist()
+def send_transfer_tan(kefiya_login, tan, user_scope):
+    """Continue a pending SEPA transfer by sending the user's TAN.
+
+    Reuses the controller's stored-TAN resume mechanism (the pending transfer
+    dialog was persisted when the TAN was requested). The bank response is
+    reported truthfully: the transfer is only "submitted" when the bank accepted
+    the TAN without asking for a further challenge, so a money movement is never
+    reported as done on a guess.
+    """
+    from kefiya.utils.fints_controller import (
+        FinTSController,
+        TanInteractionRequired,
+    )
+    interactive = {"docname": user_scope, "enabled": True}
+    try:
+        # Re-instantiating with the TAN resumes the stored dialog and sends it.
+        FinTSController(kefiya_login, interactive, tan=tan)
+    except TanInteractionRequired:
+        # The bank requested a further/renewed challenge; the UI re-prompts.
+        return {"status": "tan_required", "docname": kefiya_login}
+    except Exception as e:
+        frappe.log_error(
+            title="Kefiya SEPA transfer TAN submission failed",
+            message=frappe.get_traceback(),
+        )
+        return {"status": "error", "message": str(e)}
+    return {"status": "submitted"}
+
+
+@frappe.whitelist()
 def get_accounts(kefiya_login, user_scope):
     """Return FinTS accounts for a given login.
 
