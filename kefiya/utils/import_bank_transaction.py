@@ -152,11 +152,13 @@ class ImportBankTransaction:
 
                 # date is in YYYY.MM.DD (json)
                 date = t['date']
-                applicant_name = t['applicant_name']
-                posting_text = t['posting_text']
-                purpose = t['purpose']
-                applicant_iban = t['applicant_iban']
-                applicant_bin = t['applicant_bin']
+                # Counterparty fields are optional in MT940, e.g. no IBAN
+                # for domestic account numbers (see #158)
+                applicant_name = t.get('applicant_name')
+                posting_text = t.get('posting_text')
+                purpose = t.get('purpose')
+                applicant_iban = t.get('applicant_iban')
+                applicant_bin = t.get('applicant_bin')
 
                 remarkType = ''
                 paid_to = None
@@ -223,6 +225,9 @@ class ImportBankTransaction:
 
     def get_bank_account_data(self, IBAN):
         party, party_type, bank_party_account_number = '', '', ''
+        if not IBAN:
+            return [party, party_type, bank_party_account_number]
+
         bank_account_exists = frappe.db.exists('Bank Account', {'iban': IBAN})
         
         if bank_account_exists:
