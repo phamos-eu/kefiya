@@ -7,43 +7,39 @@ from __future__ import unicode_literals
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import now_datetime, get_datetime
+from frappe.utils import getdate
+
+
+# PSD2 lets banks require a TAN for account history older than this
+SCA_FREE_HISTORY_DAYS = 90
 
 
 class KefiyaImport(Document):
-    def validate_past(self, date, field_name):
-        if isinstance(date, str):
-            date = get_datetime(date).date()
-        if date > now_datetime().date():
-            frappe.msgprint(
-                _("'{0}' needs to be in the past").format(field_name)
-            )
-            return False
-        if (now_datetime().date() - date).days > 90:
-            frappe.msgprint(
-                _("'{0}' is more then 90 days in the past").format(field_name)
-            )
-            return False
-        return True
-
-    def before_save(self):
-        status = True
-        if self.from_date is not None:
-            status = self.validate_past(self.from_date, "From Date")
-
-            if self.to_date is not None:
-                from_date = get_datetime(self.from_date).date()
-                if from_date > get_datetime(self.to_date).date():
-                    status = False
-                    frappe.msgprint(_(
-                        "'From Date' needs to be further in the past"
-                        " then 'To Date'"))
-        if self.to_date is not None:
-            if not self.validate_past(self.to_date, "To Date"):
-                status = False
-
-        if not status:
-            frappe.throw(_("Validation of dates failed"))
-
     def validate(self):
-        self.before_save()
+        today = getdate()
+        from_date = getdate(self.from_date) if self.from_date else None
+        to_date = getdate(self.to_date) if self.to_date else None
+
+        errors = []
+        if from_date and from_date > today:
+            errors.append(_("'From Date' must not be in the future"))
+        if to_date and to_date > today:
+            errors.append(_("'To Date' must not be in the future"))
+        if from_date and to_date and from_date > to_date:
+            errors.append(_("'From Date' must not be after 'To Date'"))
+        if errors:
+            frappe.throw("<br>".join(errors), title=_("Invalid Dates"))
+
+        if (
+            from_date
+            and (today - from_date).days > SCA_FREE_HISTORY_DAYS
+            and self.has_value_changed("from_date")
+        ):
+            frappe.msgprint(
+                _(
+                    "'From Date' is more than {0} days in the past. Your bank"
+                    " may ask for a TAN or return only the last {0} days."
+                ).format(SCA_FREE_HISTORY_DAYS),
+                indicator="orange",
+                alert=True,
+            )

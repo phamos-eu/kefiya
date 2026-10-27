@@ -9,7 +9,8 @@ import json
 import mt940
 
 from dateutil.relativedelta import relativedelta
-from fints.client import FinTS3PinTanClient, FinTSClientMode
+from fints.client import FinTS3PinTanClient, FinTSClientMode, NeedTANResponse
+from fints.exceptions import FinTSSCARequiredError
 
 from frappe import _
 from frappe.utils import now_datetime
@@ -18,6 +19,7 @@ from frappe.utils.file_manager import (
     get_file,
     get_content_hash,
 )
+from .fints_controller import FetchTanRequired, throw_fetch_tan_required
 from .import_bank_transaction import ImportBankTransaction
 from .assign_payment_controller import AssignmentController
 
@@ -163,9 +165,8 @@ class FinTSController:
     def get_fints_transactions(self, start_date=None, end_date=None):
         """Get FinTS transactions.
 
-        The code is not allowing to fetch transaction which are older
-        than 90 days. Also only transaction from atleast one day ago can be
-        fetched
+        Defaults to the last 90 days up to yesterday. Older history can be
+        requested; whether the bank serves it is up to the bank (PSD2).
 
         :param start_date: Date to start the fetch
         :param end_date: Date to end the fetch
@@ -179,23 +180,21 @@ class FinTSController:
         if end_date is None:
             end_date = now_datetime().date() - relativedelta(days=1)
 
-        if (now_datetime().date() - start_date).days >= 90:
-            raise NotImplementedError(
-                _("Start date more then 90 days in the past")
-            )
-
         with self.fints_connection:
             account = self.get_fints_account_by_iban(
                 self.kefiya_login.account_iban)
-            return json.loads(
-                json.dumps(
-                    self.fints_connection.get_transactions(
-                        account,
-                        start_date,
-                        end_date
-                    ),
-                    cls=mt940.JSONEncoder
+            try:
+                transactions = self.fints_connection.get_transactions(
+                    account,
+                    start_date,
+                    end_date
                 )
+            except FinTSSCARequiredError:
+                throw_fetch_tan_required()
+            if isinstance(transactions, NeedTANResponse):
+                throw_fetch_tan_required()
+            return json.loads(
+                json.dumps(transactions, cls=mt940.JSONEncoder)
             )
 
     def import_fints_transactions(self, kefiya_import):
@@ -270,6 +269,9 @@ class FinTSController:
                 "payments": new_bank_transactions,
                 # "assignment": auto_assignment
             }
+        except FetchTanRequired:
+            # Already a clear message for the user; don't wrap it
+            raise
         except Exception as e:
             frappe.throw(_(
                 "Error parsing transactions<br>{0}"
