@@ -169,8 +169,18 @@ kefiya.interactive = {
 					frappe.call({
 						method: "kefiya.utils.client.resolve_tan_interaction",
 						args: {
-							fints_login: frm.doc.name,
+							// on Kefiya Import the login is a link field, on Kefiya Login it is the doc itself
+							fints_login: frm.doc.kefiya_login || frm.doc.name,
 							values: { ...data, ...values },
+							user_scope: frm.doc.name,
+						},
+						callback: function(r) {
+							if (r.message && r.message.completed && frm.doc.doctype === "Kefiya Import") {
+								frappe.show_alert({
+									message: __("Bank access confirmed. Please click Start Import again."),
+									indicator: "green",
+								}, 10);
+							}
 						},
 					});
 				},

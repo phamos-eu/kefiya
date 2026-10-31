@@ -32,13 +32,25 @@ def import_fints_transactions(kefiya_import, kefiya_login, user_scope):
     :type kefiya_import: str
     :type kefiya_login: str
     :type user_scopet: str
-    :return: List of max 10 transactions and all new payment entries
+    :return: List of max 10 transactions and all new payment entries,
+        or {"tan_required": True} if the bank asked for a TAN first
     """
     FinTSController = _get_fints_controller()
     interactive = {"docname": user_scope, "enabled": True}
 
-    return FinTSController(kefiya_login, interactive) \
-        .import_fints_transactions(kefiya_import)
+    if not _use_tan_authentication():
+        return FinTSController(kefiya_login, interactive) \
+            .import_fints_transactions(kefiya_import)
+
+    from kefiya.utils.fints_controller import TanInteractionRequired
+
+    try:
+        return FinTSController(kefiya_login, interactive) \
+            .import_fints_transactions(kefiya_import)
+    except TanInteractionRequired:
+        # The bank (PSD2 strong customer authentication) asked for a TAN. The TAN
+        # prompt was already sent via socket, so tell the UI instead of raising.
+        return {"tan_required": True}
 
 
 @frappe.whitelist()
@@ -458,10 +470,14 @@ def change_match_against(selected_match):
 
 
 @frappe.whitelist()
-def resolve_tan_interaction(fints_login: str, values: str | dict):
+def resolve_tan_interaction(fints_login: str, values: str | dict, user_scope: str | None = None):
     """
     When a user was requested to perform a 2FA, this method is called as a callback
     to resolve the interaction. If TAN is disabled, this is effectively a no-op.
+
+    :param user_scope: Doc name of the open form that receives follow-up prompts,
+        defaults to the Kefiya Login
+    :return: {"completed": True} once the bank accepted the TAN, else {"completed": False}
     """
     if not _use_tan_authentication():
         # Old banks / legacy mode: nothing to resolve
@@ -478,14 +494,17 @@ def resolve_tan_interaction(fints_login: str, values: str | dict):
         tan_mode = values["tan_mode"]
 
     tan_medium = values.get("tan_medium") if tan_mode else None
+    interactive = {"docname": user_scope or fints_login, "enabled": True}
 
     try:
         if values.get("mfa_confirmation"):
             # for tan generators, the TAN is permitted here (may also be empty for Mobile TAN 2.0)
-            FinTSController(fints_login, {"docname": fints_login, "enabled": True}, tan_mode=tan_mode, tan_medium=tan_medium, tan=values.get("tan"))
+            FinTSController(fints_login, interactive, tan_mode=tan_mode, tan_medium=tan_medium, tan=values.get("tan"))
         else:
             # get index of tan_mode in possible_tan_modes
-            FinTSController(fints_login, {"docname": fints_login, "enabled": True}, tan_mode=tan_mode, tan_medium=tan_medium)
+            FinTSController(fints_login, interactive, tan_mode=tan_mode, tan_medium=tan_medium)
     except TanInteractionRequired:
         # will have triggered user interaction via socket
-        pass
+        return {"completed": False}
+
+    return {"completed": True}

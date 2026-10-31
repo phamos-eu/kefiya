@@ -81,8 +81,16 @@ frappe.ui.form.on('Kefiya Import', {
 				'kefiya_login': frm.doc.kefiya_login,
 				'user_scope': frm.docname,
 			},
-			callback: function(/* r */) {
+			callback: function(r) {
 				frappe.hide_progress();
+				if (r.message && r.message.tan_required) {
+					// the TAN prompt itself arrives via socket (see fints_interactive.js)
+					frappe.show_alert({
+						message: __("Your bank requires a TAN confirmation (PSD2) before transactions can be imported. Please confirm it in the dialog or your banking app, then start the import again."),
+						indicator: "orange",
+					}, 15);
+					return;
+				}
 				frm.reload_doc();
 			}
 		});
