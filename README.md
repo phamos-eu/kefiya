@@ -29,6 +29,7 @@ Python 3.4 <\
 -  [x] Interactive progress display
 -  [x] Complete improving code style (PEP8 / ESLint)
 -  [x] Payment / Sale auto assignment (unattended / wizard)
+-  [x] Bank logo for each FinTS login, looked up from the bank's website
 
 ## ToDo
 
