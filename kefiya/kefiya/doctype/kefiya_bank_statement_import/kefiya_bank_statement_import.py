@@ -9,31 +9,43 @@ import chardet
 import hashlib
 import locale
 
-# Header row of the DKB VISA (Business) Card export "Umsatzliste"
-DKB_VISA_HEADER = [
-	"Belegdatum", "Wertstellung", "Status", "Beschreibung",
-	"Umsatztyp", "Betrag (€)", "Fremdwährungsbetrag",
-]
 DKB_VISA = "DKB VISA"
+DKB_GIRO = "DKB Girokonto"
+
+# Header rows of the DKB "Umsatzliste" exports, by format
+DKB_HEADERS = {
+	DKB_VISA: [
+		"Belegdatum", "Wertstellung", "Status", "Beschreibung",
+		"Umsatztyp", "Betrag (€)", "Fremdwährungsbetrag",
+	],
+	DKB_GIRO: [
+		"Buchungsdatum", "Wertstellung", "Status", "Zahlungspflichtige*r",
+		"Zahlungsempfänger*in", "Verwendungszweck", "Umsatztyp", "IBAN",
+		"Betrag (€)", "Gläubiger-ID", "Mandatsreferenz", "Kundenreferenz",
+	],
+}
 
 
 def detect_format(rawdata):
-	"""Return DKB_VISA for a DKB VISA card export, else the encoding chardet detects."""
-	if find_dkb_visa_header(rawdata) is not None:
-		return DKB_VISA
+	"""Return the DKB format of an export with a known header row, else the encoding chardet detects."""
+	statement_format, _header_index = find_header(rawdata)
+	if statement_format:
+		return statement_format
 	return chardet.detect(rawdata)['encoding']
 
 
-def find_dkb_visa_header(rawdata):
-	"""Return the index of the DKB VISA header row in the first lines, or None."""
+def find_header(rawdata):
+	"""Return (format, index of the header row) for a known DKB header in the first lines, else (None, None)."""
 	try:
 		text = rawdata.decode('utf-8-sig')
 	except UnicodeDecodeError:
-		return None
+		return None, None
 	for index, row in enumerate(csv.reader(text.splitlines()[:10], delimiter=';')):
-		if [cell.strip() for cell in row] == DKB_VISA_HEADER:
-			return index
-	return None
+		cells = [cell.strip() for cell in row]
+		for statement_format, header in DKB_HEADERS.items():
+			if cells == header:
+				return statement_format, index
+	return None, None
 
 
 def parse_german_amount(amount):
@@ -41,41 +53,61 @@ def parse_german_amount(amount):
 	return float(amount.strip().replace('.', '').replace(',', '.'))
 
 
-def parse_dkb_visa(rawdata):
-	"""Return the booked rows of a DKB VISA export as dicts.
+def parse_statement(rawdata):
+	"""Return the booked rows of a DKB export as dicts.
 
 	Rows whose status is not 'Gebucht' (e.g. 'Vorgemerkt') are pending and left out.
 	"""
-	header_index = find_dkb_visa_header(rawdata)
+	statement_format, header_index = find_header(rawdata)
+	header = DKB_HEADERS[statement_format]
+	make_row = {DKB_VISA: dkb_visa_row, DKB_GIRO: dkb_giro_row}[statement_format]
 	lines = rawdata.decode('utf-8-sig').splitlines()[header_index + 1:]
 	rows = []
 	occurrences = {}
-	for row in csv.DictReader(lines, fieldnames=DKB_VISA_HEADER, delimiter=';'):
-		if not row['Belegdatum'] or row['Status'] != 'Gebucht':
+	for row in csv.DictReader(lines, fieldnames=header, delimiter=';'):
+		if not row[header[0]] or row['Status'] != 'Gebucht':
 			continue
 
-		description = row['Beschreibung'].strip()
-		details = [row['Umsatztyp'].strip()]
-		foreign_amount = (row['Fremdwährungsbetrag'] or '').replace('\xa0', ' ').strip()
-		if foreign_amount:
-			details.append(foreign_amount)
-
-		# Identical rows (same day, merchant and amount) get a running number,
+		# Identical rows (same day, party and amount) get a running number,
 		# so they keep apart and still get the same id in an overlapping export.
-		key = tuple(row[column] for column in DKB_VISA_HEADER)
+		key = tuple(row[column] for column in header)
 		occurrences[key] = occurrences.get(key, 0) + 1
-		transaction_id = hashlib.md5(
-			"DKB VISA,{0},{1}".format(",".join(key), occurrences[key]).encode()
+		transaction = make_row(row)
+		transaction['transaction_id'] = hashlib.md5(
+			"{0},{1},{2}".format(statement_format, ",".join(key), occurrences[key]).encode()
 		).hexdigest()
-
-		rows.append({
-			'date': datetime.strptime(row['Belegdatum'], '%d.%m.%y').date(),
-			'amount': parse_german_amount(row['Betrag (€)']),
-			'party_name': description,
-			'description': "{0} ({1})".format(description, ", ".join(filter(None, details))),
-			'transaction_id': transaction_id,
-		})
+		rows.append(transaction)
 	return rows
+
+
+def dkb_visa_row(row):
+	description = row['Beschreibung'].strip()
+	details = [row['Umsatztyp'].strip()]
+	foreign_amount = (row['Fremdwährungsbetrag'] or '').replace('\xa0', ' ').strip()
+	if foreign_amount:
+		details.append(foreign_amount)
+
+	return {
+		'date': datetime.strptime(row['Belegdatum'], '%d.%m.%y').date(),
+		'amount': parse_german_amount(row['Betrag (€)']),
+		'party_name': description,
+		'description': "{0} ({1})".format(description, ", ".join(filter(None, details))),
+	}
+
+
+def dkb_giro_row(row):
+	amount = parse_german_amount(row['Betrag (€)'])
+	# The counterparty is the payee of a withdrawal and the payer of a deposit
+	party_name = row['Zahlungsempfänger*in'] if amount < 0 else row['Zahlungspflichtige*r']
+
+	return {
+		'date': datetime.strptime(row['Buchungsdatum'], '%d.%m.%y').date(),
+		'amount': amount,
+		'party_name': party_name.strip(),
+		'party_iban': row['IBAN'].strip(),
+		'description': row['Verwendungszweck'].strip(),
+		'reference_number': row['Kundenreferenz'].strip(),
+	}
 
 
 class KefiyaBankStatementImport(Document):
@@ -88,8 +120,8 @@ class KefiyaBankStatementImport(Document):
 			rawdata = f.read()
 
 		encoding = detect_format(rawdata)
-		if encoding == DKB_VISA:
-			self.import_dkb_visa(rawdata, bank_account, company)
+		if encoding in DKB_HEADERS:
+			self.import_dkb(rawdata, bank_account, company)
 			return
 
 		total_rows = sum(1 for _ in open(file_path, mode='r', encoding=encoding))-7
@@ -124,9 +156,9 @@ class KefiyaBankStatementImport(Document):
 			self.update_status('Error')
 
 
-	def import_dkb_visa(self, rawdata, bank_account, company):
+	def import_dkb(self, rawdata, bank_account, company):
 		"""Create a Bank Transaction per booked row; rows imported before are skipped."""
-		rows = parse_dkb_visa(rawdata)
+		rows = parse_statement(rawdata)
 		self.db_set('payload_count', len(rows))
 		imported, skipped, failed = 0, 0, 0
 		frappe.publish_progress(0, title='Importing Bank Transaction', description='Starting import...')
@@ -141,6 +173,7 @@ class KefiyaBankStatementImport(Document):
 				continue
 
 			try:
+				party, party_type = get_bank_account_data(row['party_iban']) if row.get('party_iban') else ('', '')
 				bank_transaction = frappe.new_doc("Bank Transaction")
 				bank_transaction.update({
 					"date": row['date'],
@@ -150,6 +183,10 @@ class KefiyaBankStatementImport(Document):
 					"company": company,
 					"description": row['description'],
 					"bank_party_name": row['party_name'],
+					"bank_party_iban": row.get('party_iban'),
+					"party": party,
+					"party_type": party_type,
+					"reference_number": row.get('reference_number'),
 					"transaction_id": row['transaction_id'],
 				})
 				bank_transaction.insert()

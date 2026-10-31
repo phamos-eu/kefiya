@@ -20,3 +20,11 @@ kefiya/docs/current
 !.vscode/launch.json
 !.vscode/extensions.json
 *.code-workspace
+
+# Original bank exports hold real account data: never commit them.
+# Tests use anonymized samples in kefiya/tests/fixtures only.
+*Umsatzliste*.csv
+*umsatzliste*.csv
+!kefiya/tests/fixtures/*.csv
+# DKB names its exports DD-MM-YYYY_Umsatzliste_<account>.csv: ignored everywhere, fixtures included
+[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9]_*msatzliste*.csv

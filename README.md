@@ -30,6 +30,11 @@ Python 3.4 <\
 -  [x] Complete improving code style (PEP8 / ESLint)
 -  [x] Payment / Sale auto assignment (unattended / wizard)
 -  [x] Bank logo for each FinTS login, looked up from the bank's website
+-  [x] Bank statement file import (CSV), including DKB Girokonto and DKB VISA card exports
+
+## Bank statement files
+
+If you want to upload your bank's statement file manually and its format is not supported yet, please reach out to us via our contact form at [phamos.eu/contact](https://phamos.eu/contact).
 
 ## ToDo
 

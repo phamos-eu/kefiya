@@ -12,7 +12,7 @@ from kefiya.kefiya.doctype.kefiya_bank_statement_import.kefiya_bank_statement_im
     DKB_VISA,
     KefiyaBankStatementImport,
     detect_format,
-    parse_dkb_visa,
+    parse_statement,
     parse_german_amount,
 )
 
@@ -66,14 +66,14 @@ class TestDkbVisaParsing(FrappeTestCase):
                 self.assertEqual(parse_german_amount(text), amount)
 
     def test_row_count(self):
-        self.assertEqual(len(parse_dkb_visa(read_fixture())), 14)
+        self.assertEqual(len(parse_statement(read_fixture())), 14)
 
     def test_pending_rows_are_skipped(self):
         pending = '"01.11.26";"";"Vorgemerkt";"BEISPIEL MARKT KOELN";"Im Geschäft";"-3,20";""\n'
-        self.assertEqual(len(parse_dkb_visa(read_fixture() + pending.encode("utf-8"))), 14)
+        self.assertEqual(len(parse_statement(read_fixture() + pending.encode("utf-8"))), 14)
 
     def test_row_fields(self):
-        rows = parse_dkb_visa(read_fixture())
+        rows = parse_statement(read_fixture())
         settlement = rows[0]
         self.assertEqual(settlement["date"], date(2026, 10, 30))
         self.assertEqual(settlement["amount"], 1500.0)
@@ -86,13 +86,17 @@ class TestDkbVisaParsing(FrappeTestCase):
         self.assertEqual(foreign["description"], "CLOUD DIENST BEISPIEL (Onlinezahlung, -52,30 $)")
 
     def test_transaction_ids_are_unique_and_stable(self):
-        ids = [row["transaction_id"] for row in parse_dkb_visa(read_fixture())]
+        ids = [row["transaction_id"] for row in parse_statement(read_fixture())]
         self.assertEqual(len(set(ids)), len(ids))
-        self.assertEqual(ids, [row["transaction_id"] for row in parse_dkb_visa(read_fixture())])
+        self.assertEqual(ids, [row["transaction_id"] for row in parse_statement(read_fixture())])
+
+    def test_transaction_id_matches_earlier_imports(self):
+        # Id as created by the first DKB VISA import (!18); must not change, or re-imports duplicate
+        self.assertEqual(parse_statement(read_fixture())[0]["transaction_id"], "3dc1cf0fe4cc819641d42d863c61e26b")
 
     def test_identical_rows_get_different_ids(self):
         row = '"04.10.26";"04.10.26";"Gebucht";"MUSTER CAFE BERLIN";"Im Geschäft";"-4,8";""\n'
-        rows = parse_dkb_visa(read_fixture() + row.encode("utf-8"))
+        rows = parse_statement(read_fixture() + row.encode("utf-8"))
         self.assertEqual(len(rows), 15)
         self.assertNotEqual(rows[-1]["transaction_id"], rows[-2]["transaction_id"])
 
