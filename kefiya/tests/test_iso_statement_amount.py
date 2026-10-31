@@ -30,3 +30,10 @@ class TestIsoAmount(FrappeTestCase):
         self.assertEqual(split("12,50"), [12.5, 0])
         self.assertEqual(split("12,5"), [12.5, 0])
         self.assertEqual(split('"-1.234,56"'), [0, 1234.56])
+
+    def test_ambiguous_amount_is_refused(self):
+        # "12.50" is no German amount: refuse it instead of booking 1250.00
+        for amount in ("12.50", "1.23", "1.2345", "12,", "", "abc"):
+            with self.subTest(amount=amount):
+                with self.assertRaises(ValueError):
+                    split(amount)
