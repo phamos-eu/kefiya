@@ -74,6 +74,7 @@ frappe.ui.form.on('Kefiya Import', {
 	},
 	call_import_transaction: function(frm){
 		// frappe.show_progress(frm.docname,1,100,"Connect via FinTS")
+		kefiya.interactive.start_progress(frm);
 		frappe.call({
 			method:"kefiya.utils.client.import_fints_transactions",
 			args: {
@@ -81,8 +82,8 @@ frappe.ui.form.on('Kefiya Import', {
 				'kefiya_login': frm.doc.kefiya_login,
 				'user_scope': frm.docname,
 			},
+			always: () => kefiya.interactive.finish_progress(frm),
 			callback: function(/* r */) {
-				frappe.hide_progress();
 				frm.reload_doc();
 			}
 		});
