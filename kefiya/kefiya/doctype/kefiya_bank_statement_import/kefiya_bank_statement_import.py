@@ -357,36 +357,23 @@ class KefiyaBankStatementImport(Document):
 			self.update_status('Partial Success')
 	
 	def format_amount_iso(self, amount):
-		deposit, withdrawal = 0,0
+		"""Split a German amount into deposit and withdrawal.
 
-		if '"' in amount:
-			amount = amount.replace('"', '')
+		The dot is a thousands separator and the comma the decimal separator,
+		as in parse_german_amount. Amounts without a comma used to be read as
+		cents ("1234" as 12.34, "1.500" as 15.00), and a short one like "-7"
+		failed altogether.
+		"""
+		deposit, withdrawal = 0, 0
 
-		if ',' in amount and '.' in amount:
-			amount = amount.replace('.', '').replace(',', '.')
-		elif ',' in amount:
-			amount = amount.replace(',', '.')
-		elif '.' in amount:
-			amount = amount.replace('.', '')
-			integer_part = amount[:-2]
-			decimal_part = amount[-2:]
-			amount = integer_part + '.' + decimal_part
-		else:
-			try:
-				integer_part = amount[:-2]
-				decimal_part = amount[-2:]
-				amount = integer_part + '.' + decimal_part
-			except Exception as e:
-				frappe.msgprint(f'currency formatting not supported for row: {row_data} - {e}')
-
-		amount = float(amount)
+		amount = parse_german_amount(amount.replace('"', ''))
 		if amount >= 0:
 			deposit = amount
 		else:
 			withdrawal = abs(amount)
 
 		return [deposit, withdrawal]
-	
+
 def get_bank_account_data(IBAN):
 	party, party_type = '', ''
 	bank_account_exists = frappe.db.exists('Bank Account', {'iban': IBAN})
