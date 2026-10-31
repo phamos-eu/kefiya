@@ -9,6 +9,10 @@ readme = "README.md"
 dynamic = ["version"]
 dependencies = [
     "fints==5.0.0b1",
+    # mt-940 5.x puts the counterparty IBAN (?31) in front of applicant_name
+    # unless the parser gets Options(applicant_iban=True), which fints doesn't
+    # pass. Stay on the 4.x mapping (phamos/kefiya#48).
+    "mt-940>=4.30,<5",
 ]
 
 [build-system]

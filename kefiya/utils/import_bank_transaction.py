@@ -5,6 +5,18 @@ import hashlib
 import frappe
 from frappe import _
 
+def make_transaction_id(date, amount, applicant_name, posting_text, purpose):
+    """Return the id stored as reference_number to skip already imported MT940 transactions."""
+    uniquestr = "{0},{1},{2},{3},{4}".format(
+        date,
+        amount,
+        applicant_name,
+        posting_text,
+        purpose
+    )
+    return hashlib.md5(uniquestr.encode()).hexdigest()
+
+
 class ImportBankTransaction:
     def __init__(self, kefiya_login, interactive, allow_error=False):
         self.allow_error = allow_error
@@ -152,8 +164,9 @@ class ImportBankTransaction:
 
                 # date is in YYYY.MM.DD (json)
                 date = t['date']
-                # Counterparty fields are optional in MT940, e.g. no IBAN
-                # for domestic account numbers (see #158)
+                # Counterparty fields are optional in MT940 (see #158). A
+                # missing applicant_iban on every transaction means mt-940 5.x
+                # parsed it into applicant_name; pyproject pins 4.x (#48)
                 applicant_name = t.get('applicant_name')
                 posting_text = t.get('posting_text')
                 purpose = t.get('purpose')
@@ -164,18 +177,23 @@ class ImportBankTransaction:
                 paid_to = None
                 paid_from = None
 
-                uniquestr = "{0},{1},{2},{3},{4}".format(
-                    date,
-                    amount,
-                    applicant_name,
-                    posting_text,
-                    purpose
+                transaction_id = make_transaction_id(
+                    date, amount, applicant_name, posting_text, purpose
                 )
-
-                transaction_id = hashlib.md5(uniquestr.encode()).hexdigest()
+                known_ids = [transaction_id]
+                if applicant_iban:
+                    # Imported under mt-940 5.x, the same transaction got the
+                    # IBAN glued to the name and so another id (#48)
+                    known_ids.append(make_transaction_id(
+                        date,
+                        amount,
+                        applicant_iban + (applicant_name or ''),
+                        posting_text,
+                        purpose
+                    ))
                 if frappe.db.exists(
                     'Bank Transaction', {
-                        'reference_number': transaction_id
+                        'reference_number': ['in', known_ids]
                     }
                 ):
                     continue
@@ -223,7 +241,8 @@ class ImportBankTransaction:
                 frappe.log_error("Error importing bank transaction", "{}\n\n{}".format(t, frappe.get_traceback()))
                 frappe.msgprint("There were some transactions with error. Please, have a look on Error Log.")
 
-    def get_bank_account_data(self, IBAN):
+    @staticmethod
+    def get_bank_account_data(IBAN):
         party, party_type, bank_party_account_number = '', '', ''
         if not IBAN:
             return [party, party_type, bank_party_account_number]
