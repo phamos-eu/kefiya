@@ -463,6 +463,11 @@ def resolve_tan_interaction(fints_login: str, values: str | dict):
     """
     When a user was requested to perform a 2FA, this method is called as a callback
     to resolve the interaction. If TAN is disabled, this is effectively a no-op.
+
+    :return: {"tan_resolved": True, "accounts": [...]} once the bank accepted the
+        TAN and no further interaction is needed: the accounts were loaded with
+        it, so the form can offer them right away. {"tan_resolved": False} while
+        the bank needs more.
     """
     if not _use_tan_authentication(fints_login):
         # Old banks / legacy mode: nothing to resolve
@@ -483,10 +488,12 @@ def resolve_tan_interaction(fints_login: str, values: str | dict):
     try:
         if values.get("mfa_confirmation"):
             # for tan generators, the TAN is permitted here (may also be empty for Mobile TAN 2.0)
-            FinTSController(fints_login, {"docname": fints_login, "enabled": True}, tan_mode=tan_mode, tan_medium=tan_medium, tan=values.get("tan"))
+            controller = FinTSController(fints_login, {"docname": fints_login, "enabled": True}, tan_mode=tan_mode, tan_medium=tan_medium, tan=values.get("tan"))
         else:
             # get index of tan_mode in possible_tan_modes
-            FinTSController(fints_login, {"docname": fints_login, "enabled": True}, tan_mode=tan_mode, tan_medium=tan_medium)
+            controller = FinTSController(fints_login, {"docname": fints_login, "enabled": True}, tan_mode=tan_mode, tan_medium=tan_medium)
     except TanInteractionRequired:
         # will have triggered user interaction via socket
-        pass
+        return {"tan_resolved": False}
+
+    return {"tan_resolved": True, "accounts": controller.get_fints_accounts()}

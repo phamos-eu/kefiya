@@ -53,6 +53,19 @@ kefiya.interactive = {
 	},
 
 	/**
+	 * After the bank accepted the TAN, carry on with what the user started,
+	 * so they don't have to click it again: on Kefiya Login, offer the
+	 * accounts that were loaded with the TAN. (The server's own "reload"
+	 * comes by socket and usually arrives after the request has ended, when
+	 * it is ignored.)
+	 */
+	continue_after_tan: function(frm, result) {
+		if (frm.doctype === "Kefiya Login" && result.accounts) {
+			frm.events.choose_account(frm, result.accounts);
+		}
+	},
+
+	/**
 	 * Mark a FinTS request as started in this tab. Progress and TAN events go
 	 * by socket to every tab of the user; only the tab that started the
 	 * request follows them, so other open tabs don't stack dialogs.
@@ -193,6 +206,27 @@ kefiya.interactive = {
 					},
 				);
 
+				// The bank's instructions and, for chipTAN QR or photoTAN, the code to scan.
+				// The server sends the text HTML-safe and the image as a data URI.
+				if (data.challenge) {
+					let challenge_html = "";
+					if (data.challenge.text) {
+						challenge_html += `<p>${data.challenge.text}</p>`;
+					}
+					if (data.challenge.image) {
+						// white on purpose, also in dark mode: TAN generators read a
+						// transparent QR code badly on a dark background
+						challenge_html += `<img src="${data.challenge.image}" alt="${__("TAN challenge")}" style="max-width: 100%; background: #fff; padding: var(--padding-sm);">`;
+					}
+					fields.push(
+						{
+							fieldtype: "HTML",
+							fieldname: "challenge",
+							options: challenge_html,
+						},
+					);
+				}
+
 				if (data.tan_required) {
 					fields.push(
 						{
@@ -214,21 +248,34 @@ kefiya.interactive = {
 				}
 			}
 
-			frappe.prompt(
+			const prompt = frappe.prompt(
 				fields,
 				(values) => {
 					kefiya.interactive.start_progress(frm);
+					// the server doesn't need the challenge (and its image) back
+					const { challenge, ...context } = data;
 					frappe.call({
 						method: "kefiya.utils.client.resolve_tan_interaction",
 						args: {
 							fints_login: frm.doc.name,
-							values: { ...data, ...values },
+							values: { ...context, ...values },
 						},
 						always: () => kefiya.interactive.finish_progress(frm),
+					}).then((r) => {
+						// after "always", so the next request's progress isn't cut off
+						if (r && r.message && r.message.tan_resolved) {
+							kefiya.interactive.continue_after_tan(frm, r.message);
+						}
 					});
 				},
 				__("Verification required")
 			);
+
+			// Frappe focuses the first field, here the read-only TAN Mode.
+			// Put the cursor in the TAN field instead (after Frappe's own focus).
+			if (data.tan_required) {
+				prompt.$wrapper.one("shown.bs.modal", () => prompt.fields_dict.tan.set_focus());
+			}
 		});
 	},
 }

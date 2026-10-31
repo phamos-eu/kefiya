@@ -193,3 +193,77 @@ class TestMoveTanAuthenticationPatch(FrappeTestCase):
                         {"doctype": "Kefiya Settings", "field": "enable_tan_authentication"},
                     )
                 )
+
+
+class TestTanChallenge(FrappeTestCase):
+    def test_qr_image_and_escaped_text(self):
+        response = MagicMock(
+            spec=NeedTANResponse,
+            challenge="Scan the code <now>",
+            challenge_html=None,
+            challenge_matrix=("image/png", b"\x89PNG"),
+        )
+        challenge = fints_controller.tan_challenge(response)
+        self.assertEqual(challenge["text"], "Scan the code &lt;now&gt;")
+        self.assertEqual(challenge["image"], "data:image/png;base64,iVBORw==")
+
+    def test_non_image_matrix_is_dropped(self):
+        for mime_type in ("text/html", 'image/png" onerror="alert(1)'):
+            with self.subTest(mime_type=mime_type):
+                response = MagicMock(
+                    spec=NeedTANResponse,
+                    challenge=None,
+                    challenge_html=None,
+                    challenge_matrix=(mime_type, b"<script>"),
+                )
+                self.assertIsNone(fints_controller.tan_challenge(response))
+
+    def test_structured_text_comes_from_challenge_html(self):
+        response = MagicMock(
+            spec=NeedTANResponse,
+            challenge="<b>Betrag</b>",
+            challenge_html="<b>Betrag</b>",
+            challenge_matrix=None,
+        )
+        self.assertEqual(fints_controller.tan_challenge(response), {"text": "<b>Betrag</b>"})
+
+    def test_ask_for_tan_sends_the_challenge(self):
+        for decoupled, request in ((False, "request_tan"), (True, "request_mfa_confirmation")):
+            with self.subTest(decoupled=decoupled):
+                controller = make_controller(fints_controller.FinTSController)
+                controller._FinTSController__persist_fints_state = MagicMock()
+                response = MagicMock(
+                    spec=NeedTANResponse,
+                    decoupled=decoupled,
+                    challenge="Scan the code",
+                    challenge_html=None,
+                    challenge_matrix=None,
+                )
+                controller.ask_for_tan(response)
+                kwargs = getattr(controller.interactive, request).call_args.kwargs
+                self.assertEqual(kwargs["challenge"], {"text": "Scan the code"})
+
+
+class TestResolveTanInteraction(FrappeTestCase):
+    """The form offers the accounts once the TAN is resolved."""
+
+    def resolve(self, controller):
+        from kefiya.utils import client
+
+        with patch.object(client, "_use_tan_authentication", return_value=True), \
+                patch.object(fints_controller, "FinTSController", controller):
+            return client.resolve_tan_interaction(
+                "DKB phamos", {"mfa_confirmation": 1, "tan": "123456"}
+            )
+
+    def test_accepted_tan_returns_the_accounts(self):
+        controller = MagicMock()
+        controller.return_value.get_fints_accounts.return_value = [{"iban": "DE02120300000000202051"}]
+        self.assertEqual(
+            self.resolve(controller),
+            {"tan_resolved": True, "accounts": [{"iban": "DE02120300000000202051"}]},
+        )
+
+    def test_further_interaction_is_reported(self):
+        controller = MagicMock(side_effect=fints_controller.TanInteractionRequired())
+        self.assertEqual(self.resolve(controller), {"tan_resolved": False})

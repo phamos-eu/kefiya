@@ -4,6 +4,7 @@
 
 from __future__ import unicode_literals
 
+import base64
 import contextlib
 import frappe
 import json
@@ -48,6 +49,34 @@ def throw_fetch_tan_required():
         exc=FetchTanRequired,
         title=_("TAN Required"),
     )
+
+# Image types a bank may send as TAN challenge (chipTAN QR, photoTAN). The type
+# ends up in the prompt's <img src>, so only these exact values pass.
+TAN_CHALLENGE_IMAGE_TYPES = ("image/png", "image/jpeg", "image/gif")
+
+
+def tan_challenge(response):
+    """What the user needs to produce the TAN: the bank's text and, for chipTAN QR or photoTAN, the image.
+
+    :param response: The NeedTANResponse from the bank
+    :return: dict with HTML-safe "text" and an "image" data URI, or None
+    """
+    challenge = {}
+
+    if response.challenge_html:
+        challenge["text"] = response.challenge_html
+    elif response.challenge:
+        challenge["text"] = frappe.utils.escape_html(response.challenge)
+
+    if response.challenge_matrix:
+        mime_type, data = response.challenge_matrix
+        if mime_type in TAN_CHALLENGE_IMAGE_TYPES:
+            challenge["image"] = "data:{0};base64,{1}".format(
+                mime_type, base64.b64encode(data).decode("ascii")
+            )
+
+    return challenge or None
+
 
 class FinTSController:
     def __init__(self, kefiya_login_docname:str, interactive:bool=False, tan_mode:str=None, tan_medium:str=None, tan:str=...):
@@ -235,10 +264,12 @@ class FinTSController:
         if response:
             self.__persist_fints_state(response)
 
+        challenge = tan_challenge(response)
+
         if response.decoupled if decoupled is None else decoupled:
-            self.interactive.request_mfa_confirmation(possible_tan_modes=possible_tan_modes, possible_tan_mediums=possible_tan_mediums)
+            self.interactive.request_mfa_confirmation(possible_tan_modes=possible_tan_modes, possible_tan_mediums=possible_tan_mediums, challenge=challenge)
         else:
-            self.interactive.request_tan(possible_tan_modes=possible_tan_modes, possible_tan_mediums=possible_tan_mediums)
+            self.interactive.request_tan(possible_tan_modes=possible_tan_modes, possible_tan_mediums=possible_tan_mediums, challenge=challenge)
 
     def __fetch_fints_accounts(self) -> bool:
         """Fetch FinTS Accounts.
@@ -530,25 +561,28 @@ class FinTSInteractive:
         """
         self.request_tan_prompt(possible_tan_modes, possible_tan_mediums)
 
-    def request_tan(self, possible_tan_modes=None, possible_tan_mediums=None):
+    def request_tan(self, possible_tan_modes=None, possible_tan_mediums=None, challenge=None):
         """Request a TAN from user
 
+        :param challenge: The bank's challenge text and image, see tan_challenge()
         :return: None
         """
-        self.request_tan_prompt(possible_tan_modes, possible_tan_mediums, request_tan=True)
+        self.request_tan_prompt(possible_tan_modes, possible_tan_mediums, request_tan=True, challenge=challenge)
 
-    def request_mfa_confirmation(self, possible_tan_modes=None, possible_tan_mediums=None):
+    def request_mfa_confirmation(self, possible_tan_modes=None, possible_tan_mediums=None, challenge=None):
         """Request a solved MFA challenge from the user
 
+        :param challenge: The bank's challenge text and image, see tan_challenge()
         :return: None
         """
-        self.request_tan_prompt(possible_tan_modes, possible_tan_mediums, request_mfa_confirmation=True)
+        self.request_tan_prompt(possible_tan_modes, possible_tan_mediums, request_mfa_confirmation=True, challenge=challenge)
 
-    def request_tan_prompt(self, possible_tan_modes, possible_tan_mediums=None, *, request_tan=False, request_mfa_confirmation=False):
+    def request_tan_prompt(self, possible_tan_modes, possible_tan_mediums=None, *, request_tan=False, request_mfa_confirmation=False, challenge=None):
         """Request tan mechanism from user.
 
         :param possible_tan_modes: List of tan mechanisms
         :type mechanisms: list
+        :param challenge: The bank's challenge text and image, see tan_challenge()
         :return: None
         """
         if self.enabled:
@@ -556,6 +590,7 @@ class FinTSInteractive:
                         "docname": self.docname,
                         "possible_tan_modes": possible_tan_modes,
                         "possible_tan_mediums": possible_tan_mediums,
+                        "challenge": challenge,
                     }
 
             if request_tan:
