@@ -2,9 +2,12 @@
 # Copyright (c) 2026, phamos GmbH and contributors
 # For license information, please see license.txt
 
+import logging
+import threading
 from unittest.mock import MagicMock, patch
 
 import frappe
+import requests
 from fints.client import NeedTANResponse
 from fints.exceptions import FinTSConnectionError, FinTSSCARequiredError
 from frappe.tests.utils import FrappeTestCase
@@ -193,6 +196,85 @@ class TestMoveTanAuthenticationPatch(FrappeTestCase):
                         {"doctype": "Kefiya Settings", "field": "enable_tan_authentication"},
                     )
                 )
+
+
+def bank_answers_400(client):
+    """Mimic fints.connection: log the message, get HTTP 400 back, raise."""
+    def get_sepa_accounts():
+        logging.getLogger("fints.connection").debug("Sending HKSPA:1:3")
+        response = MagicMock(ok=False, status_code=400, url="https://banking.example/fints", text="Ungültige Nachricht")
+        for hook in client.connection.session.hooks["response"]:
+            hook(response)
+        raise FinTSConnectionError("Bad status code 400")
+    return get_sepa_accounts
+
+
+class TestBankTrafficLog(FrappeTestCase):
+    def setUp(self):
+        self.client = MagicMock()
+        self.client.connection.session = requests.Session()
+
+    def test_http_error_and_traffic_go_to_error_log(self):
+        with patch("frappe.log_error") as log_error, self.assertRaises(FinTSConnectionError):
+            with fints_controller.log_bank_traffic_on_error(self.client, "Kefiya: Could not load accounts"):
+                bank_answers_400(self.client)()
+
+        message = log_error.call_args.kwargs["message"]
+        self.assertIn("HTTP 400 from https://banking.example/fints", message)
+        self.assertIn("Ungültige Nachricht", message)
+        self.assertIn("Sending HKSPA:1:3", message)
+        self.assertEqual(self.client.connection.session.hooks["response"], [])
+
+    def test_other_threads_are_not_recorded(self):
+        def other_request():
+            logging.getLogger("fints.connection").debug("Sending for another login")
+
+        with patch("frappe.log_error") as log_error, self.assertRaises(FinTSConnectionError):
+            with fints_controller.log_bank_traffic_on_error(self.client, "Kefiya: Could not load accounts"):
+                thread = threading.Thread(target=other_request)
+                thread.start()
+                thread.join()
+                bank_answers_400(self.client)()
+
+        message = log_error.call_args.kwargs["message"]
+        self.assertIn("Sending HKSPA:1:3", message)
+        self.assertNotIn("another login", message)
+        self.assertEqual(logging.getLogger("fints").level, logging.NOTSET)
+
+    def test_tan_interaction_is_not_logged(self):
+        with patch("frappe.log_error") as log_error, self.assertRaises(fints_controller.TanInteractionRequired):
+            with fints_controller.log_bank_traffic_on_error(self.client, "Kefiya: Could not load accounts"):
+                raise fints_controller.TanInteractionRequired()
+
+        log_error.assert_not_called()
+
+
+class TestAccountsBankRefusal(FrappeTestCase):
+    def test_bank_reason_and_error_log_link_replace_the_400(self):
+        # DKB ends the dialog with 9800/9040; fints goes on and gets HTTP 400
+        controller = make_controller(fints_controller.FinTSController)
+        controller.kefiya_login = frappe._dict(iban_list=None)
+        controller.fints_connection.connection.session = requests.Session()
+        controller.fints_connection.init_tan_response = None
+
+        def get_sepa_accounts():
+            for code, text in (("9800", "Dialog abgebrochen."), ("9040", "Bitte resynchronisiere deinen chipTAN-Generator.")):
+                logging.getLogger("fints.client").error(
+                    "Dialog response: %s - %s", code, text,
+                    extra={"fints_response_code": code, "fints_response_text": text},
+                )
+            raise FinTSConnectionError("Bad status code 400")
+        controller.fints_connection.get_sepa_accounts.side_effect = get_sepa_accounts
+
+        with patch("frappe.log_error", return_value=frappe._dict(name="ERR-0001")), \
+                self.assertRaises(frappe.ValidationError) as ctx:
+            controller._FinTSController__fetch_fints_accounts()
+
+        message = str(ctx.exception)
+        self.assertIn("9040: Bitte resynchronisiere deinen chipTAN-Generator.", message)
+        self.assertNotIn("Bad status code 400", message)
+        self.assertIn("chipTAN generator needs to be resynchronised", message)
+        self.assertIn('href="/app/error-log/ERR-0001"', message)
 
 
 class TestTanChallenge(FrappeTestCase):
