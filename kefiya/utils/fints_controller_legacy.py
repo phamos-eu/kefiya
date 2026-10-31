@@ -13,14 +13,18 @@ from fints.client import FinTS3PinTanClient, FinTSClientMode
 from fints.exceptions import FinTSConnectionError, FinTSSCARequiredError
 
 from frappe import _
-from frappe.utils import escape_html, now_datetime
+from frappe.utils import cint, escape_html, now_datetime
 from frappe.utils.file_manager import (
     save_file,
     get_file,
     get_content_hash,
 )
-from .fints_controller import LOGIN_ERRORS, FetchFailed, explain_login_rejection, fetch_fints_transactions
-from .import_bank_transaction import ImportBankTransaction
+from .fints_bank_errors import LOGIN_ERRORS, FetchFailed, explain_login_rejection, fetch_fints_transactions
+from .import_bank_transaction import (
+    ImportBankTransaction,
+    resolve_incremental_from_date,
+)
+from .auto_reconcile import run_after_import
 from .assign_payment_controller import AssignmentController
 
 # Bank codes for a request the bank rejects because it lacks strong
@@ -247,8 +251,9 @@ class FinTSController:
     def get_fints_transactions(self, start_date=None, end_date=None):
         """Get FinTS transactions.
 
-        Defaults to the last 90 days up to yesterday. Older history can be
-        requested; whether the bank serves it is up to the bank (PSD2).
+        Defaults to the login's allowed_sync_days_in_past (90 when unset) up
+        to yesterday. Older history can be requested; whether the bank
+        serves it is up to the bank (PSD2).
 
         :param start_date: Date to start the fetch
         :param end_date: Date to end the fetch
@@ -256,8 +261,10 @@ class FinTSController:
         :type end_date: date
         :return: Transaction as json object list
         """
+        allowed_days = cint(self.kefiya_login.allowed_sync_days_in_past) or 90
+
         if start_date is None:
-            start_date = now_datetime().date() - relativedelta(days=90)
+            start_date = now_datetime().date() - relativedelta(days=allowed_days)
 
         if end_date is None:
             end_date = now_datetime().date() - relativedelta(days=1)
@@ -267,6 +274,30 @@ class FinTSController:
         return fetch_fints_transactions(
             self.fints_connection, account, start_date, end_date
         )
+
+    def get_fints_holdings(self):
+        """Fetch securities holdings (Depot / Wertpapiere) for the account.
+
+        :return: list of plain dicts (isin, security_name, quantity, price,
+            market_value, currency, valuation_date, securities_account)
+        """
+        with self.fints_connection:
+            account = self.get_fints_account_by_iban(
+                self.kefiya_login.account_iban)
+            holdings = self.fints_connection.get_holdings(account)
+            result = []
+            for h in holdings or []:
+                result.append({
+                    "isin": getattr(h, "isin", None),
+                    "security_name": getattr(h, "name", None),
+                    "quantity": getattr(h, "pieces", None),
+                    "price": getattr(h, "market_value", None),
+                    "market_value": getattr(h, "total_value", None),
+                    "currency": getattr(h, "value_symbol", None),
+                    "valuation_date": getattr(h, "valuation_date", None),
+                    "securities_account": self.kefiya_login.account_iban,
+                })
+            return result
 
     def import_fints_transactions(self, kefiya_import):
         """Create payment entries by FinTS transactions.
@@ -281,10 +312,34 @@ class FinTSController:
             )
             curr_doc = frappe.get_doc("Kefiya Import", kefiya_import)
             new_bank_transactions = None
+
+            # Incremental fetch: when no start date was entered, begin at the
+            # date of the most recently imported transaction for this account
+            # (clamped to the FinTS 90-day window) and fetch up to today.
+            if not curr_doc.from_date:
+                curr_doc.from_date = resolve_incremental_from_date(
+                    self.kefiya_login.bank_account,
+                    self.kefiya_login.allowed_sync_days_in_past,
+                )
+                curr_doc.to_date = now_datetime().date()
+
             tansactions = self.get_fints_transactions(
                 curr_doc.from_date,
                 curr_doc.to_date
             )
+
+            # python-fints 5.x returns a flat list of transactions; the older
+            # code (and the partial CAMT refactor) assumed a list of per-account
+            # buckets. Normalise to a flat list before the length check and any
+            # indexing, so empty or nested results are handled correctly.
+            if tansactions and isinstance(tansactions[0], list):
+                flat = []
+                for entry in tansactions:
+                    if isinstance(entry, list):
+                        flat.extend(entry)
+                    else:
+                        flat.append(entry)
+                tansactions = flat
 
             if(len(tansactions) == 0):
                 frappe.msgprint(_("No transaction found"))
@@ -305,16 +360,15 @@ class FinTSController:
                 except Exception as e:
                     frappe.throw(_("Failed to attach file"), e)
 
-                # curr_doc.start_date = tansactions[0]["date"]
-                # curr_doc.end_date = tansactions[-1]["date"]
-                first_txn = tansactions[0][0]
-                last_txn = tansactions[0][-1]
+                first_txn = tansactions[0]
+                last_txn = tansactions[-1]
 
                 curr_doc.start_date = first_txn.get("date") or first_txn.get("ValueDate.Date")
                 curr_doc.end_date   = last_txn.get("date") or last_txn.get("ValueDate.Date")
 
                 importer = ImportBankTransaction(self.kefiya_login, self.interactive)
-                importer.kefiya_import(tansactions)
+                # FinTS delivers MT940; use the MT940-aware import path, not the CAMT one.
+                importer.old_kefiya_import(tansactions)
 
                 if len(importer.bank_transactions) == 0:
                     frappe.msgprint(_("No new payments found"))
@@ -333,6 +387,22 @@ class FinTSController:
             self.interactive.show_progress_realtime(
                 _("Bank Transaction import completed"), 100, reload=False
             )
+
+            # Make the import durable before reconciliation runs, so a rollback
+            # inside reconciliation can never revert the submitted import.
+            frappe.db.commit()
+
+            # Optional automatic reconciliation of the freshly imported window
+            # (guarded so it can never break the import).
+            try:
+                run_after_import(
+                    self.kefiya_login.name, curr_doc.from_date, curr_doc.to_date
+                )
+            except Exception:
+                frappe.log_error(
+                    title="Kefiya auto-reconcile entrypoint failed",
+                    message=frappe.get_traceback(),
+                )
 
             # auto_assignment = AssignmentController().auto_assign_payments()
             return {

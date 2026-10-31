@@ -149,14 +149,14 @@ kefiya.hub.FintsSession = class FintsSession {
 			hidden: 1,
 		});
 
-		if (data.challenge) {
-			let html = data.challenge.text ? `<p>${data.challenge.text}</p>` : "";
-			if (data.challenge.image) {
-				// white on purpose, also in dark mode: TAN generators read a
-				// transparent QR code badly on a dark background
-				html += `<img src="${data.challenge.image}" alt="${__("TAN challenge")}" style="max-width: 100%; background: #fff; padding: var(--padding-sm);">`;
-			}
-			fields.push({ fieldtype: "HTML", fieldname: "challenge", options: html });
+		// The bank's instructions and the code to scan, rendered by
+		// tan_prompt.js: the server sends the image as {mime, data} and the
+		// text as plain text, which that renderer escapes.
+		const challenge_field = data.challenge && kefiya.tan_challenge_field
+			? kefiya.tan_challenge_field(data)
+			: null;
+		if (challenge_field) {
+			fields.push(challenge_field);
 		}
 
 		if (data.tan_required) {
@@ -181,7 +181,7 @@ kefiya.hub.FintsSession = class FintsSession {
 				values: { ...context, ...values },
 			},
 		});
-		if (message && message.tan_resolved && this.on_tan_resolved) {
+		if (message && message.status === "submitted" && this.on_tan_resolved) {
 			this.on_tan_resolved(message);
 		}
 	}

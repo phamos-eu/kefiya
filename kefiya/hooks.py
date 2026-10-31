@@ -19,7 +19,16 @@ app_license = "MIT"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/kefiya/css/kefiya.css"
-# app_include_js = "/assets/kefiya/js/kefiya.js"
+
+# The collective bank fetch belongs to any page that shows accounts, not to
+# one of them, and a Workspace page loads no doctype scripts. So it is loaded
+# once for the whole desk. Every caller checks that kefiya.bank_refresh is
+# there before using it.
+#
+# Named as a bundle, not as a path: esbuild hashes the built file and records
+# it in assets.json, so a deploy actually reaches the browser. A plain
+# /assets/... path is served with a long cache and would not.
+app_include_js = "kefiya.bundle.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/kefiya/css/kefiya.css"
@@ -121,6 +130,9 @@ override_doctype_class = {
 doc_events = {
     "Bank Account": {
         "validate": "kefiya.utils.bank_account_controller.validate_unique_iban"  # noqa: E501
+    },
+    "Bank Transaction": {
+        "after_insert": "kefiya.utils.planned_payment.match_on_bank_transaction"  # noqa: E501
     }
 }
 
@@ -151,7 +163,21 @@ scheduler_events = {
         "*/20 * * * *": [
             "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_fints_payments"  # noqa: E501
         ]
-    }
+    },
+    "daily": [
+        "kefiya.utils.planned_payment.expire_stale_planned_payments",
+        # Transfers whose due date we keep ourselves. They are presented, not
+        # sent: a credit transfer needs a TAN, and a pushTAN nobody answers
+        # would leave a challenge hanging instead of paying anybody.
+        "kefiya.utils.client.present_due_transfers",
+        # Statement documents for accounts that speak no FinTS. Does nothing
+        # at all while the document service is switched off, which is its
+        # state until someone configures one.
+        "kefiya.utils.document_service.fetch_statements_scheduled",
+        # Standing orders kept here: their transfers go into the outgoing
+        # payments on their date, approved. Never sent from here.
+        "kefiya.utils.standing_order_execute.place_due_transfers",
+    ]
 }
 
 # Testing

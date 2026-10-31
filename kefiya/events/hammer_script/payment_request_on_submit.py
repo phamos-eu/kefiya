@@ -17,6 +17,18 @@ def _build_sepa_xml(payment_request_name):
 	if doc.payment_request_type != "Outward":
 		return None, _("SEPA XML (pain.001) is only supported for Outward payment requests.")
 
+	# Approval gate: a pain.001 file is a ready-to-execute payment
+	# instruction. It must only be produced for a submitted -- i.e. approved
+	# via the "Payment Request Freigabe (Ausgang)" 4-eyes workflow -- request.
+	# Refusing drafts here is what makes the submit/approval gate meaningful:
+	# without it, calling the whitelisted export endpoint on an unapproved draft
+	# would hand out an executable SEPA file and bypass the approval entirely.
+	if doc.docstatus != 1:
+		return None, _(
+			"SEPA XML (pain.001) can only be generated for a submitted "
+			"(approved) Payment Request."
+		)
+
 	company_bank = frappe.get_doc("Bank Account", doc.company_bank_account)
 	party_bank = frappe.get_doc("Bank Account", doc.bank_account)
 	invoicedoc = frappe.get_doc(doc.reference_doctype, doc.reference_name)
@@ -35,7 +47,13 @@ def _build_sepa_xml(payment_request_name):
 	if not party_bank.iban:
 		return None, _("Party bank account {0} has no IBAN.").format(doc.bank_account)
 
-	amount_cents = int(round(flt(invoicedoc.grand_total, 2) * 100))
+	# Pay the Payment Request amount, never more than what is still outstanding
+	# on the invoice -- avoids overpaying a partially settled invoice.
+	pay_amount = flt(doc.grand_total) or flt(invoicedoc.grand_total)
+	outstanding = flt(invoicedoc.get("outstanding_amount"))
+	if outstanding and pay_amount > outstanding:
+		pay_amount = outstanding
+	amount_cents = int(round(pay_amount * 100))
 	if amount_cents <= 0:
 		return None, _("Payment amount must be greater than zero.")
 
@@ -77,7 +95,18 @@ def _build_sepa_xml(payment_request_name):
 	try:
 		sepa = SepaTransfer(config, schema="pain.001.001.03", clean=False)
 		sepa.add_payment(payment)
-		xml_content = sepa.export(validate=False)
+		# Validate the generated document against the pain.001.001.03 XSD.
+		# ``clean=False`` above means input text is not sanitised,
+		# so an out-of-spec name/IBAN/charset would otherwise silently produce a
+		# malformed bank instruction. Fail closed instead: a schema violation
+		# returns an error and blocks the export rather than handing out an
+		# invalid SEPA file the bank would reject (or mis-process).
+		try:
+			xml_content = sepa.export(validate=True)
+		except Exception as validation_error:
+			return None, _(
+				"Generated SEPA XML (pain.001) failed schema validation: {0}"
+			).format(validation_error)
 
 		if isinstance(xml_content, bytes):
 			xml_content = xml_content.decode("utf-8")
@@ -88,6 +117,14 @@ def _build_sepa_xml(payment_request_name):
 
 @frappe.whitelist()
 def export_request(payment_request_name):
+	# Permission gate: @frappe.whitelist() makes this callable by any logged-in
+	# user regardless of DocType permissions, so producing an executable SEPA
+	# payment file must require submit rights on the Payment Request (mirrors
+	# kefiya.utils.client.submit_payment_request_via_fints). The approval-state
+	# gate lives in _build_sepa_xml (docstatus == 1).
+	frappe.has_permission(
+		"Payment Request", ptype="submit",
+		doc=payment_request_name, throw=True)
 	try:
 		settings = frappe.get_single("Kefiya Settings")
 
@@ -115,7 +152,33 @@ def export_request(payment_request_name):
 
 
 @frappe.whitelist()
-def send_sepa_xml_via_email(recipient_email, xml_content):
+def send_sepa_xml_via_email(payment_request_name):
+	# Permission gate: this mails an executable SEPA payment file, so it must
+	# require submit rights on the specific Payment Request rather than being
+	# callable by any logged-in user holding the right on some other one.
+	frappe.has_permission(
+		"Payment Request", ptype="submit",
+		doc=payment_request_name, throw=True)
+
+	# Neither the attachment nor the recipient may come from the caller. Both
+	# used to be parameters, so a user with submit rights could have arbitrary
+	# content mailed to an arbitrary address through the server -- and the
+	# approval and XSD gates in _build_sepa_xml did not apply to whatever the
+	# client passed in. Build the file here and send it only to the address
+	# configured in Kefiya Settings.
+	settings = frappe.get_single("Kefiya Settings")
+	recipient_email = (settings.recipient_email or "").strip()
+	if not recipient_email:
+		return {"status": "error", "message": _(
+			"No recipient e-mail is configured in Kefiya Settings."
+		)}
+
+	xml_content, error = _build_sepa_xml(payment_request_name)
+	if error:
+		return {"status": "error", "message": error}
+	if not xml_content:
+		return {"status": "error", "message": _("Failed to generate SEPA XML.")}
+
 	try:
 		subject = _("Moneyplex SEPA File")
 		message = _("Please find the attached SEPA XML payment file.")

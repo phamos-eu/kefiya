@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 from frappe.utils import flt
 from erpnext.accounts.doctype.journal_entry.journal_entry import JournalEntry
 

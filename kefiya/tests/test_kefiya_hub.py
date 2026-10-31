@@ -41,7 +41,7 @@ def make_login(name: str, bank_account: str | None = None, company: str = COMPAN
         "doctype": "Kefiya Login",
         "login_name": f"{PREFIX} {name}",
         "fints_url": "https://fints.example.com/fints",
-        "blz": "12030000",
+        "blz": "99999999",
         "fints_login": "test",
         "fints_password": "test",
         "company": company,
@@ -103,7 +103,7 @@ class TestKefiyaHubOverview(FrappeTestCase):
         self.assertEqual(steps["import"], "todo")
 
     def test_failing_login_is_an_error(self):
-        account = make_bank_account("Giro", "DE75120300001020304050")
+        account = make_bank_account("Giro", "DE89999999990001111111")
         make_login("Failing", account, failed_connection=2)
 
         overview = get_overview(COMPANY)
@@ -118,7 +118,7 @@ class TestKefiyaHubOverview(FrappeTestCase):
         self.assertEqual(login_by_name(overview, "Unlinked").status, "warning")
 
     def test_stale_import_needs_attention(self):
-        account = make_bank_account("Giro", "DE75120300001020304050")
+        account = make_bank_account("Giro", "DE89999999990001111111")
         login = make_login("Stale", account)
         make_import(login, days_ago=10)
 
@@ -127,7 +127,7 @@ class TestKefiyaHubOverview(FrappeTestCase):
         self.assertTrue(login_by_name(overview, "Stale").import_stale)
 
     def test_recent_import_is_up_to_date(self):
-        account = make_bank_account("Giro", "DE75120300001020304050")
+        account = make_bank_account("Giro", "DE89999999990001111111")
         login = make_login("Fresh", account)
         make_import(login, days_ago=0)
 
@@ -137,7 +137,7 @@ class TestKefiyaHubOverview(FrappeTestCase):
         self.assertEqual(overview["recent_imports"][0].kefiya_login, login)
 
     def test_open_transactions_are_counted_per_bank_account(self):
-        account = make_bank_account("Giro", "DE75120300001020304050")
+        account = make_bank_account("Giro", "DE89999999990001111111")
         make_login("Fresh", account)
         make_open_transaction(account, 100)
         make_open_transaction(account, 50)
@@ -209,7 +209,7 @@ class TestKefiyaHubConnect(FrappeTestCase):
 
     def test_failed_connection_is_counted_and_the_account_cleared(self):
         login = make_login("Failing", failed_connection=1)
-        frappe.db.set_value("Kefiya Login", login, "account_iban", "DE75120300001020304050")
+        frappe.db.set_value("Kefiya Login", login, "account_iban", "DE89999999990001111111")
 
         self.assertEqual(record_failed_connection(login), 2)
         failed, iban = frappe.db.get_value("Kefiya Login", login, ["failed_connection", "account_iban"])

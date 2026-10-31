@@ -1,7 +1,9 @@
 // Copyright (c) 2019, jHetzer and contributors
 // For license information, please see license.txt
 
+{% include "kefiya/public/js/controllers/fints_progress_log.js" %}
 {% include "kefiya/public/js/controllers/fints_interactive.js" %}
+{% include "kefiya/public/js/controllers/account_capabilities.js" %}
 
 frappe.ui.form.on('Kefiya Login', {
 	onload: function(frm) {
@@ -39,11 +41,127 @@ frappe.ui.form.on('Kefiya Login', {
 		}
 
 		if (frm.doc.stored_client_state) {
+			// Der Knopf raeumt den ganzen Bankzugang auf, nicht nur diese
+			// Zeile. Er muss das: der Verbindungszustand wird unter den
+			// Logins eines Zugangs weitergereicht, damit eine TAN alle
+			// Konten freischaltet -- wer nur eine Zeile leert, bekommt den
+			// verworfenen Zustand beim naechsten Abruf vom Nachbarn zurueck.
+			// Wer drueckt, soll wissen, dass es die anderen Konten
+			// desselben Zugangs mit trifft: die naechste TAN gilt fuer alle.
 			frm.add_custom_button(__("Reset Connection"), function() {
-				frm.call('reset_connection').then(() => {
-					frm.reload_doc();
+				frappe.confirm(
+					__("This resets the stored connection for the whole bank access, not just this account. The next fetch starts a fresh handshake and will ask for a TAN once."),
+					function() {
+						frm.call('reset_connection').then(() => {
+							frm.reload_doc();
+						});
+					}
+				);
+			});
+		}
+
+		// Eine Kennung, eine PIN, vierzig Konten: was die Bank unter diesem
+		// Zugang nennt, braucht je Konto ein eigenes Login. Die PIN wird
+		// dafuer nicht noch einmal getippt -- sie wird serverseitig kopiert.
+		if (frm.doc.iban_list && !frm.doc.__unsaved) {
+			frm.add_custom_button(__("Add another account of this access"), function() {
+				frm.call("accounts_without_login").then((r) => {
+					const open_ones = (r && r.message) || [];
+					if (!open_ones.length) {
+						frappe.msgprint(__("Every account the bank lists under this access already has its own login."));
+						return;
+					}
+					kefiya_add_account_dialog(frm, open_ones);
 				});
 			});
+		}
+
+		if (frm.doc.account_iban) {
+			// Primary action: pull current transactions + everything else the
+			// bank offers. The button greys out while the fetch runs so it
+			// cannot be triggered twice (a second FinTS dialog / TAN in
+			// parallel).
+			const fetch_btn = frm.add_custom_button(__("Aktuelle Umsätze abrufen"), function() {
+				const $btn = fetch_btn;
+				$btn.prop("disabled", true).addClass("disabled");
+				frappe.call({
+					method: "kefiya.utils.client.fetch_all",
+					args: { kefiya_login: frm.doc.name, user_scope: frm.doc.name },
+					freeze: true,
+					freeze_message: __("Rufe Umsätze und alle weiteren Bankdaten ab ..."),
+					callback: function(r) {
+						const s = (r && r.message) || {};
+						const t = (s.transactions && s.transactions.new_count) || 0;
+						const parts = [__("New transactions: {0}", [t])];
+						if (s.planned) {
+							parts.push(__("Forecast: {0} new / {1} updated / {2} cancelled",
+								[s.planned.created || 0, s.planned.updated || 0, s.planned.cancelled || 0]));
+						}
+						if (s.statements) parts.push(__("Documents: {0}", [s.statements.count || 0]));
+						if (s.credit_card) parts.push(__("Credit-card txns: {0}", [s.credit_card.count || 0]));
+						if (s.errors && s.errors.length) {
+							parts.push(__("Not available from this bank: {0}", [s.errors.join(", ")]));
+						}
+						// The fetch re-read what the bank allows here, so the
+						// page's cached answer is now the older one.
+						kefiya.capabilities.forget(frm.doc.name);
+						frappe.msgprint({
+							title: __("Abruf abgeschlossen"),
+							indicator: (s.errors && s.errors.length) ? "orange" : "green",
+							message: parts.join("<br>")
+						});
+						frm.reload_doc();
+					},
+					always: function() {
+						// Re-enable even on error/TAN-abort so the user can retry.
+						$btn.prop("disabled", false).removeClass("disabled");
+					}
+				});
+			});
+
+			// The bank's own list decides whether the document button is
+			// offered: an account that does not do HKEKA answers the click
+			// with an empty dialog, every single time. The fetch below
+			// refreshes that list, so this is a button that can come back.
+			kefiya.capabilities.load(frm.doc.name).then(function (info) {
+				if (kefiya.capabilities.refuses(info, "statements")) {
+					frm.remove_custom_button(
+						__("Kontoauszüge / Dokumente"), __("FinTS"));
+				}
+			});
+
+			frm.add_custom_button(__("Kontoauszüge / Dokumente"), function() {
+				frappe.call({
+					method: "kefiya.utils.fints_controller.get_statements",
+					args: { kefiya_login: frm.doc.name },
+					freeze: true,
+					freeze_message: __("Fetching document list via FinTS ..."),
+					callback: function(r) {
+						const items = (r && r.message) || [];
+						let body;
+						if (!items.length) {
+							body = `<p>${__("No documents / statements available for this account.")}</p>`;
+						} else {
+							const keys = Object.keys(items[0] || {});
+							const head = keys.map(k => `<th>${frappe.utils.escape_html(k)}</th>`).join("");
+							const rows = items.map(it => {
+								const tds = keys.map(k => {
+									const v = it[k] == null ? "" : String(it[k]);
+									return `<td>${frappe.utils.escape_html(v)}</td>`;
+								}).join("");
+								return `<tr>${tds}</tr>`;
+							}).join("");
+							body = `<div style="overflow-x:auto"><table class="table table-bordered">`
+								+ `<thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+						}
+						new frappe.ui.Dialog({
+							title: __("Kontoauszüge / Dokumente"),
+							size: "large",
+							fields: [{ fieldtype: "HTML", fieldname: "doc_list", options: body }],
+						}).show();
+					}
+				});
+			}, __("FinTS"));
 		}
 
 		// TODO
@@ -150,3 +268,66 @@ frappe.ui.form.on('Kefiya Login', {
 		});
 	}
 });
+
+// Ein weiteres Konto desselben Zugangs. Gefragt wird nur nach dem, was das
+// neue Login von diesem unterscheidet -- Konto, Bankkonto, Sachkonto. Kennung,
+// PIN und Produkt-ID stehen nicht im Dialog: sie werden auf dem Server aus
+// diesem Zugang gelesen und kommen nie in den Browser.
+function kefiya_add_account_dialog(frm, open_ones) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Add another account of this access"),
+		fields: [
+			{
+				fieldtype: "HTML",
+				fieldname: "hint",
+				options: `<p class="text-muted">${__("Username and PIN are taken from this access. They stay on the server.")}</p>`
+			},
+			{
+				fieldname: "iban", fieldtype: "Select", reqd: 1,
+				label: __("Account IBAN"), options: open_ones
+			},
+			{
+				fieldname: "bank_account", fieldtype: "Link", reqd: 1,
+				label: __("Bank Account"), options: "Bank Account",
+				get_query: () => ({filters: {iban: dialog.get_value("iban")}}),
+				onchange: () => {
+					const name = dialog.get_value("bank_account");
+					if (!name) return;
+					frappe.db.get_value("Bank Account", name, ["account", "company"])
+						.then((res) => {
+							const values = (res && res.message) || {};
+							if (values.account) dialog.set_value("erpnext_account", values.account);
+							if (!dialog.get_value("login_name")) dialog.set_value("login_name", name);
+						});
+				}
+			},
+			{
+				fieldname: "erpnext_account", fieldtype: "Link", reqd: 1,
+				label: __("Ledger account"), options: "Account",
+				get_query: () => ({filters: {account_type: "Bank", is_group: 0}})
+			},
+			{fieldname: "login_name", fieldtype: "Data", label: __("Login Name")},
+			{
+				fieldname: "account_kind", fieldtype: "Select",
+				label: __("Account Kind"),
+				options: frm.fields_dict.account_kind.df.options,
+				default: frm.doc.account_kind
+			}
+		],
+		primary_action_label: __("Create access"),
+		primary_action(values) {
+			dialog.hide();
+			frm.call("add_account", {
+				iban: values.iban,
+				bank_account: values.bank_account,
+				erpnext_account: values.erpnext_account,
+				login_name: values.login_name,
+				account_kind: values.account_kind
+			}).then((r) => {
+				if (!r || !r.message) return;
+				frappe.set_route("Form", "Kefiya Login", r.message);
+			});
+		}
+	});
+	dialog.show();
+}

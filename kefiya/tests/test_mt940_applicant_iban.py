@@ -11,8 +11,8 @@ from frappe.tests.utils import FrappeTestCase
 from kefiya.patches.v0_5_0 import split_iban_from_bank_party_name as iban_patch
 from kefiya.utils.import_bank_transaction import ImportBankTransaction, make_transaction_id
 
-IBAN = "DE94640000000064001505"
-NAME = "FINANZAMT TUBINGEN"
+IBAN = "DE27999999990003333333"
+NAME = "MUSTERFIRMA GMBH"
 
 # One debit with ?31 (IBAN) and ?32 (name) in the :86: details
 MT940 = """:20:STARTUMS
@@ -43,7 +43,7 @@ class TestSplitIban(FrappeTestCase):
         self.assertEqual(iban_patch.split_iban("1234567890" + NAME), (None, "1234567890" + NAME))
 
     def test_keeps_wrong_checksum(self):
-        wrong = "DE95640000000064001505" + NAME
+        wrong = "DE27999999990003333334" + NAME
         self.assertEqual(iban_patch.split_iban(wrong), (None, wrong))
 
     def test_keeps_plain_name(self):
@@ -72,7 +72,7 @@ def make_bank_transaction(**values):
 class TestSplitIbanPatch(FrappeTestCase):
     def test_patch_splits_name_and_fills_party(self):
         doc = make_bank_transaction(bank_party_name=IBAN + NAME)
-        match = ["Finanzamt", "Supplier", "64001505"]
+        match = ["Musterfirma", "Supplier", "0003333333"]
         with patch.object(ImportBankTransaction, "get_bank_account_data", return_value=match):
             iban_patch.execute()
 
@@ -80,7 +80,7 @@ class TestSplitIbanPatch(FrappeTestCase):
             "Bank Transaction", doc.name,
             ["bank_party_iban", "bank_party_name", "party", "party_type", "bank_party_account_number"],
         )
-        self.assertEqual(values, (IBAN, NAME, "Finanzamt", "Supplier", "64001505"))
+        self.assertEqual(values, (IBAN, NAME, "Musterfirma", "Supplier", "0003333333"))
 
     def test_patch_leaves_plain_name_alone(self):
         doc = make_bank_transaction(bank_party_name=NAME)

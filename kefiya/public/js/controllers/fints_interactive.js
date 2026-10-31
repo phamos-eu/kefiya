@@ -66,21 +66,45 @@ kefiya.interactive = {
 	},
 
 	/**
-	 * Mark a FinTS request as started in this tab. Progress and TAN events go
-	 * by socket to every tab of the user; only the tab that started the
-	 * request follows them, so other open tabs don't stack dialogs.
+	 * Which FinTS request of a document this tab follows. One state per
+	 * docname, and one place that reads it (accepts_progress):
+	 *
+	 *   no entry   untracked: the form never called start_progress -- most of
+	 *              kefiya's FinTS buttons don't. Every progress message is
+	 *              shown, as it always was; going silent would hide a fetch.
+	 *   running    this tab started the request (start_progress) and shows
+	 *              its progress, never going backwards.
+	 *   done       the request ended or stopped for the user. Late socket
+	 *              messages are ignored, so they don't reopen the progress on
+	 *              top of a message or prompt. Progress and TAN events go to
+	 *              every tab of the user; only the starting tab follows them.
 	 */
 	start_progress: function(frm) {
-		this.progressState[frm.doc.name] = {
-			progress: 0,
-			active: true,
-		};
+		this.progressState[frm.doc.name] = { phase: "running", progress: 0 };
 	},
 
-	/** True while this tab waits for the FinTS request it started. */
-	is_active: function(frm) {
+	/** A request this tab follows has ended or needs the user. */
+	stop_following: function(frm) {
 		const state = this.progressState[frm.doc.name];
-		return Boolean(state && state.active);
+		if (state) {
+			state.phase = "done";
+		}
+	},
+
+	/** Whether to show this progress message, recording it if so. */
+	accepts_progress: function(frm, progress) {
+		const state = this.progressState[frm.doc.name];
+		if (!state) {
+			return true;
+		}
+		if (state.phase === "done" || progress < state.progress) {
+			return false;
+		}
+		state.progress = progress;
+		if (progress >= 100) {
+			state.phase = "done";
+		}
+		return true;
 	},
 
 	/**
@@ -89,10 +113,7 @@ kefiya.interactive = {
 	 * then, so they don't open the dialog again on top of a message or prompt.
 	 */
 	finish_progress: function(frm) {
-		this.progressState[frm.doc.name] = {
-			progress: 100,
-			active: false,
-		};
+		this.progressState[frm.doc.name] = { phase: "done", progress: 100 };
 		return this.enqueueUpdate(() => {
 			const dialog = frappe.cur_progress;
 			frappe.hide_progress();
@@ -108,24 +129,17 @@ kefiya.interactive = {
 		frappe.realtime.off("fints_progressbar");
 		frappe.realtime.on("fints_progressbar", function(data) {
 			if(data.docname === frm.doc.name) {
-				const state = kefiya.interactive.progressState[frm.doc.name];
-
-				if (!kefiya.interactive.is_active(frm) || data.progress < state.progress) {
+				if (!kefiya.interactive.accepts_progress(frm, data.progress)) {
 					return;
 				}
 
-				state.progress = data.progress;
-				state.active = data.progress < 100;
-
 				kefiya.interactive.enqueueUpdate(() => {
-					if(data.reload && data.reload === true) {
-						frm.reload_doc();
-					}
-					if(data.progress==100) {
-						frappe.hide_progress();
-					} else {
-						frappe.show_progress(data.docname,data.progress,100,data.message);
-					}
+					// One persistent window collecting every message, instead
+					// of show_progress/hide_progress flashing a separate one
+					// per step and per account.
+					kefiya.progress.update(
+						data.message, data.progress, data.docname
+					);
 
 					if(data.reload && data.reload === true) {
 						// reload with short delay, to have progress update come active before
@@ -145,11 +159,54 @@ kefiya.interactive = {
 		 */
 		frappe.realtime.off("fints_tan_interaction_required");
 		frappe.realtime.on("fints_tan_interaction_required", async function(data) {
-			if(data.docname !== frm.doc.name || !kefiya.interactive.is_active(frm)) {
+			// Not gated on the tab's progress state, unlike the progress above. The TAN box
+			// is the only way to release what is waiting at the bank, and on
+			// most forms nothing called start_progress -- the transfer form's
+			// send among them. The event can also arrive after the request
+			// that published it has ended. A box that does not open there
+			// leaves an order unreleasable; a second box in another tab only
+			// asks the same question twice.
+			if(data.docname !== frm.doc.name) {
 				return;
 			}
 
-			await kefiya.interactive.finish_progress(frm);
+			// "Freigabe erforderlich" named no bank and no account. During a
+			// collective run one access after the other stops for a release
+			// and the box looked identical every time, so the user had to
+			// guess which banking app to open. The payload now carries the
+			// access it belongs to.
+			const title = data.account_label
+				? __("Verification required") + " – " + data.account_label
+				: __("Verification required");
+
+			// A request this tab follows has stopped for the user.
+			kefiya.interactive.stop_following(frm);
+
+			await kefiya.interactive.enqueueUpdate(() => {
+				// Step out of the way for the TAN prompt, but keep the session
+				// log: hide() retains the entries and the next update()
+				// restores the window with its history intact.
+				kefiya.progress.update(title, 0);
+				kefiya.progress.hide();
+			});
+
+			// A transfer's box answers for the order, not for the login. The
+			// box built below sends the TAN to resolve_tan_interaction, which
+			// releases the parked order at the bank and marks nothing: the
+			// transfer stayed "Approved" with its money gone, and once the
+			// send lock ran out (10 minutes) "Send now" would have paid it a
+			// second time. tan_prompt with the transfer answers through
+			// send_transfer_tan, which reads what the bank said and marks the
+			// order sent only when it was released.
+			if (frm.doctype === "Kefiya Transfer" && kefiya.tan_prompt) {
+				kefiya.tan_prompt(data, () => frm.reload_doc(), {
+					transfer: {
+						login: data.fints_login || frm.doc.kefiya_login,
+						names: [frm.doc.name],
+					},
+				});
+				return;
+			}
 
 			let fields = [];
 
@@ -206,25 +263,13 @@ kefiya.interactive = {
 					},
 				);
 
-				// The bank's instructions and, for chipTAN QR or photoTAN, the code to scan.
-				// The server sends the text HTML-safe and the image as a data URI.
-				if (data.challenge) {
-					let challenge_html = "";
-					if (data.challenge.text) {
-						challenge_html += `<p>${data.challenge.text}</p>`;
-					}
-					if (data.challenge.image) {
-						// white on purpose, also in dark mode: TAN generators read a
-						// transparent QR code badly on a dark background
-						challenge_html += `<img src="${data.challenge.image}" alt="${__("TAN challenge")}" style="max-width: 100%; background: #fff; padding: var(--padding-sm);">`;
-					}
-					fields.push(
-						{
-							fieldtype: "HTML",
-							fieldname: "challenge",
-							options: challenge_html,
-						},
-					);
+				// The bank's instructions and, for chipTAN QR or photoTAN, the code
+				// to scan -- rendered by tan_prompt.js, which escapes the bank's text.
+				const challenge_field = data.challenge && kefiya.tan_challenge_field
+					? kefiya.tan_challenge_field(data)
+					: null;
+				if (challenge_field) {
+					fields.push(challenge_field);
 				}
 
 				if (data.tan_required) {
@@ -248,7 +293,21 @@ kefiya.interactive = {
 				}
 			}
 
-			const prompt = frappe.prompt(
+			// Prepended only now: everything above addresses the fields by
+			// index (fields[0] is the mode, fields[1] the medium), so an entry
+			// inserted ahead of them earlier would silently make the wrong
+			// field read-only.
+			if (data.account_detail) {
+				fields.unshift({
+					fieldtype: "HTML",
+					fieldname: "kefiya_tan_context",
+					options: '<div class="text-muted small" style="margin-bottom:8px">'
+						+ frappe.utils.escape_html(data.account_detail)
+						+ "</div>",
+				});
+			}
+
+			const dialog = frappe.prompt(
 				fields,
 				(values) => {
 					kefiya.interactive.start_progress(frm);
@@ -257,25 +316,27 @@ kefiya.interactive = {
 					frappe.call({
 						method: "kefiya.utils.client.resolve_tan_interaction",
 						args: {
-							fints_login: frm.doc.name,
+							// The login the run belongs to, which is this form only
+							// on the Kefiya Login screen. A transfer's box used to
+							// answer against its own KEF-TRF-... name.
+							fints_login: data.fints_login || frm.doc.name,
 							values: { ...context, ...values },
 						},
 						always: () => kefiya.interactive.finish_progress(frm),
 					}).then((r) => {
 						// after "always", so the next request's progress isn't cut off
-						if (r && r.message && r.message.tan_resolved) {
+						if (r && r.message && r.message.status === "submitted") {
 							kefiya.interactive.continue_after_tan(frm, r.message);
 						}
 					});
 				},
-				__("Verification required")
+				title
 			);
 
-			// Frappe focuses the first field, here the read-only TAN Mode.
-			// Put the cursor in the TAN field instead (after Frappe's own focus).
-			if (data.tan_required) {
-				prompt.$wrapper.one("shown.bs.modal", () => prompt.fields_dict.tan.set_focus());
-			}
+			// Straight into the TAN field: the mode and the medium above it
+			// are read-only, so the only thing to do here is type. The rule
+			// itself lives in bank_refresh.js, which owns the other TAN box.
+			if (kefiya.focus_tan_field) kefiya.focus_tan_field(dialog);
 		});
 	},
 }
