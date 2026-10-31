@@ -6,18 +6,91 @@ from frappe.utils.file_manager import get_file_path
 from datetime import datetime
 from frappe import _
 import chardet
+import hashlib
 import locale
 
+# Header row of the DKB VISA (Business) Card export "Umsatzliste"
+DKB_VISA_HEADER = [
+	"Belegdatum", "Wertstellung", "Status", "Beschreibung",
+	"Umsatztyp", "Betrag (€)", "Fremdwährungsbetrag",
+]
+DKB_VISA = "DKB VISA"
+
+
+def detect_format(rawdata):
+	"""Return DKB_VISA for a DKB VISA card export, else the encoding chardet detects."""
+	if find_dkb_visa_header(rawdata) is not None:
+		return DKB_VISA
+	return chardet.detect(rawdata)['encoding']
+
+
+def find_dkb_visa_header(rawdata):
+	"""Return the index of the DKB VISA header row in the first lines, or None."""
+	try:
+		text = rawdata.decode('utf-8-sig')
+	except UnicodeDecodeError:
+		return None
+	for index, row in enumerate(csv.reader(text.splitlines()[:10], delimiter=';')):
+		if [cell.strip() for cell in row] == DKB_VISA_HEADER:
+			return index
+	return None
+
+
+def parse_german_amount(amount):
+	"""Parse '-1.234,56', '1.500' or '12,5' to a float. The dot is always a thousands separator."""
+	return float(amount.strip().replace('.', '').replace(',', '.'))
+
+
+def parse_dkb_visa(rawdata):
+	"""Return the booked rows of a DKB VISA export as dicts.
+
+	Rows whose status is not 'Gebucht' (e.g. 'Vorgemerkt') are pending and left out.
+	"""
+	header_index = find_dkb_visa_header(rawdata)
+	lines = rawdata.decode('utf-8-sig').splitlines()[header_index + 1:]
+	rows = []
+	occurrences = {}
+	for row in csv.DictReader(lines, fieldnames=DKB_VISA_HEADER, delimiter=';'):
+		if not row['Belegdatum'] or row['Status'] != 'Gebucht':
+			continue
+
+		description = row['Beschreibung'].strip()
+		details = [row['Umsatztyp'].strip()]
+		foreign_amount = (row['Fremdwährungsbetrag'] or '').replace('\xa0', ' ').strip()
+		if foreign_amount:
+			details.append(foreign_amount)
+
+		# Identical rows (same day, merchant and amount) get a running number,
+		# so they keep apart and still get the same id in an overlapping export.
+		key = tuple(row[column] for column in DKB_VISA_HEADER)
+		occurrences[key] = occurrences.get(key, 0) + 1
+		transaction_id = hashlib.md5(
+			"DKB VISA,{0},{1}".format(",".join(key), occurrences[key]).encode()
+		).hexdigest()
+
+		rows.append({
+			'date': datetime.strptime(row['Belegdatum'], '%d.%m.%y').date(),
+			'amount': parse_german_amount(row['Betrag (€)']),
+			'party_name': description,
+			'description': "{0} ({1})".format(description, ", ".join(filter(None, details))),
+			'transaction_id': transaction_id,
+		})
+	return rows
+
+
 class KefiyaBankStatementImport(Document):
-	
+
 	@frappe.whitelist()
 	def start_import(self, file_url, bank_account, company):
 		file_path = self.get_file_from_url(file_url)
 		# Detect encoding
 		with open(file_path, 'rb') as f:
 			rawdata = f.read()
-			result = chardet.detect(rawdata)
-			encoding = result['encoding']
+
+		encoding = detect_format(rawdata)
+		if encoding == DKB_VISA:
+			self.import_dkb_visa(rawdata, bank_account, company)
+			return
 
 		total_rows = sum(1 for _ in open(file_path, mode='r', encoding=encoding))-7
 		self.db_set('payload_count', total_rows)
@@ -50,6 +123,53 @@ class KefiyaBankStatementImport(Document):
 			frappe.msgprint(f'Error during import: {e}')
 			self.update_status('Error')
 
+
+	def import_dkb_visa(self, rawdata, bank_account, company):
+		"""Create a Bank Transaction per booked row; rows imported before are skipped."""
+		rows = parse_dkb_visa(rawdata)
+		self.db_set('payload_count', len(rows))
+		imported, skipped, failed = 0, 0, 0
+		frappe.publish_progress(0, title='Importing Bank Transaction', description='Starting import...')
+
+		for index, row in enumerate(rows):
+			if frappe.db.exists('Bank Transaction', {
+				'transaction_id': row['transaction_id'],
+				'bank_account': bank_account,
+				'docstatus': ['<', 2],
+			}):
+				skipped += 1
+				continue
+
+			try:
+				bank_transaction = frappe.new_doc("Bank Transaction")
+				bank_transaction.update({
+					"date": row['date'],
+					"deposit": row['amount'] if row['amount'] > 0 else 0,
+					"withdrawal": -row['amount'] if row['amount'] < 0 else 0,
+					"bank_account": bank_account,
+					"company": company,
+					"description": row['description'],
+					"bank_party_name": row['party_name'],
+					"transaction_id": row['transaction_id'],
+				})
+				bank_transaction.insert()
+				if self.submit_after_success:
+					bank_transaction.submit()
+				imported += 1
+			except Exception as e:
+				failed += 1
+				frappe.msgprint(f'Error creating document for row: {row} - {e}')
+
+			progress = int(((index + 1) / len(rows)) * 100)
+			frappe.publish_progress(progress, title='Importing Bank Transaction', description=f'Processing row {index + 1}/{len(rows)}')
+
+		self.db_set('imported_records', imported)
+		if skipped:
+			frappe.msgprint(_('{0} transactions were imported before and were skipped.').format(skipped))
+		if not failed:
+			self.update_status('Success')
+		else:
+			self.update_status('Partial Success' if imported else 'Error')
 
 	def update_status(self, status):
 		self.db_set('status', status)
