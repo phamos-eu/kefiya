@@ -10,6 +10,7 @@
   "login_name",
   "fints_url",
   "blz",
+  "bank_logo",
   "column_break_6",
   "fints_login",
   "fints_password",
@@ -208,11 +209,18 @@
    "fieldname": "allowed_sync_days_in_past",
    "fieldtype": "Int",
    "label": "Allowed Sync Days in the Past"
+  },
+  {
+   "fieldname": "bank_logo",
+   "fieldtype": "Attach Image",
+   "hidden": 1,
+   "label": "Bank Logo"
   }
  ],
  "icon": "fa fa-university",
+ "image_field": "bank_logo",
  "links": [],
- "modified": "2026-10-31 13:45:00.000000",
+ "modified": "2026-10-31 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Login",

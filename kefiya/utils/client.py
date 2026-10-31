@@ -55,12 +55,14 @@ def get_accounts(kefiya_login, user_scope):
     # New controller may raise TanInteractionRequired – we just ignore and let
     # the realtime handler + UI deal with it. Legacy controller won’t raise it.
     try:
-        return {
-            "accounts": FinTSController(
-                kefiya_login,
-                interactive
-            ).get_fints_accounts()
-        }
+        accounts = FinTSController(
+            kefiya_login,
+            interactive
+        ).get_fints_accounts()
+        # The bank answered, so its endpoint is right: a good moment to add
+        # the bank logo if the login has none yet.
+        frappe.get_doc("Kefiya Login", kefiya_login).fetch_bank_logo_if_missing()
+        return {"accounts": accounts}
     except Exception:
         # In TAN mode this can be TanInteractionRequired – handled via socket.
         # For legacy mode we re-raise to not hide real errors.
