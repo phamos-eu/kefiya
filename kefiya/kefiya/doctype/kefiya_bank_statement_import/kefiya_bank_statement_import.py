@@ -8,6 +8,7 @@ from frappe import _
 import chardet
 import hashlib
 import locale
+import re
 
 DKB_VISA = "DKB VISA"
 DKB_GIRO = "DKB Girokonto"
@@ -48,9 +49,20 @@ def find_header(rawdata):
 	return None, None
 
 
+# A dot only separates thousands (groups of three digits), the comma the decimals
+GERMAN_AMOUNT = re.compile(r'[-+]?(\d{1,3}(\.\d{3})+|\d+)(,\d+)?')
+
+
 def parse_german_amount(amount):
-	"""Parse '-1.234,56', '1.500' or '12,5' to a float. The dot is always a thousands separator."""
-	return float(amount.strip().replace('.', '').replace(',', '.'))
+	"""Parse '-1.234,56', '1.500', '1234' or '12,5' to a float.
+
+	Raises ValueError for anything else, such as '12.50': read as German it would be
+	1250, but it is more likely a decimal point, so it is refused rather than guessed.
+	"""
+	amount = amount.strip()
+	if not GERMAN_AMOUNT.fullmatch(amount):
+		raise ValueError(f'Not a German amount: {amount!r}')
+	return float(amount.replace('.', '').replace(',', '.'))
 
 
 def parse_statement(rawdata, errors=None):
@@ -337,36 +349,17 @@ class KefiyaBankStatementImport(Document):
 			self.update_status('Partial Success')
 	
 	def format_amount_iso(self, amount):
-		deposit, withdrawal = 0,0
+		"""Split a German amount such as '"-1.234,56"' into [deposit, withdrawal]."""
+		deposit, withdrawal = 0, 0
 
-		if '"' in amount:
-			amount = amount.replace('"', '')
-
-		if ',' in amount and '.' in amount:
-			amount = amount.replace('.', '').replace(',', '.')
-		elif ',' in amount:
-			amount = amount.replace(',', '.')
-		elif '.' in amount:
-			amount = amount.replace('.', '')
-			integer_part = amount[:-2]
-			decimal_part = amount[-2:]
-			amount = integer_part + '.' + decimal_part
-		else:
-			try:
-				integer_part = amount[:-2]
-				decimal_part = amount[-2:]
-				amount = integer_part + '.' + decimal_part
-			except Exception as e:
-				frappe.msgprint(f'currency formatting not supported for row: {row_data} - {e}')
-
-		amount = float(amount)
+		amount = parse_german_amount(amount.replace('"', ''))
 		if amount >= 0:
 			deposit = amount
 		else:
 			withdrawal = abs(amount)
 
 		return [deposit, withdrawal]
-	
+
 def get_bank_account_data(IBAN):
 	party, party_type = '', ''
 	bank_account_exists = frappe.db.exists('Bank Account', {'iban': IBAN})
