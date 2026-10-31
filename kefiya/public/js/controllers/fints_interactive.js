@@ -25,31 +25,84 @@ kefiya.interactive = {
 		return this.updateQueue;
 	},
 
-	progressbar: function(frm) {
+	/**
+	 * Button of the "TAN Required" dialog (fints_controller_legacy):
+	 * switch TAN authentication on for the Kefiya Login and try again.
+	 */
+	use_tan_and_try_again: async function(kefiya_login) {
+		frappe.hide_msgprint();
+		const frm = cur_frm;
+
+		if (frm && frm.doctype === "Kefiya Login" && frm.docname === kefiya_login) {
+			// set_value + save keeps other unsaved edits on the form
+			await frm.set_value("enable_tan_authentication", 1);
+			await frm.save();
+			frm.events.call_get_login_accounts(frm);
+			return;
+		}
+
+		await frappe.db.set_value("Kefiya Login", kefiya_login, "enable_tan_authentication", 1);
+		if (frm && frm.doctype === "Kefiya Import") {
+			frm.events.call_import_transaction(frm);
+		} else {
+			frappe.show_alert({
+				message: __("TAN authentication is on for {0}. Please try again.", [kefiya_login]),
+				indicator: "green",
+			});
+		}
+	},
+
+	/**
+	 * Mark a FinTS request as started in this tab. Progress and TAN events go
+	 * by socket to every tab of the user; only the tab that started the
+	 * request follows them, so other open tabs don't stack dialogs.
+	 */
+	start_progress: function(frm) {
 		this.progressState[frm.doc.name] = {
 			progress: 0,
-			completed: false,
+			active: true,
 		};
+	},
 
+	/** True while this tab waits for the FinTS request it started. */
+	is_active: function(frm) {
+		const state = this.progressState[frm.doc.name];
+		return Boolean(state && state.active);
+	},
+
+	/**
+	 * Close the progress dialog once the request has ended or needs the user.
+	 * Progress events arrive by socket and can come later; they are ignored
+	 * then, so they don't open the dialog again on top of a message or prompt.
+	 */
+	finish_progress: function(frm) {
+		this.progressState[frm.doc.name] = {
+			progress: 100,
+			active: false,
+		};
+		return this.enqueueUpdate(() => {
+			const dialog = frappe.cur_progress;
+			frappe.hide_progress();
+			// Bootstrap ignores hide() while the dialog still fades in, which
+			// left it on screen on top of the next dialog. Hide it once shown.
+			if (dialog) {
+				dialog.$wrapper.one("shown.bs.modal", () => dialog.$wrapper.modal("hide"));
+			}
+		});
+	},
+
+	progressbar: function(frm) {
 		frappe.realtime.off("fints_progressbar");
 		frappe.realtime.on("fints_progressbar", function(data) {
 			if(data.docname === frm.doc.name) {
-				const state = kefiya.interactive.progressState[frm.doc.name] || {
-					progress: 0,
-					completed: false,
-				};
+				const state = kefiya.interactive.progressState[frm.doc.name];
 
-				if (state.completed && data.progress < 100) {
-					return;
-				}
-
-				if (data.progress < state.progress) {
+				if (!kefiya.interactive.is_active(frm) || data.progress < state.progress) {
 					return;
 				}
 
 				state.progress = data.progress;
-				state.completed = data.progress >= 100;
-				kefiya.interactive.progressState[frm.doc.name] = state;
+				state.active = data.progress < 100;
 
 				kefiya.interactive.enqueueUpdate(() => {
 					if(data.reload && data.reload === true) {
@@ -79,13 +132,11 @@ kefiya.interactive = {
 		 */
 		frappe.realtime.off("fints_tan_interaction_required");
 		frappe.realtime.on("fints_tan_interaction_required", async function(data) {
-			if(data.docname !== frm.doc.name) {
+			if(data.docname !== frm.doc.name || !kefiya.interactive.is_active(frm)) {
 				return;
 			}
 
-			await kefiya.interactive.enqueueUpdate(() => {
-				frappe.hide_progress();
-			});
+			await kefiya.interactive.finish_progress(frm);
 
 			let fields = [];
 
@@ -166,12 +217,14 @@ kefiya.interactive = {
 			frappe.prompt(
 				fields,
 				(values) => {
+					kefiya.interactive.start_progress(frm);
 					frappe.call({
 						method: "kefiya.utils.client.resolve_tan_interaction",
 						args: {
 							fints_login: frm.doc.name,
 							values: { ...data, ...values },
 						},
+						always: () => kefiya.interactive.finish_progress(frm),
 					});
 				},
 				__("Verification required")

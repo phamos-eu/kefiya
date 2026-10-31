@@ -15,9 +15,7 @@
   "mastercard",
   "column_break_qzdrd",
   "payment_request_export_action",
-  "recipient_email",
-  "toggle_tan_authentication_section",
-  "enable_tan_authentication"
+  "recipient_email"
  ],
  "fields": [
   {
@@ -92,23 +90,12 @@
    "fieldtype": "Table MultiSelect",
    "label": "Mastercard",
    "options": "Mastercard Supplier"
-  },
-  {
-   "fieldname": "toggle_tan_authentication_section",
-   "fieldtype": "Section Break",
-   "label": "Toggle TAN Authentication"
-  },
-  {
-   "default": "0",
-   "fieldname": "enable_tan_authentication",
-   "fieldtype": "Check",
-   "label": "Enable TAN Authentication"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-02-04 15:27:13.970063",
+ "modified": "2026-10-31 13:45:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Settings",

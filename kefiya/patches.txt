@@ -1,3 +1,4 @@
 kefiya.patches.v0_0_2.update_kefiya_import
 kefiya.patches.v0_1_0.replace_kefiya_account_nr
 kefiya.patches.v0_5_0.split_iban_from_bank_party_name
+kefiya.patches.v0_5_0.move_tan_authentication_to_kefiya_login

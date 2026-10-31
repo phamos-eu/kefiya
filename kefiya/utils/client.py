@@ -6,16 +6,16 @@ from __future__ import unicode_literals
 import frappe
 
 
-def _use_tan_authentication() -> bool:
-    """Helper: check Kefiya Settings for TAN toggle."""
+def _use_tan_authentication(kefiya_login) -> bool:
+    """Helper: check the Kefiya Login's TAN toggle."""
     return bool(
-        frappe.db.get_single_value("Kefiya Settings", "enable_tan_authentication")
+        frappe.db.get_value("Kefiya Login", kefiya_login, "enable_tan_authentication")
     )
 
 
-def _get_fints_controller():
+def _get_fints_controller(kefiya_login):
     """Return the appropriate FinTSController class depending on TAN toggle."""
-    if _use_tan_authentication():
+    if _use_tan_authentication(kefiya_login):
         from kefiya.utils.fints_controller import FinTSController
     else:
         from kefiya.utils.fints_controller_legacy import FinTSController
@@ -34,7 +34,7 @@ def import_fints_transactions(kefiya_import, kefiya_login, user_scope):
     :type user_scopet: str
     :return: List of max 10 transactions and all new payment entries
     """
-    FinTSController = _get_fints_controller()
+    FinTSController = _get_fints_controller(kefiya_login)
     interactive = {"docname": user_scope, "enabled": True}
 
     return FinTSController(kefiya_login, interactive) \
@@ -48,7 +48,7 @@ def get_accounts(kefiya_login, user_scope):
     For TAN-enabled mode we may end up triggering a TAN flow.
     For legacy mode we just use the old controller.
     """
-    FinTSController = _get_fints_controller()
+    FinTSController = _get_fints_controller(kefiya_login)
 
     interactive = {"docname": user_scope, "enabled": True}
 
@@ -64,14 +64,15 @@ def get_accounts(kefiya_login, user_scope):
     except Exception:
         # In TAN mode this can be TanInteractionRequired – handled via socket.
         # For legacy mode we re-raise to not hide real errors.
-        if not _use_tan_authentication():
+        if not _use_tan_authentication(kefiya_login):
             raise
 
 
 @frappe.whitelist()
-def is_tan_enabled():
+def is_tan_enabled(kefiya_login):
     """Small helper for JS if needed."""
-    return _use_tan_authentication()
+    frappe.has_permission("Kefiya Login", "read", kefiya_login, throw=True)
+    return _use_tan_authentication(kefiya_login)
 
 
 @frappe.whitelist()
@@ -463,7 +464,7 @@ def resolve_tan_interaction(fints_login: str, values: str | dict):
     When a user was requested to perform a 2FA, this method is called as a callback
     to resolve the interaction. If TAN is disabled, this is effectively a no-op.
     """
-    if not _use_tan_authentication():
+    if not _use_tan_authentication(fints_login):
         # Old banks / legacy mode: nothing to resolve
         return
 

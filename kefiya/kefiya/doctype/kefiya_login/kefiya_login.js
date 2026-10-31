@@ -72,12 +72,14 @@ frappe.ui.form.on('Kefiya Login', {
 		}
 	},
 	call_get_login_accounts: function(frm){
+		kefiya.interactive.start_progress(frm);
 		frappe.call({
 			method:"kefiya.utils.client.get_accounts",
 			args: {
 				'kefiya_login': frm.doc.name,
 				'user_scope': frm.doc.name
 			},
+			always: () => kefiya.interactive.finish_progress(frm),
 			callback: function(r) {
 				frm.set_value("account_iban","");
 
@@ -107,7 +109,6 @@ frappe.ui.form.on('Kefiya Login', {
 				frm.toggle_reqd("account_iban",true);
 			},
 			error: function(/* r */) {
-				frappe.hide_progress();
 				frm.set_df_property("account_iban","options","");
 				frm.toggle_display("account_iban",false);
 

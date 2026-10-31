@@ -14,11 +14,13 @@ frappe.ui.form.on('Kefiya Schedule', {
 	import_transactions: function(frm) {
 		frm.add_custom_button(__("Import Transaction"), function(){
 			frm.save().then(() => {
+				kefiya.interactive.start_progress(frm);
 				frappe.call({
 					method: "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_fints_payments",
 					args: {
 						'manual': true
-					}
+					},
+					always: () => kefiya.interactive.finish_progress(frm),
 				});
 			});
 		}).addClass("btn-primary");
