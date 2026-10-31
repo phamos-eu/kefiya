@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import os
+import tempfile
 from datetime import date
 from unittest.mock import patch
 
@@ -18,6 +19,9 @@ from kefiya.kefiya.doctype.kefiya_bank_statement_import.kefiya_bank_statement_im
 
 # Anonymized DKB VISA Business Card export: same format as the real one, fake values
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "dkb_visa_umsatzliste.csv")
+
+# A booked row without an amount, appended as line 20 of the fixture
+BROKEN_ROW = '"02.10.26";"02.10.26";"Gebucht";"MUSTER KIOSK";"Im Geschäft";"";""\n'
 
 COMPANY = "_Test GmbH"
 BANK = "_Test DKB Bank"
@@ -94,6 +98,17 @@ class TestDkbVisaParsing(FrappeTestCase):
         # Id as created by the first DKB VISA import (!18); must not change, or re-imports duplicate
         self.assertEqual(parse_statement(read_fixture())[0]["transaction_id"], "3dc1cf0fe4cc819641d42d863c61e26b")
 
+    def test_unreadable_row_raises_without_errors_list(self):
+        with self.assertRaises(ValueError):
+            parse_statement(read_fixture() + BROKEN_ROW.encode("utf-8"))
+
+    def test_unreadable_row_is_skipped_and_reported(self):
+        errors = []
+        rows = parse_statement(read_fixture() + BROKEN_ROW.encode("utf-8"), errors)
+        self.assertEqual(len(rows), 14)
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0][0], 20)
+
     def test_identical_rows_get_different_ids(self):
         row = '"04.10.26";"04.10.26";"Gebucht";"MUSTER CAFE BERLIN";"Im Geschäft";"-4,8";""\n'
         rows = parse_statement(read_fixture() + row.encode("utf-8"))
@@ -101,7 +116,6 @@ class TestDkbVisaParsing(FrappeTestCase):
         self.assertNotEqual(rows[-1]["transaction_id"], rows[-2]["transaction_id"])
 
 
-@patch.object(KefiyaBankStatementImport, "get_file_from_url", lambda self, file_url: FIXTURE)
 class TestDkbVisaImport(FrappeTestCase):
     def setUp(self):
         if not frappe.db.exists("Company", COMPANY):
@@ -126,7 +140,7 @@ class TestDkbVisaImport(FrappeTestCase):
     def tearDown(self):
         frappe.db.rollback()
 
-    def run_import(self):
+    def run_import(self, file_path=FIXTURE):
         doc = frappe.get_doc({
             "doctype": "Kefiya Bank Statement Import",
             "company": COMPANY,
@@ -134,7 +148,8 @@ class TestDkbVisaImport(FrappeTestCase):
             "import_file": "/files/dkb_visa_umsatzliste.csv",
             "submit_after_success": 1,
         }).insert()
-        doc.start_import(doc.import_file, self.bank_account, COMPANY)
+        with patch.object(KefiyaBankStatementImport, "get_file_from_url", lambda self, file_url: file_path):
+            doc.start_import(doc.import_file, self.bank_account, COMPANY)
         doc.reload()
         return doc
 
@@ -164,4 +179,15 @@ class TestDkbVisaImport(FrappeTestCase):
         doc = self.run_import()
         self.assertEqual(doc.status, "Success")
         self.assertEqual(doc.imported_records, 0)
+        self.assertEqual(len(self.transactions()), 14)
+
+
+    def test_unreadable_row_gives_partial_success(self):
+        with tempfile.NamedTemporaryFile(suffix=".csv") as broken:
+            broken.write(read_fixture() + BROKEN_ROW.encode("utf-8"))
+            broken.flush()
+            doc = self.run_import(broken.name)
+        self.assertEqual(doc.status, "Partial Success")
+        self.assertEqual(doc.payload_count, 15)
+        self.assertEqual(doc.imported_records, 14)
         self.assertEqual(len(self.transactions()), 14)

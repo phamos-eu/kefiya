@@ -53,10 +53,12 @@ def parse_german_amount(amount):
 	return float(amount.strip().replace('.', '').replace(',', '.'))
 
 
-def parse_statement(rawdata):
+def parse_statement(rawdata, errors=None):
 	"""Return the booked rows of a DKB export as dicts.
 
 	Rows whose status is not 'Gebucht' (e.g. 'Vorgemerkt') are pending and left out.
+	A row that can't be read (bad date or amount, missing columns) raises, unless an
+	`errors` list is given: then the row is skipped and (file line, message) is appended.
 	"""
 	statement_format, header_index = find_header(rawdata)
 	header = DKB_HEADERS[statement_format]
@@ -64,17 +66,26 @@ def parse_statement(rawdata):
 	lines = rawdata.decode('utf-8-sig').splitlines()[header_index + 1:]
 	rows = []
 	occurrences = {}
-	for row in csv.DictReader(lines, fieldnames=header, delimiter=';'):
+	reader = csv.DictReader(lines, fieldnames=header, delimiter=';')
+	for row in reader:
 		if not row[header[0]] or row['Status'] != 'Gebucht':
 			continue
 
-		# Identical rows (same day, party and amount) get a running number,
-		# so they keep apart and still get the same id in an overlapping export.
-		key = tuple(row[column] for column in header)
+		try:
+			transaction = make_row(row)
+			# Identical rows (same day, party and amount) get a running number,
+			# so they keep apart and still get the same id in an overlapping export.
+			key = tuple(row[column] for column in header)
+			transaction_key = ",".join(key)
+		except (ValueError, TypeError, AttributeError) as e:
+			if errors is None:
+				raise
+			errors.append((header_index + 1 + reader.line_num, str(e)))
+			continue
+
 		occurrences[key] = occurrences.get(key, 0) + 1
-		transaction = make_row(row)
 		transaction['transaction_id'] = hashlib.md5(
-			"{0},{1},{2}".format(statement_format, ",".join(key), occurrences[key]).encode()
+			"{0},{1},{2}".format(statement_format, transaction_key, occurrences[key]).encode()
 		).hexdigest()
 		rows.append(transaction)
 	return rows
@@ -158,9 +169,12 @@ class KefiyaBankStatementImport(Document):
 
 	def import_dkb(self, rawdata, bank_account, company):
 		"""Create a Bank Transaction per booked row; rows imported before are skipped."""
-		rows = parse_statement(rawdata)
-		self.db_set('payload_count', len(rows))
-		imported, skipped, failed = 0, 0, 0
+		errors = []
+		rows = parse_statement(rawdata, errors)
+		self.db_set('payload_count', len(rows) + len(errors))
+		imported, skipped, failed = 0, 0, len(errors)
+		for line, message in errors:
+			frappe.msgprint(_('Line {0} could not be read and was skipped: {1}').format(line, message))
 		frappe.publish_progress(0, title='Importing Bank Transaction', description='Starting import...')
 
 		for index, row in enumerate(rows):
