@@ -20,7 +20,7 @@ from frappe.utils.file_manager import (
     get_file,
     get_content_hash,
 )
-from .fints_controller import FetchTanRequired, throw_fetch_tan_required
+from .fints_controller import LOGIN_ERRORS, FetchTanRequired, explain_login_rejection, throw_fetch_tan_required
 from .import_bank_transaction import ImportBankTransaction
 from .assign_payment_controller import AssignmentController
 
@@ -92,9 +92,10 @@ class FinTSController:
         self.name = self.kefiya_login.name
         self.interactive = FinTSInteractive(interactive)
         self.__init_fints_connection()
-        self.__init_tan_processing()
-        with self.fints_connection:
-            self.__get_fints_accounts()
+        with explain_login_rejection(self.name):
+            self.__init_tan_processing()
+            with self.fints_connection:
+                self.__get_fints_accounts()
 
     def __init_fints_connection(self):
         """Private: Initialise new fints connection.
@@ -155,6 +156,9 @@ class FinTSController:
                 # with an empty "Message" dialog.
                 if self.fints_connection._standing_dialog:
                     self.fints_connection._standing_dialog.open = False
+
+                if isinstance(e, LOGIN_ERRORS):
+                    raise
 
                 # fints raises a plain Exception holding the bank response,
                 # or a FinTSConnectionError for the HTTP status

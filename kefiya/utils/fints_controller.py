@@ -14,7 +14,7 @@ import threading
 
 from dateutil.relativedelta import relativedelta
 from fints.client import FinTS3PinTanClient, FinTSClientMode, NeedTANResponse, NeedRetryResponse
-from fints.exceptions import FinTSSCARequiredError
+from fints.exceptions import FinTSClientPINError, FinTSClientTemporaryAuthError, FinTSSCARequiredError
 
 from frappe import _
 from frappe.utils import now_datetime
@@ -34,6 +34,58 @@ class TanInteractionRequired(InitFailedException):
 
 class FetchTanRequired(frappe.ValidationError):
     """The bank asked for a TAN on the transaction fetch, which isn't supported yet."""
+
+
+class LoginRejected(frappe.ValidationError):
+    """The bank did not accept the login name and PIN, or has locked the access."""
+
+
+# fints raises these when the bank rejects the login; it then also blocks the
+# PIN for the rest of the request
+LOGIN_ERRORS = (FinTSClientPINError, FinTSClientTemporaryAuthError)
+
+
+def throw_login_rejected(kefiya_login_name, error, error_log=None):
+    """Explain a wrong PIN or a locked access instead of showing fints' exception.
+
+    :param kefiya_login_name: Name of the Kefiya Login that was used
+    :param error: The FinTSClientPINError or FinTSClientTemporaryAuthError
+    :param error_log: What log_bank_traffic_on_error yielded, if anything
+    """
+    if isinstance(error, FinTSClientTemporaryAuthError):
+        intro = _(
+            "Your bank has temporarily locked the online banking access of Kefiya"
+            " Login {0}, usually after several wrong PINs. Unlock it in your bank's"
+            " online banking or ask your bank, then try again."
+        ).format(frappe.bold(kefiya_login_name))
+    else:
+        intro = _(
+            "Your bank did not accept the login of Kefiya Login {0}. Check the"
+            " FinTS login name and the PIN, then try again. Careful: after several"
+            " wrong PINs in a row the bank locks the online banking access."
+        ).format(frappe.bold(kefiya_login_name))
+
+    message = intro
+    if error_log and error_log.bank_errors:
+        message += "<br><br>" + _("The bank's answer:") + "<br>" + "<br>".join(
+            "{0}: {1}".format(code, frappe.utils.escape_html(text))
+            for code, text in error_log.bank_errors
+        )
+    if error_log and error_log.name:
+        message += "<br><br>" + _("The bank traffic was saved in the {0}.").format(
+            '<a href="/app/error-log/{0}">{1}</a>'.format(error_log.name, _("Error Log"))
+        )
+
+    frappe.throw(message, exc=LoginRejected, title=_("Login Failed"))
+
+
+@contextlib.contextmanager
+def explain_login_rejection(kefiya_login_name):
+    """Turn a rejected login anywhere in the block into a clear message."""
+    try:
+        yield
+    except LOGIN_ERRORS as e:
+        throw_login_rejected(kefiya_login_name, e)
 
 
 def throw_fetch_tan_required():
@@ -196,40 +248,41 @@ class FinTSController:
         self.name = self.kefiya_login.name
         self.interactive = FinTSInteractive(interactive)
 
-        self.__init_fints_connection()
+        with explain_login_rejection(self.name):
+            self.__init_fints_connection()
 
-        # If state is new and did not setup tan requirements, init tan mode (and probably ask user for mode and medium).
-        if self.__init_tan_mode(tan_mode, tan_medium, tan) is False:
-            raise TanInteractionRequired()
+            # If state is new and did not setup tan requirements, init tan mode (and probably ask user for mode and medium).
+            if self.__init_tan_mode(tan_mode, tan_medium, tan) is False:
+                raise TanInteractionRequired()
 
-        # If there is an open TAN request, try to fulfill it
-        if self.kefiya_login.stored_tan_blob:
-            with self.fints_connection.resume_dialog(self.kefiya_login.stored_dialog_blob):
-                tan_request = NeedRetryResponse.from_data(self.kefiya_login.stored_tan_blob)
+            # If there is an open TAN request, try to fulfill it
+            if self.kefiya_login.stored_tan_blob:
+                with self.fints_connection.resume_dialog(self.kefiya_login.stored_dialog_blob):
+                    tan_request = NeedRetryResponse.from_data(self.kefiya_login.stored_tan_blob)
 
-                # this decoupled setting is missing everywhere, so decoupled requests (like pushTAN 2.0) cannot be handled without this
-                tan_request.decoupled = self.kefiya_login.stored_tan_state_decoupled
-                self.fints_connection.init_tan_response = self.fints_connection.send_tan(tan_request, tan)
+                    # this decoupled setting is missing everywhere, so decoupled requests (like pushTAN 2.0) cannot be handled without this
+                    tan_request.decoupled = self.kefiya_login.stored_tan_state_decoupled
+                    self.fints_connection.init_tan_response = self.fints_connection.send_tan(tan_request, tan)
 
-                # on failure update status and skip
-                if self.is_tan_required_and_requested(self.fints_connection.init_tan_response):
-                    raise TanInteractionRequired()
+                    # on failure update status and skip
+                    if self.is_tan_required_and_requested(self.fints_connection.init_tan_response):
+                        raise TanInteractionRequired()
 
-                # on success clear stored tan state
-                self.__persist_fints_state()
+                    # on success clear stored tan state
+                    self.__persist_fints_state()
 
-        # After successful login/tan verification fetch available accounts if not already present
-        if self.__fetch_fints_accounts() is False:
-            raise InitFailedException()
+            # After successful login/tan verification fetch available accounts if not already present
+            if self.__fetch_fints_accounts() is False:
+                raise InitFailedException()
 
-        # Afterwards the controller/connection is ready to go for further operations
-        if self.kefiya_login.failed_connection:
-            self.kefiya_login.failed_connection = 0
-            self.kefiya_login.save()
+            # Afterwards the controller/connection is ready to go for further operations
+            if self.kefiya_login.failed_connection:
+                self.kefiya_login.failed_connection = 0
+                self.kefiya_login.save()
 
-        self.interactive.show_progress_realtime(
-           _("Connection established"), 100, reload=False
-        )
+            self.interactive.show_progress_realtime(
+               _("Connection established"), 100, reload=False
+            )
 
     def __init_fints_connection(self):
         """Private: Initialise new fints connection.
@@ -420,6 +473,8 @@ class FinTSController:
 
         except TanInteractionRequired:
             raise
+        except LOGIN_ERRORS as e:
+            throw_login_rejected(self.name, e, error_log)
         except Exception as e:
             if error_log.bank_errors:
                 # e.g. DKB ends the dialog with 9800 and says why (9040: chipTAN

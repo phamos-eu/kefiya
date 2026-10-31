@@ -9,7 +9,12 @@ from unittest.mock import MagicMock, patch
 import frappe
 import requests
 from fints.client import NeedTANResponse
-from fints.exceptions import FinTSConnectionError, FinTSSCARequiredError
+from fints.exceptions import (
+    FinTSClientPINError,
+    FinTSClientTemporaryAuthError,
+    FinTSConnectionError,
+    FinTSSCARequiredError,
+)
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, getdate
 
@@ -349,3 +354,52 @@ class TestResolveTanInteraction(FrappeTestCase):
     def test_further_interaction_is_reported(self):
         controller = MagicMock(side_effect=fints_controller.TanInteractionRequired())
         self.assertEqual(self.resolve(controller), {"tan_resolved": False})
+
+
+class TestLoginRejected(FrappeTestCase):
+    def test_wrong_pin_at_dialog_start_is_explained(self):
+        for cls in CONTROLLERS:
+            with self.subTest(controller=cls.__module__):
+                kefiya_login = MagicMock(stored_client_blob=None, stored_tan_blob=None)
+                kefiya_login.name = "DKB Test"
+                fints_client = MagicMock()
+                fints_client.__enter__.side_effect = FinTSClientPINError("Error during dialog initialization, PIN wrong?")
+                fints_client.fetch_tan_mechanisms.side_effect = FinTSClientPINError("Error during dialog initialization, PIN wrong?")
+                fints_client.get_current_tan_mechanism.return_value = None
+                with patch("frappe.get_doc", return_value=kefiya_login), \
+                        patch("frappe.has_permission"), \
+                        patch(cls.__module__ + ".FinTS3PinTanClient", return_value=fints_client), \
+                        self.assertRaises(fints_controller.LoginRejected) as ctx:
+                    cls("DKB Test")
+                message = str(ctx.exception)
+                self.assertIn("did not accept the login of Kefiya Login <strong>DKB Test</strong>", message)
+                self.assertNotIn("PIN wrong?", message)
+
+    def test_locked_access_is_explained(self):
+        with self.assertRaises(fints_controller.LoginRejected) as ctx, \
+                fints_controller.explain_login_rejection("DKB Test"):
+            raise FinTSClientTemporaryAuthError("Account is temporarily locked.")
+        self.assertIn("temporarily locked the online banking access", str(ctx.exception))
+
+    def test_account_list_shows_the_bank_reason(self):
+        controller = make_controller(fints_controller.FinTSController)
+        controller.name = "DKB Test"
+        controller.kefiya_login = frappe._dict(iban_list=None)
+        controller.fints_connection.connection.session = requests.Session()
+
+        def enter():
+            logging.getLogger("fints.client").error(
+                "Dialog response: 9931 - Anmeldung gesperrt.",
+                extra={"fints_response_code": "9931", "fints_response_text": "Anmeldung gesperrt."},
+            )
+            raise FinTSClientPINError("Error during dialog initialization, PIN wrong?")
+        controller.fints_connection.__enter__.side_effect = enter
+
+        with patch("frappe.log_error", return_value=frappe._dict(name="ERR-0002")), \
+                self.assertRaises(fints_controller.LoginRejected) as ctx:
+            controller._FinTSController__fetch_fints_accounts()
+
+        message = str(ctx.exception)
+        self.assertIn("Check the FinTS login name and the PIN", message)
+        self.assertIn("9931: Anmeldung gesperrt.", message)
+        self.assertIn('href="/app/error-log/ERR-0002"', message)
