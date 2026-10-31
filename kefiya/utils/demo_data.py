@@ -16,15 +16,17 @@ DEMO_TAG = "kefiya-demo"
 
 BANKS = [
     # login name, bank, account name, iban, blz, failed connections, linked
-    ("DKB Business", "DKB", "Geschäftskonto", "DE75120300001020304050", "12030000", 0, True),
-    ("Sparkasse KölnBonn", "Sparkasse KölnBonn", "Girokonto", "DE93370501981234567890", "37050198", 3, True),
-    ("GLS Tagesgeld", "GLS Bank", "Tagesgeld", "DE47430609674711000815", "43060967", 0, False),
+    ("DKB Business", "DKB", "Geschäftskonto", "DE89999999990001111111", "99999999", 0, True),
+    ("Sparkasse KölnBonn", "Sparkasse KölnBonn", "Girokonto", "DE19888888880004444444", "88888888", 3, True),
+    ("GLS Tagesgeld", "GLS Bank", "Tagesgeld", "DE34777777770001234567", "77777777", 0, False),
 ]
 
+# Invented names only: a counterparty is a third party, and its name has no
+# place in the source (see CLAUDE.md).
 PARTIES = [
-    ("Müller Bürobedarf GmbH", -1), ("Stadtwerke Köln", -1), ("Telekom Deutschland", -1),
-    ("Hetzner Online GmbH", -1), ("Brecht Feinmechanik", 1), ("Gärtnerei Berger", 1),
-    ("Lillestoff GmbH", 1), ("Aquarath AG", 1), ("Finanzamt Köln-Mitte", -1),
+    ("Beispiel Bürobedarf GmbH", -1), ("Stadtwerke Musterstadt", -1), ("Muster Telefon AG", -1),
+    ("Beispiel Hosting GmbH", -1), ("Feinmechanik Muster KG", 1), ("Gärtnerei Beispiel", 1),
+    ("Musterstoffe GmbH", 1), ("Beispiel Handels AG", 1), ("Finanzamt Musterstadt", -1),
 ]
 
 

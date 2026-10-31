@@ -1,0 +1,100 @@
+{
+ "actions": [],
+ "creation": "2026-08-05 08:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "business_transaction",
+  "allowed",
+  "transaction",
+  "capability",
+  "column_break_limits",
+  "required_signatures",
+  "limit_type",
+  "limit_amount",
+  "limit_days"
+ ],
+ "fields": [
+  {
+   "columns": 4,
+   "description": "What this business transaction is called, in the words used in this app.",
+   "fieldname": "business_transaction",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Business Transaction",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "description": "Ticked where the bank named this transaction for this account. Unticked means the bank did not -- not that nobody asked.",
+   "fieldname": "allowed",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Allowed",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "description": "The FinTS segment the bank names, e.g. HKCCS for a transfer.",
+   "fieldname": "transaction",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Segment",
+   "length": 10,
+   "read_only": 1
+  },
+  {
+   "description": "The name this app uses internally to ask for this capability.",
+   "fieldname": "capability",
+   "fieldtype": "Data",
+   "label": "Capability",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_limits",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 1,
+   "description": "How many signatures the bank wants for this transaction.",
+   "fieldname": "required_signatures",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Required Signatures",
+   "read_only": 1
+  },
+  {
+   "description": "FinTS Limitart: E per order, T per day, W per week, M per month, Z per period.",
+   "fieldname": "limit_type",
+   "fieldtype": "Data",
+   "label": "Limit Type",
+   "length": 4,
+   "read_only": 1
+  },
+  {
+   "fieldname": "limit_amount",
+   "fieldtype": "Currency",
+   "label": "Limit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "limit_days",
+   "fieldtype": "Int",
+   "label": "Limit Days",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-05 08:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Kefiya",
+ "name": "Kefiya Account Capability",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

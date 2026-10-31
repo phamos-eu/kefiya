@@ -1,0 +1,169 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "creation": "2026-06-28 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "kefiya_login",
+  "securities_account",
+  "company",
+  "column_break_source",
+  "valuation_date",
+  "fetched_on",
+  "section_break_security",
+  "isin",
+  "security_name",
+  "currency",
+  "column_break_security",
+  "quantity",
+  "price",
+  "market_value",
+  "section_break_meta",
+  "reference_key"
+ ],
+ "fields": [
+  {
+   "fieldname": "kefiya_login",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Kefiya Login",
+   "options": "Kefiya Login",
+   "reqd": 1
+  },
+  {
+   "fieldname": "securities_account",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Securities Account",
+   "options": "Kefiya Securities Account",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "securities_account.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_source",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "valuation_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Valuation Date",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "fetched_on",
+   "fieldtype": "Datetime",
+   "label": "Last Fetched On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_security",
+   "fieldtype": "Section Break",
+   "label": "Security"
+  },
+  {
+   "fieldname": "isin",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "ISIN",
+   "search_index": 1
+  },
+  {
+   "fieldname": "security_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Security Name"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "column_break_security",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Float",
+   "label": "Quantity"
+  },
+  {
+   "fieldname": "price",
+   "fieldtype": "Currency",
+   "label": "Price (per unit)",
+   "options": "currency"
+  },
+  {
+   "fieldname": "market_value",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Market Value",
+   "options": "currency"
+  },
+  {
+   "fieldname": "section_break_meta",
+   "fieldtype": "Section Break"
+  },
+  {
+   "description": "Stable hash (login + ISIN + valuation date) for idempotent snapshots.",
+   "fieldname": "reference_key",
+   "fieldtype": "Data",
+   "label": "Reference Key",
+   "read_only": 1,
+   "unique": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Kefiya",
+ "name": "Kefiya Security Holding",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 0,
+   "delete": 0,
+   "email": 0,
+   "export": 0,
+   "print": 0,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User"
+  }
+ ],
+ "sort_field": "valuation_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

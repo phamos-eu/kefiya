@@ -15,7 +15,16 @@
   "mastercard",
   "column_break_qzdrd",
   "payment_request_export_action",
-  "recipient_email"
+  "recipient_email",
+  "auto_reconcile_section",
+  "auto_reconcile_after_import",
+  "auto_create_advance_payments",
+  "auto_reconcile_own_transfers",
+  "outgoing_section",
+  "default_send_mode",
+  "self_approval_up_to",
+  "self_approval_roles",
+  "pause_standing_orders"
  ],
  "fields": [
   {
@@ -90,12 +99,75 @@
    "fieldtype": "Table MultiSelect",
    "label": "Mastercard",
    "options": "Mastercard Supplier"
+  },
+  {
+   "fieldname": "auto_reconcile_section",
+   "fieldtype": "Section Break",
+   "label": "Automatic Reconciliation"
+  },
+  {
+   "default": "0",
+   "description": "After a FinTS import, automatically reconcile the imported transactions using exact matches and Bank Reconciliation Rules (ALYF Banking).",
+   "fieldname": "auto_reconcile_after_import",
+   "fieldtype": "Check",
+   "label": "Auto Reconcile After Import"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.auto_reconcile_after_import",
+   "description": "For still-unreconciled incoming payments whose payer is identifiable by IBAN, create an on-account Payment Entry (advance). Handles tenants paying before the invoice exists. Creates financial documents -- validate on a test site first.",
+   "fieldname": "auto_create_advance_payments",
+   "fieldtype": "Check",
+   "label": "Auto Create Advance Payments"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.auto_reconcile_after_import",
+   "description": "Book outgoing payments that we ordered ourselves. A withdrawal carrying the End-To-End ID of one of our transfers is booked against the voucher that transfer paid. Creates financial documents -- validate on a test site first.",
+   "fieldname": "auto_reconcile_own_transfers",
+   "fieldtype": "Check",
+   "label": "Auto Book Our Own Transfers"
+  },
+  {
+   "fieldname": "outgoing_section",
+   "fieldtype": "Section Break",
+   "label": "Outgoing payments"
+  },
+  {
+   "default": "One after another",
+   "description": "What the send dialog offers first when several orders are selected. It always asks -- a collective order is one order at the bank over the total, and that is a different payment from several separate ones.",
+   "fieldname": "default_send_mode",
+   "fieldtype": "Select",
+   "label": "Default for several orders",
+   "options": "One after another\nAs one collective order"
+  },
+  {
+   "default": "0",
+   "description": "Largest total a person may approve on a transfer they entered or last changed. 0 means never: every transfer needs a second person to approve it.",
+   "fieldname": "self_approval_up_to",
+   "fieldtype": "Currency",
+   "label": "Self-approval allowed up to",
+   "non_negative": 1
+  },
+  {
+   "description": "Holders of these roles may approve a transfer they entered or last changed, whatever the amount. Everybody else needs a second person above the amount set above.",
+   "fieldname": "self_approval_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Roles that may approve alone",
+   "options": "Kefiya Self Approval Role"
+  },
+  {
+   "default": "0",
+   "fieldname": "pause_standing_orders",
+   "fieldtype": "Check",
+   "label": "Pause Standing Orders",
+   "description": "Ticked: standing orders kept here (execution \"System\") place no transfers. Unticked, each one goes into the outgoing payments on its date, approved, for somebody to send with a TAN."
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-31 13:45:00.000000",
+ "modified": "2026-10-31 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Settings",

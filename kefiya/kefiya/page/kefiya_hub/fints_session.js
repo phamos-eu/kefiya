@@ -99,90 +99,18 @@ kefiya.hub.FintsSession = class FintsSession {
 		this.stopped_at = null;
 		this.report({ progress: 100, message: "" });
 
-		const prompt = frappe.prompt(
-			this.tan_fields(data),
-			(values) => this.resolve_tan(data, values),
-			__("Verification required")
-		);
-		// Frappe focuses the first field, here the read-only TAN Mode
-		if (data.tan_required) {
-			prompt.$wrapper.one("shown.bs.modal", () => prompt.fields_dict.tan.set_focus());
-		}
-	}
-
-	/** Same steps as kefiya.interactive: TAN mode, medium, then TAN or app confirmation. */
-	tan_fields(data) {
-		const fields = [];
-		if (data.possible_tan_modes) {
-			fields.push({
-				fieldtype: "Select",
-				fieldname: "tan_mode",
-				label: __("TAN Mode"),
-				options: data.possible_tan_modes,
-				reqd: 1,
-			});
-			if (data.possible_tan_mediums) {
-				fields[0].default = data.possible_tan_modes[0];
-				fields[0].read_only = 1;
-				fields.push({
-					fieldtype: "Select",
-					fieldname: "tan_medium",
-					label: __("TAN Medium"),
-					options: data.possible_tan_mediums,
-					reqd: 1,
-				});
+		// The one TAN box (tan_prompt.js), as on the forms. It was built here
+		// a third time, field by field.
+		kefiya.tan_prompt(data, (ok, message) => {
+			this.stop();
+			if (ok && message && message.status === "submitted" && this.on_tan_resolved) {
+				this.on_tan_resolved(message);
 			}
-		}
-
-		if (!(data.tan_required || data.mfa_required)) return fields;
-
-		// on the confirmation step, mode and medium are already chosen
-		fields.forEach((f) => {
-			f.default = f.default || f.options[0];
-			f.read_only = 1;
+		}, {
+			// Nothing reports a release to this page; the box is how the
+			// user says it is given.
+			confirm_here: true,
+			before_answer: () => this.start(),
 		});
-		fields.push({
-			fieldtype: "Check",
-			fieldname: "mfa_confirmation",
-			label: __("Confirm MFA"),
-			default: 1,
-			hidden: 1,
-		});
-
-		if (data.challenge) {
-			let html = data.challenge.text ? `<p>${data.challenge.text}</p>` : "";
-			if (data.challenge.image) {
-				// white on purpose, also in dark mode: TAN generators read a
-				// transparent QR code badly on a dark background
-				html += `<img src="${data.challenge.image}" alt="${__("TAN challenge")}" style="max-width: 100%; background: #fff; padding: var(--padding-sm);">`;
-			}
-			fields.push({ fieldtype: "HTML", fieldname: "challenge", options: html });
-		}
-
-		if (data.tan_required) {
-			fields.push({ fieldtype: "Data", fieldname: "tan", label: __("TAN"), reqd: 1 });
-		} else {
-			fields.push({
-				fieldtype: "HTML",
-				fieldname: "waiting",
-				options: __("Follow the instructions on your banking app or device."),
-			});
-		}
-		return fields;
-	}
-
-	async resolve_tan(data, values) {
-		// the server doesn't need the challenge (and its image) back
-		const { challenge, ...context } = data;
-		const { message } = await this.run({
-			method: "kefiya.utils.client.resolve_tan_interaction",
-			args: {
-				fints_login: this.kefiya_login,
-				values: { ...context, ...values },
-			},
-		});
-		if (message && message.tan_resolved && this.on_tan_resolved) {
-			this.on_tan_resolved(message);
-		}
 	}
 };

@@ -1,0 +1,332 @@
+{
+ "actions": [],
+ "autoname": "format:KEF-SO-{#####}",
+ "naming_rule": "Expression (old style)",
+ "creation": "2026-10-30 21:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "status",
+  "execution_mode",
+  "company",
+  "bank_account",
+  "cb1",
+  "amount",
+  "frequency",
+  "day_of_month",
+  "next_execution_date",
+  "sb_party",
+  "counterparty_name",
+  "counterparty_iban",
+  "counterparty_bic",
+  "cb2",
+  "party_type",
+  "party",
+  "purpose",
+  "counter_account",
+  "sb_validity",
+  "valid_from",
+  "valid_until",
+  "lead_days",
+  "cb3",
+  "approved_by",
+  "approved_on",
+  "last_transfer",
+  "last_executed_for",
+  "sb_detect",
+  "detection_key",
+  "detected_by",
+  "occurrences",
+  "first_seen",
+  "last_seen",
+  "cb4",
+  "last_bank_transaction",
+  "detection_confidence"
+ ],
+ "fields": [
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Proposed\nActive\nPaused\nEnded\nRejected",
+   "default": "Proposed",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "execution_mode",
+   "fieldtype": "Select",
+   "label": "Execution",
+   "options": "Bank\nSystem",
+   "default": "System",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Bank: set up at the bank, shown in the forecast only. System: kept here; on its date the transfer is placed in the outgoing payments, approved, for somebody to send with a TAN."
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Paying Account",
+   "options": "Bank Account",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "frequency",
+   "fieldtype": "Select",
+   "label": "Frequency",
+   "options": "Monthly\nQuarterly\nHalf-Yearly\nYearly",
+   "default": "Monthly",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "day_of_month",
+   "fieldtype": "Int",
+   "label": "Day of Execution",
+   "reqd": 1,
+   "description": "Day of the month (1-31). Where a month has no such day, its last day applies."
+  },
+  {
+   "fieldname": "next_execution_date",
+   "fieldtype": "Date",
+   "label": "Next Execution",
+   "in_list_view": 1,
+   "read_only": 1,
+   "description": "Kept on the schedule and moved on after every execution."
+  },
+  {
+   "fieldname": "sb_party",
+   "fieldtype": "Section Break",
+   "label": "Recipient"
+  },
+  {
+   "fieldname": "counterparty_name",
+   "fieldtype": "Data",
+   "label": "Recipient",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "counterparty_iban",
+   "fieldtype": "Data",
+   "label": "IBAN",
+   "reqd": 1
+  },
+  {
+   "fieldname": "counterparty_bic",
+   "fieldtype": "Data",
+   "label": "BIC"
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Link",
+   "label": "Party Type",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Dynamic Link",
+   "label": "Party",
+   "options": "party_type"
+  },
+  {
+   "fieldname": "purpose",
+   "fieldtype": "Data",
+   "label": "Purpose"
+  },
+  {
+   "fieldname": "counter_account",
+   "fieldtype": "Link",
+   "label": "Counter Account",
+   "options": "Account",
+   "description": "Ledger account for automatic booking where the standing order belongs to no supplier contract."
+  },
+  {
+   "fieldname": "sb_validity",
+   "fieldtype": "Section Break",
+   "label": "Validity and Execution"
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "valid_until",
+   "fieldtype": "Date",
+   "label": "Valid Until"
+  },
+  {
+   "fieldname": "lead_days",
+   "fieldtype": "Int",
+   "label": "Lead Days",
+   "default": "3",
+   "depends_on": "eval:doc.execution_mode=='System'",
+   "description": "How many days before its date the transfer is placed in the outgoing payments. It waits there until the date."
+  },
+  {
+   "fieldname": "cb3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1,
+   "depends_on": "eval:doc.execution_mode=='System'",
+   "description": "Who activated it. Activating approves every execution, so it takes a second person -- the four-eyes rule of Kefiya Settings."
+  },
+  {
+   "fieldname": "approved_on",
+   "fieldtype": "Datetime",
+   "label": "Approved On",
+   "read_only": 1,
+   "depends_on": "eval:doc.execution_mode=='System'"
+  },
+  {
+   "fieldname": "last_transfer",
+   "fieldtype": "Link",
+   "label": "Last Transfer",
+   "options": "Kefiya Transfer",
+   "read_only": 1,
+   "depends_on": "eval:doc.execution_mode=='System'"
+  },
+  {
+   "fieldname": "last_executed_for",
+   "fieldtype": "Date",
+   "label": "Last Executed For",
+   "read_only": 1,
+   "depends_on": "eval:doc.execution_mode=='System'"
+  },
+  {
+   "fieldname": "sb_detect",
+   "fieldtype": "Section Break",
+   "label": "Detected in Bank Transactions",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "detection_key",
+   "fieldtype": "Data",
+   "label": "Detection Key",
+   "read_only": 1
+  },
+  {
+   "fieldname": "detected_by",
+   "fieldtype": "Data",
+   "label": "Detected By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "occurrences",
+   "fieldtype": "Int",
+   "label": "Occurrences",
+   "read_only": 1
+  },
+  {
+   "fieldname": "first_seen",
+   "fieldtype": "Date",
+   "label": "First Seen",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_seen",
+   "fieldtype": "Date",
+   "label": "Last Seen",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_bank_transaction",
+   "fieldtype": "Link",
+   "label": "Last Bank Transaction",
+   "options": "Bank Transaction",
+   "read_only": 1
+  },
+  {
+   "fieldname": "detection_confidence",
+   "fieldtype": "Percent",
+   "label": "Detection Confidence",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-30 21:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Kefiya",
+ "name": "Kefiya Standing Order",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "next_execution_date",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "counterparty_name",
+ "track_changes": 1
+}

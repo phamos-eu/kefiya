@@ -1,0 +1,339 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:reference_key",
+ "naming_rule": "By fieldname",
+ "creation": "2026-06-28 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "direction",
+  "status",
+  "due_date",
+  "expected_amount",
+  "column_break_kind",
+  "source_kind",
+  "from_bank",
+  "probability",
+  "section_break_bank",
+  "company",
+  "bank_account",
+  "column_break_bank",
+  "kefiya_login",
+  "bank_task_id",
+  "fetched_on",
+  "section_break_party",
+  "counterparty_name",
+  "counterparty_iban",
+  "party_type",
+  "party",
+  "column_break_party",
+  "purpose",
+  "section_break_amounts",
+  "net_amount",
+  "tax_amount",
+  "tax_rate",
+  "column_break_amounts",
+  "matched_amount",
+  "matched_bank_transaction",
+  "section_break_origin",
+  "reference_doctype",
+  "reference_name",
+  "is_manual",
+  "column_break_origin",
+  "generated_by",
+  "last_generated_on",
+  "reference_key",
+  "section_break_cancel",
+  "cancellation_reason",
+  "superseded_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "label": "Direction",
+   "options": "Incoming\nOutgoing",
+   "default": "Outgoing",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nMatched\nPartially Matched\nBooked\nExpired\nCancelled",
+   "default": "Open",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Due Date",
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "expected_amount",
+   "fieldtype": "Currency",
+   "label": "Expected Amount",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_kind",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source_kind",
+   "fieldtype": "Select",
+   "label": "Source Kind",
+   "in_standard_filter": 1,
+   "options": "Scheduled Transfer\nBank Standing Order\nPending\nScheduled Debit\nSales Invoice\nPurchase Invoice\nPurchase Order\nLoan Installment\nRent\nManual"
+  },
+  {
+   "fieldname": "from_bank",
+   "fieldtype": "Check",
+   "label": "From the Bank",
+   "default": "0",
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "description": "Reported by the bank itself (dated transfers, standing orders, pending entries). Unticked: planned here or by another app."
+  },
+  {
+   "fieldname": "probability",
+   "fieldtype": "Percent",
+   "label": "Probability",
+   "default": "100"
+  },
+  {
+   "fieldname": "section_break_bank",
+   "fieldtype": "Section Break",
+   "label": "Account"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Bank Account",
+   "options": "Bank Account",
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_bank",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "kefiya_login",
+   "fieldtype": "Link",
+   "label": "Kefiya Login",
+   "options": "Kefiya Login",
+   "read_only": 1
+  },
+  {
+   "fieldname": "bank_task_id",
+   "fieldtype": "Data",
+   "label": "Bank Order Reference",
+   "read_only": 1,
+   "description": "The identifier the bank holds a dated order under."
+  },
+  {
+   "fieldname": "fetched_on",
+   "fieldtype": "Datetime",
+   "label": "Last Fetched On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_party",
+   "fieldtype": "Section Break",
+   "label": "Counterparty"
+  },
+  {
+   "fieldname": "counterparty_name",
+   "fieldtype": "Data",
+   "label": "Counterparty Name",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "counterparty_iban",
+   "fieldtype": "Data",
+   "label": "Counterparty IBAN"
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Select",
+   "label": "Party Type",
+   "options": "\nCustomer\nSupplier"
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Dynamic Link",
+   "label": "Party",
+   "options": "party_type"
+  },
+  {
+   "fieldname": "column_break_party",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "purpose",
+   "fieldtype": "Small Text",
+   "label": "Purpose"
+  },
+  {
+   "fieldname": "section_break_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "net_amount",
+   "fieldtype": "Currency",
+   "label": "Net Amount"
+  },
+  {
+   "fieldname": "tax_amount",
+   "fieldtype": "Currency",
+   "label": "Tax Amount"
+  },
+  {
+   "fieldname": "tax_rate",
+   "fieldtype": "Percent",
+   "label": "Tax Rate"
+  },
+  {
+   "fieldname": "column_break_amounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "matched_amount",
+   "fieldtype": "Currency",
+   "label": "Matched Amount"
+  },
+  {
+   "fieldname": "matched_bank_transaction",
+   "fieldtype": "Link",
+   "label": "Matched Bank Transaction",
+   "options": "Bank Transaction"
+  },
+  {
+   "fieldname": "section_break_origin",
+   "fieldtype": "Section Break",
+   "label": "Origin",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Data",
+   "label": "Reference DocType"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Data",
+   "label": "Reference Name"
+  },
+  {
+   "fieldname": "is_manual",
+   "fieldtype": "Check",
+   "label": "Is Manual",
+   "default": "0"
+  },
+  {
+   "fieldname": "column_break_origin",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "generated_by",
+   "fieldtype": "Data",
+   "label": "Generated By"
+  },
+  {
+   "fieldname": "last_generated_on",
+   "fieldtype": "Datetime",
+   "label": "Last Generated On"
+  },
+  {
+   "fieldname": "reference_key",
+   "fieldtype": "Data",
+   "label": "Reference Key",
+   "reqd": 1,
+   "unique": 1,
+   "description": "Stable key: the record name, and what every generator updates by."
+  },
+  {
+   "fieldname": "section_break_cancel",
+   "fieldtype": "Section Break",
+   "label": "Cancellation",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "cancellation_reason",
+   "fieldtype": "Select",
+   "label": "Cancellation Reason",
+   "options": "\nUncollectible\nSettlement\nWaiver\nReversal\nDuplicate\nSuperseded by higher stage\nOther"
+  },
+  {
+   "fieldname": "superseded_by",
+   "fieldtype": "Link",
+   "label": "Superseded By",
+   "options": "Kefiya Planned Payment"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-30 21:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Kefiya",
+ "name": "Kefiya Planned Payment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "due_date",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}
