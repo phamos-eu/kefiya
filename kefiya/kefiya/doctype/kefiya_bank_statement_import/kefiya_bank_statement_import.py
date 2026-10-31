@@ -2,7 +2,7 @@ import frappe
 from frappe.model.document import Document
 import csv
 import os
-from frappe.utils.file_manager import get_file_path
+from frappe.utils import get_files_path
 from datetime import datetime
 from frappe import _
 import chardet
@@ -124,7 +124,20 @@ def dkb_giro_row(row):
 class KefiyaBankStatementImport(Document):
 
 	@frappe.whitelist()
-	def start_import(self, file_url, bank_account, company):
+	def start_import(self, file_url=None, bank_account=None, company=None):
+		"""Import this doc's file into this doc's bank account.
+
+		The arguments come from the client and are only checked against the doc,
+		so a caller cannot import another file or into another account.
+		"""
+		self.check_permission('write')
+		for value, fieldname in ((file_url, 'import_file'), (bank_account, 'bank_account'), (company, 'company')):
+			if value and value != self.get(fieldname):
+				frappe.throw(_('{0} does not match this import.').format(_(self.meta.get_label(fieldname))))
+		if frappe.db.get_value('Bank Account', self.bank_account, 'company') != self.company:
+			frappe.throw(_('Bank Account {0} does not belong to company {1}.').format(self.bank_account, self.company))
+
+		file_url, bank_account, company = self.import_file, self.bank_account, self.company
 		file_path = self.get_file_from_url(file_url)
 		# Detect encoding
 		with open(file_path, 'rb') as f:
@@ -142,7 +155,7 @@ class KefiyaBankStatementImport(Document):
 			with open(file_path, mode='r', encoding=encoding, errors='replace') as csvfile:
 				csv_reader = csv.reader(csvfile)
                 # Skip header (the first 7 rows)
-				for _ in range(7):
+				for _row in range(7):
 					next(csv_reader)
 
 				frappe.publish_progress(0, title='Importing Bank Transaction', description='Starting import...')
@@ -227,13 +240,20 @@ class KefiyaBankStatementImport(Document):
 		frappe.publish_realtime('update_import_status', {'docname': self.name, 'status': status}, user=frappe.session.user)
 
 	def get_file_from_url(self, file_url):
-		
-		base = frappe.local.site_path
-		file_path = base + file_url
+		"""Return the path of the uploaded File with this url; it must lie in the site's files folders."""
+		file_name = frappe.db.get_value('File', {'file_url': file_url}, 'name') if file_url else None
+		if not file_name:
+			frappe.throw(_('File not found: {0}').format(file_url))
+		file_doc = frappe.get_doc('File', file_name)
+		file_doc.check_permission('read')
 
+		file_path = os.path.realpath(file_doc.get_full_path())
+		files_folders = [os.path.realpath(get_files_path(is_private=is_private)) for is_private in (0, 1)]
+		if not any(file_path.startswith(folder + os.sep) for folder in files_folders):
+			frappe.throw(_('File not found: {0}').format(file_url))
 		if not os.path.exists(file_path):
-			frappe.throw(_('File not found: {0}').format(file_path))
-		
+			frappe.throw(_('File not found: {0}').format(file_url))
+
 		return file_path
 
 	# utf-8
