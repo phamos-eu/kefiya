@@ -584,3 +584,27 @@ not listed by the bank yet,von der Bank noch nicht gemeldet
 "No recent balance is known for {0}, so it cannot be checked whether the account covers this transfer. Fetch the account, then send again.","Für {0} ist kein aktueller Saldo bekannt, deshalb lässt sich nicht prüfen, ob das Konto diese Überweisung deckt. Bitte das Konto abrufen und dann erneut senden."
 "{0} would leave the account below what is available: {1} available (balance and credit line), {2} already on its way, {3} left.","{0} übersteigt das Verfügbare: {1} verfügbar (Saldo und Kreditlinie), {2} bereits unterwegs, {3} übrig."
 The account does not cover this transfer.,Das Konto deckt diese Überweisung nicht.
+As a dated transfer,Als Terminüberweisung
+The bank keeps the order until that day and refuses it itself if the money is not there by then. It is not checked against the balance here.,"Die Bank hält den Auftrag bis zu diesem Tag und weist ihn selbst zurück, wenn das Geld dann nicht da ist. Gegen den Saldo wird er hier nicht geprüft."
+Split the amount,Betrag aufteilen
+The account does not cover this order,Das Konto deckt diesen Auftrag nicht
+Send as a dated transfer,Als Terminüberweisung senden
+A dated transfer needs a day after today.,Eine Terminüberweisung braucht einen Tag nach heute.
+Split into parts,Aufteilen
+Part no.,Teil
+Add a part,Teil hinzufügen
+"A part dated today goes out as an ordinary transfer, a later one as a dated transfer the bank keeps. Each part is its own order and is sent on its own.","Ein Teil mit heutigem Datum geht als normale Überweisung hinaus, ein späterer als Terminüberweisung, die die Bank hält. Jeder Teil ist ein eigener Auftrag und wird einzeln gesendet."
+The parts add up to {0}.,Die Teile ergeben zusammen {0}.
+Still to distribute: {0},Noch zu verteilen: {0}
+The parts must add up to {0}.,Die Teile müssen zusammen {0} ergeben.
+Not split,Nicht aufgeteilt
+Order split,Auftrag aufgeteilt
+Split into {0} orders: {1}. Send each of them on its own.,Aufgeteilt in {0} Aufträge: {1}. Jeden davon einzeln senden.
+{0} is cancelled.,{0} ist storniert.
+{0} has gone to the bank already.,{0} ist bereits bei der Bank.
+Only a draft can be split: the amount is what its approval was about. Cancel and amend the order to split it.,"Nur ein Entwurf lässt sich aufteilen: Der Betrag ist das, was freigegeben wurde. Zum Aufteilen den Auftrag stornieren und berichtigen."
+Only an order with one payment can be split into amounts.,Nur ein Auftrag mit einer einzigen Zahlung lässt sich in Beträge aufteilen.
+Every part needs an amount above zero.,Jeder Teil braucht einen Betrag über null.
+No part can be dated before today.,Kein Teil darf vor heute liegen.
+Split into at least two parts.,Bitte in mindestens zwei Teile aufteilen.
+Part payment,Teilzahlung

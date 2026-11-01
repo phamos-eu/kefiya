@@ -168,6 +168,30 @@ class TestTheCheckOnSend(unittest.TestCase):
         self.assertIsNone(self.run_check([self.doc(5000, "KSO-1")],
                                          self.ACCOUNT))
 
+    def test_the_way_out_is_described(self):
+        """What the dialog after a refusal needs: the order, what is left
+        (for those who may see it), and whether it can be split."""
+        draft = _Doc(name="KT-NEW", kefiya_login="L1", total_amount=1500,
+                     standing_order=None, docstatus=0, items=[object()])
+        got = self.run_check([draft], self.ACCOUNT)
+        self.assertEqual((got["names"], got["kefiya_login"], got["total"],
+                          got["left"], got["can_split"]),
+                         (["KT-NEW"], "L1", 1500.0, 1000.0, 1))
+
+    def test_no_left_without_the_right(self):
+        got = self.run_check([self.doc(5000)], self.ACCOUNT, may_see=False)
+        self.assertIsNone(got["left"])
+
+    def test_an_approved_order_is_not_offered_a_split(self):
+        approved = _Doc(name="KT-NEW", kefiya_login="L1", total_amount=1500,
+                        standing_order=None, docstatus=1, items=[object()])
+        self.assertEqual(self.run_check([approved], self.ACCOUNT)["can_split"],
+                         0)
+        two = _Doc(name="KT-NEW", kefiya_login="L1", total_amount=1500,
+                   standing_order=None, docstatus=0,
+                   items=[object(), object()])
+        self.assertEqual(self.run_check([two], self.ACCOUNT)["can_split"], 0)
+
     def test_a_site_without_the_stamp(self):
         self.assertIsNone(self.run_check([self.doc(5000)], self.ACCOUNT,
                                          stamp=False))
