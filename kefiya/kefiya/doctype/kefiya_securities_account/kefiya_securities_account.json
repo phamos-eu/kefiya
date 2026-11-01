@@ -11,10 +11,18 @@
   "account_number",
   "account_name",
   "company",
+  "online_banking_url",
   "column_break_main",
   "kefiya_login",
+  "subaccount_number",
   "bank",
-  "description"
+  "description",
+  "section_break_fetch",
+  "fetch_holdings",
+  "last_holdings_status",
+  "column_break_fetch",
+  "last_holdings_fetch",
+  "last_holdings_message"
  ],
  "fields": [
   {
@@ -63,11 +71,62 @@
    "fieldname": "description",
    "fieldtype": "Small Text",
    "label": "Description"
+  },
+  {
+   "fieldname": "online_banking_url",
+   "fieldtype": "Data",
+   "options": "URL",
+   "label": "Online Banking Link",
+   "description": "The bank's own page for this securities account. Opens from the form and from the securities page."
+  },
+  {
+   "fieldname": "subaccount_number",
+   "fieldtype": "Data",
+   "label": "Subaccount Number",
+   "depends_on": "kefiya_login",
+   "description": "Only if the bank needs one to address this securities account. Leave blank: it is read from the bank's account list."
+  },
+  {
+   "fieldname": "section_break_fetch",
+   "fieldtype": "Section Break",
+   "label": "Holdings Fetch"
+  },
+  {
+   "fieldname": "fetch_holdings",
+   "fieldtype": "Check",
+   "default": "1",
+   "label": "Fetch Holdings from the Bank",
+   "depends_on": "kefiya_login",
+   "description": "Fetch the holdings over the linked login, at most once a day. Untick to maintain the holdings by hand."
+  },
+  {
+   "fieldname": "last_holdings_status",
+   "fieldtype": "Select",
+   "options": "\nOK\nEmpty\nFailed",
+   "label": "Last Fetch Status",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_fetch",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_holdings_fetch",
+   "fieldtype": "Datetime",
+   "label": "Last Fetch",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_holdings_message",
+   "fieldtype": "Small Text",
+   "label": "Last Fetch Message",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-28 00:00:00.000000",
+ "modified": "2026-11-01 19:00:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Securities Account",

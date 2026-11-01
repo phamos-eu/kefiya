@@ -1,0 +1,66 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) 2026, Phamos GmbH and contributors
+# For license information, please see license.txt
+
+"""Turn python-fints holdings into the plain rows ``refresh_holdings`` stores.
+
+Kept free of frappe and fints imports so the mapping can be tested without a
+bench. Both FinTS controllers use it, so they cannot drift apart again.
+
+python-fints names the field ``ISIN`` in capitals (``fints.models.Holding``).
+The controllers used to read ``isin``, got None for every position, and
+``refresh_holdings`` skipped each one for lack of an identity -- a fetch that
+"worked" and stored nothing.
+"""
+
+
+def _first(holding, *names):
+    """The first of ``names`` the holding carries with a value, else None."""
+    for name in names:
+        if isinstance(holding, dict):
+            value = holding.get(name)
+        else:
+            value = getattr(holding, name, None)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def holding_rows(holdings, securities_account):
+    """Map MT535 holdings to dicts for ``securities.refresh_holdings``.
+
+    :param holdings: iterable of ``fints.models.Holding`` (or dicts with the
+        same names)
+    :param securities_account: the depot number the rows belong to
+    :return: list of dicts (isin, security_name, quantity, price,
+        market_value, acquisition_price, currency, valuation_date,
+        securities_account)
+    """
+    rows = []
+    for h in holdings or []:
+        isin = _first(h, "ISIN", "isin")
+        rows.append({
+            "isin": str(isin).strip().upper() if isin else None,
+            "security_name": _first(h, "name"),
+            "quantity": _first(h, "pieces"),
+            # python-fints calls the unit price "market_value" and the
+            # position's value "total_value".
+            "price": _first(h, "market_value"),
+            "market_value": _first(h, "total_value"),
+            "acquisition_price": _first(h, "acquisitionprice"),
+            "currency": _first(h, "value_symbol"),
+            "valuation_date": _first(h, "valuation_date"),
+            "securities_account": securities_account,
+        })
+    return rows
+
+
+def same_account_number(left, right):
+    """Whether two account numbers name the same account.
+
+    Banks pad account numbers with leading zeros in some segments and not in
+    others, so ``0123`` and ``123`` are the same depot.
+    """
+    a = str(left or "").strip().lstrip("0")
+    b = str(right or "").strip().lstrip("0")
+    return bool(a) and a == b

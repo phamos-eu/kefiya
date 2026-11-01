@@ -14,9 +14,16 @@ series for portfolio reporting.
 import hashlib
 
 import frappe
-from frappe.utils import now_datetime, getdate, flt
+from frappe.utils import now_datetime, getdate, flt, time_diff_in_hours
 
 DOCTYPE = "Kefiya Security Holding"
+ACCOUNT_DOCTYPE = "Kefiya Securities Account"
+
+#: Holdings move with the market, not with bookings: one snapshot a day is
+#: enough, and every extra HKWPD is another bank dialog that may ask for a TAN.
+DEPOT_FETCH_MIN_HOURS = 20
+
+SOURCE_BANK = "Bank"
 
 
 def compute_holding_key(securities_account, isin, valuation_date):
@@ -91,6 +98,9 @@ def refresh_holdings(kefiya_login, holdings):
                 "quantity": flt(item.get("quantity")),
                 "price": flt(item.get("price")),
                 "market_value": flt(item.get("market_value")),
+                "acquisition_price":
+                    flt(item.get("acquisition_price")) or None,
+                "source": SOURCE_BANK,
                 "fetched_on": now,
             }
 
@@ -112,3 +122,85 @@ def refresh_holdings(kefiya_login, holdings):
             )
 
     return {"created": created, "updated": updated}
+
+
+def depots_due(kefiya_login, now=None):
+    """The depots hanging off ``kefiya_login`` that are due for a fetch.
+
+    A depot is due when it is set to fetch holdings and was not tried within
+    ``DEPOT_FETCH_MIN_HOURS``.
+    """
+    now = now or now_datetime()
+    due = []
+    for row in frappe.get_all(
+            ACCOUNT_DOCTYPE,
+            filters={"kefiya_login": kefiya_login, "fetch_holdings": 1},
+            fields=["name", "account_number", "subaccount_number",
+                    "last_holdings_fetch"]):
+        last = row.get("last_holdings_fetch")
+        if last and time_diff_in_hours(now, last) < DEPOT_FETCH_MIN_HOURS:
+            continue
+        due.append(row)
+    return due
+
+
+def _note_depot_fetch(name, status, message=None):
+    """Record the outcome of one depot fetch on the depot itself.
+
+    Written with db.set_value: the depot form may be open elsewhere, and a
+    status line must not collide with a user's edit of the depot.
+    """
+    frappe.db.set_value(ACCOUNT_DOCTYPE, name, {
+        "last_holdings_fetch": now_datetime(),
+        "last_holdings_status": status,
+        "last_holdings_message": (message or "")[:500],
+    }, update_modified=False)
+
+
+def refresh_one_depot(kefiya_login, depot, controller):
+    """Fetch and store the holdings of one depot, recording the outcome.
+
+    :param kefiya_login: Kefiya Login name the depot hangs off
+    :param depot: dict-like with name, account_number, subaccount_number
+    :param controller: a FinTS controller instance for ``kefiya_login``
+    :return: {"status", "created", "updated", "message"}
+    """
+    try:
+        rows = controller.get_fints_depot_holdings(
+            depot.get("account_number"),
+            depot.get("subaccount_number") or None)
+        for row in rows:
+            # store under the depot record, whatever spelling the bank used
+            row["securities_account"] = depot.get("account_number")
+        counts = refresh_holdings(kefiya_login, rows)
+        status = "OK" if rows else "Empty"
+        _note_depot_fetch(depot.get("name"), status)
+        return dict(status=status, message=None, **counts)
+    except Exception as exc:
+        message = str(exc) or exc.__class__.__name__
+        _note_depot_fetch(depot.get("name"), "Failed", message)
+        frappe.log_error(
+            title="Kefiya: securities account fetch failed",
+            message="{0}\n\n{1}".format(
+                depot.get("name"), frappe.get_traceback()),
+        )
+        return {"status": "Failed", "created": 0, "updated": 0,
+                "message": message}
+
+
+def refresh_linked_depots(kefiya_login, controller_class):
+    """Fetch and store the holdings of every due depot of a login.
+
+    Each depot is tried on its own: one the bank refuses must not hide the
+    others. A refusal is logged, not swallowed -- a depot that silently
+    delivers nothing is exactly how holdings went missing unnoticed before.
+
+    :param kefiya_login: Kefiya Login name
+    :param controller_class: the FinTS controller class to use
+    :return: {depot name: {"status", "created", "updated", "message"}}
+    """
+    return {
+        depot.name: refresh_one_depot(
+            kefiya_login, depot, controller_class(kefiya_login))
+        for depot in depots_due(kefiya_login)
+    }

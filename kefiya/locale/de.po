@@ -778,3 +778,45 @@ msgstr "An die Bank gesendet am"
 
 msgid "When the bank took the order. A dated order counts against the transfer limit on the day it is sent, not on the day it is executed."
 msgstr "Wann die Bank den Auftrag angenommen hat. Eine Terminüberweisung zählt am Sendetag gegen das Überweisungslimit, nicht am Ausführungstag."
+
+msgid "Online Banking Link"
+msgstr "Link zum Online-Banking"
+
+msgid "The bank's own page for this securities account. Opens from the form and from the securities page."
+msgstr "Die Seite der Bank zu diesem Depot. Öffnet sich aus dem Formular und von der Wertpapier-Seite."
+
+msgid "Subaccount Number"
+msgstr "Unterkontonummer"
+
+msgid "Only if the bank needs one to address this securities account. Leave blank: it is read from the bank's account list."
+msgstr "Nur nötig, wenn die Bank das Depot sonst nicht findet. Leer lassen: Der Wert wird aus der Kontenliste der Bank gelesen."
+
+msgid "Holdings Fetch"
+msgstr "Abruf der Bestände"
+
+msgid "Fetch Holdings from the Bank"
+msgstr "Bestände von der Bank abrufen"
+
+msgid "Fetch the holdings over the linked login, at most once a day. Untick to maintain the holdings by hand."
+msgstr "Die Bestände über den verknüpften Bankzugang abrufen, höchstens einmal täglich. Abwählen, um die Bestände von Hand zu pflegen."
+
+msgid "Last Fetch Status"
+msgstr "Status letzter Abruf"
+
+msgid "Last Fetch"
+msgstr "Letzter Abruf"
+
+msgid "Last Fetch Message"
+msgstr "Meldung letzter Abruf"
+
+msgid "Set for holdings fetched from the bank. Blank for holdings entered by hand."
+msgstr "Gesetzt bei Beständen aus dem Bankabruf. Leer bei Beständen von Hand."
+
+msgid "Bank: fetched over FinTS and overwritten by the next fetch. Manual: entered by hand."
+msgstr "Bank: per FinTS abgerufen und beim nächsten Abruf überschrieben. Manuell: von Hand erfasst."
+
+msgid "Acquisition Price (per unit)"
+msgstr "Einstandskurs (je Stück)"
+
+msgid "Average purchase price per unit, as the bank reports it or as entered."
+msgstr "Durchschnittlicher Kaufpreis je Stück, wie von der Bank gemeldet oder erfasst."

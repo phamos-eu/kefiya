@@ -636,3 +636,16 @@ Every part becomes a draft dated order for the due date. Send each to the bank o
 Each is approved and sent with its own TAN.,Jeder wird einzeln freigegeben und mit eigener TAN gesendet.
 Unknown way of paying in parts: {0},Unbekannte Art der Teilzahlung: {0}
 Part {0} of {1}: send to the bank on {2}. Executed by the bank on {3}.,Teil {0} von {1}: am {2} an die Bank senden. Ausführung durch die Bank am {3}.
+The bank asks for a TAN to list the holdings.,Die Bank verlangt eine TAN für die Abfrage der Bestände.
+The bank does not list securities account {0} for this login.,Die Bank führt das Depot {0} nicht unter diesem Bankzugang.
+"The login's own account carries no BIC, so the depot cannot be addressed at this bank.","Das Konto des Bankzugangs hat keine BIC, deshalb lässt sich das Depot bei dieser Bank nicht ansprechen."
+The securities account has no account number.,Das Depot hat keine Depotnummer.
+This securities account has no bank login. Maintain its holdings by hand.,Dieses Depot hat keinen Bankzugang. Bitte die Bestände von Hand pflegen.
+Enter the ISIN of the security.,Bitte die ISIN des Wertpapiers eingeben.
+Securities account {0} already holds {1} on {2}: {3}.,Für Depot {0} gibt es zu {1} am {2} schon einen Bestand: {3}.
+Open at the Bank,Bei der Bank öffnen
+Holdings,Bestände
+Fetch Holdings Now,Bestände jetzt abrufen
+Asking the bank for the holdings ...,Bestände werden bei der Bank abgefragt …
+Holdings not fetched,Bestände nicht abgerufen
+Enter Holding,Bestand erfassen

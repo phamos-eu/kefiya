@@ -1515,24 +1515,83 @@ class FinTSController(TanSession):
         """Fetch securities holdings (Depot / Wertpapiere) for the account.
 
         :return: list of plain dicts (isin, security_name, quantity, price,
-            market_value, currency, valuation_date, securities_account)
+            market_value, acquisition_price, currency, valuation_date,
+            securities_account)
         """
+        from kefiya.utils.securities_rows import holding_rows
+
         with self.client_session():
             account = self._require_fints_account()
             holdings = self.fints_connection.get_holdings(account)
-            result = []
-            for h in holdings or []:
-                result.append({
-                    "isin": getattr(h, "isin", None),
-                    "security_name": getattr(h, "name", None),
-                    "quantity": getattr(h, "pieces", None),
-                    "price": getattr(h, "market_value", None),
-                    "market_value": getattr(h, "total_value", None),
-                    "currency": getattr(h, "value_symbol", None),
-                    "valuation_date": getattr(h, "valuation_date", None),
-                    "securities_account": self.kefiya_login.account_iban,
-                })
-            return result
+            if isinstance(holdings, NeedTANResponse):
+                frappe.throw(
+                    _("The bank asks for a TAN to list the holdings."))
+            return holding_rows(holdings, self.kefiya_login.account_iban)
+
+    def get_fints_depot_holdings(self, account_number, subaccount=None):
+        """Fetch the holdings of a depot that hangs off this login.
+
+        A depot has no IBAN at most banks, so it never appears among the SEPA
+        accounts the login loads and cannot be chosen as the login's own
+        account. HKWPD addresses the depot by account number and bank code
+        (Kontoverbindung, version 3), so it is built here from the depot
+        number plus the bank details of the login's own account -- same bank,
+        same access, same PIN, no second login.
+
+        The subaccount comes from the bank's account list (HIUPD) when the
+        bank names the depot there; the caller may pass one to override it.
+
+        :param account_number: the depot number as the bank prints it
+        :param subaccount: optional subaccount characteristic
+        :return: list of plain dicts as ``get_fints_holdings``
+        """
+        from fints.models import SEPAAccount
+        from kefiya.utils.securities_rows import (
+            holding_rows, same_account_number)
+
+        number = str(account_number or "").strip()
+        if not number:
+            frappe.throw(_("The securities account has no account number."))
+
+        with self.client_session() as conn:
+            base = self._require_fints_account()
+            bic = getattr(base, "bic", None)
+            blz = getattr(base, "blz", None) or self.kefiya_login.blz
+            if not bic or len(str(bic)) < 6:
+                # python-fints reads the country from the BIC of the account
+                frappe.throw(_(
+                    "The login's own account carries no BIC, so the depot "
+                    "cannot be addressed at this bank."))
+
+            listed = False
+            upd = getattr(conn, "upd", None)
+            if upd is not None and getattr(upd, "segments", None):
+                for seg in upd.find_segments("HIUPD"):
+                    info = getattr(seg, "account_information", None)
+                    if info is None or not same_account_number(
+                            getattr(info, "account_number", None), number):
+                        continue
+                    listed = True
+                    if subaccount is None:
+                        subaccount = getattr(info, "subaccount_number", None)
+                    break
+
+            depot = SEPAAccount(
+                iban=None, bic=bic, accountnumber=number,
+                subaccount=subaccount or None, blz=blz)
+            holdings = conn.get_holdings(depot)
+            if isinstance(holdings, NeedTANResponse):
+                frappe.throw(
+                    _("The bank asks for a TAN to list the holdings."))
+            rows = holding_rows(holdings, number)
+
+        if not rows and not listed:
+            # Nothing came back and the bank does not list the depot for this
+            # access either: say so instead of reporting an empty depot.
+            frappe.throw(_(
+                "The bank does not list securities account {0} for this "
+                "login.").format(number))
+        return rows
 
     @staticmethod
     def _amount_from(amount_field):
