@@ -168,6 +168,9 @@ scheduler_events = {
     # their own times; the ladder catches up with them every hour, and runs
     # after every bank fetch anyway.
     "hourly": [
+        # Open purchase orders first, so the ladder sees them in the same
+        # hour.
+        "kefiya.utils.order_forecast.refresh_purchase_order_lines",
         "kefiya.utils.planned_payment.apply_stage_ladder",
     ],
     "daily": [

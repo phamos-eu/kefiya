@@ -533,3 +533,33 @@ Choose a reason for the cancellation.,Bitte einen Grund für die Stornierung wä
 already answered by a booking,bereits durch eine Buchung erledigt
 not cancelled,nicht storniert
 Direction must be Incoming or Outgoing.,Die Richtung muss Eingang oder Ausgang sein.
+Active and paused,Aktiv und pausiert
+Proposals,Vorschläge
+Finished,Beendet
+Running,Läuft
+On pause,Pausiert
+Proposal,Vorschlag
+Turned down,Abgelehnt
+Kept,Geführt
+Cycle,Turnus
+Next execution,Nächste Ausführung
+New standing order,Neuer Dauerauftrag
+No standing orders here.,Hier gibt es keine Daueraufträge.
+The standing orders could not be loaded.,Die Daueraufträge konnten nicht geladen werden.
+What the bank says,Was die Bank meldet
+"active: {0} a month","aktiv: {0} im Monat"
+at the bank,bei der Bank
+"here, sent from the outgoing payments","bei uns, gesendet aus dem Zahlungsausgang"
+"last listed on {0}","zuletzt gemeldet am {0}"
+"listed by the bank on {0}","von der Bank gemeldet am {0}"
+not listed by the bank yet,von der Bank noch nicht gemeldet
+"monthly on the {0}.","monatlich am {0}."
+"quarterly on the {0}.","vierteljährlich am {0}."
+"half-yearly on the {0}.","halbjährlich am {0}."
+"yearly on the {0}.","jährlich am {0}."
+"until {0}","bis {0}"
+"Purchase Order {0}","Bestellung {0}"
+"stored, visible to authorised roles","gespeichert, sichtbar für berechtigte Rollen"
+"No recent balance is known for {0}, so it cannot be checked whether the account covers this transfer. Fetch the account, then send again.","Für {0} ist kein aktueller Saldo bekannt, deshalb lässt sich nicht prüfen, ob das Konto diese Überweisung deckt. Bitte das Konto abrufen und dann erneut senden."
+"{0} would leave the account below what is available: {1} available (balance and credit line), {2} already on its way, {3} left.","{0} übersteigt das Verfügbare: {1} verfügbar (Saldo und Kreditlinie), {2} bereits unterwegs, {3} übrig."
+The account does not cover this transfer.,Das Konto deckt diese Überweisung nicht.

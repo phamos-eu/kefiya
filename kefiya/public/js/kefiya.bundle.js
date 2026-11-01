@@ -48,6 +48,8 @@ import "./controllers/transfer_form";
 // page there is now a bootstrap that calls kefiya.payment_outbox().
 // Das Aussehen dieser Liste, getrennt von ihrem Verhalten.
 import "./controllers/outbox_style";
+// The standing orders, shown below the outgoing payments.
+import "./controllers/standing_orders_panel";
 import "./controllers/payment_outbox";
 // Correcting the forecast by hand. The form, the list and any page that shows
 // the forecast use the same three dialogs.

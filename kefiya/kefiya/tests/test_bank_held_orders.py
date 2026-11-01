@@ -251,5 +251,67 @@ class TestForecastItems(unittest.TestCase):
                          {"items": [], "skipped": 0})
 
 
+class TestOnFileAsAStandingOrder(unittest.TestCase):
+    """The bank's order in the fields of Kefiya Standing Order."""
+
+    def row(self, raw, **change):
+        row = {"amount": 600.0, "recipient_name": "Erika Mustermann",
+               "recipient_iban": "DE89 3704 0044 0532 0130 00",
+               "purpose": "Pflege", "task_id": "7",
+               "schedule": orders.schedule_from(raw)}
+        row.update(change)
+        return row
+
+    def test_monthly_with_an_end(self):
+        values, why = orders.standing_order_values(
+            self.row(["20260105", "M", "1", "5", "20610105"]))
+        self.assertIsNone(why)
+        self.assertEqual(
+            (values["frequency"], values["day_of_month"],
+             values["valid_from"], values["valid_until"],
+             values["counterparty_iban"], values["bank_task_id"]),
+            ("Monthly", 5, "2026-01-05", "2061-01-05",
+             "DE89370400440532013000", "7"))
+
+    def test_quarterly(self):
+        values, _why = orders.standing_order_values(
+            self.row(["20260201", "M", "3", "1"]))
+        self.assertEqual(values["frequency"], "Quarterly")
+
+    def test_ultimo_is_the_31st(self):
+        values, _why = orders.standing_order_values(
+            self.row(["20260131", "M", "1", "99"]))
+        self.assertEqual(values["day_of_month"], 31)
+
+    def test_what_the_record_cannot_hold_is_skipped(self):
+        for raw in (["20260130", "M", "1", "98"], ["20261002", "W", "1", "5"],
+                    ["20260101", "M", "2", "1"], ["?"]):
+            values, why = orders.standing_order_values(self.row(raw))
+            self.assertIsNone(values, raw)
+            self.assertTrue(why, raw)
+        values, why = orders.standing_order_values(
+            self.row(["20260101", "M", "1", "1"], recipient_iban=""))
+        self.assertIsNone(values)
+
+    def test_purpose_fits(self):
+        values, _why = orders.standing_order_values(
+            self.row(["20260101", "M", "1", "1"], purpose="x" * 200))
+        self.assertEqual(len(values["purpose"]), orders.MAX_PURPOSE)
+
+    def test_the_same_order(self):
+        values, _why = orders.standing_order_values(
+            self.row(["20260105", "M", "1", "5"]))
+        same = {"counterparty_iban": "de89370400440532013000",
+                "amount": 600.0, "day_of_month": 5}
+        self.assertTrue(orders.same_order(values, same))
+        self.assertFalse(orders.same_order(values, dict(same, amount=601)))
+        self.assertFalse(orders.same_order(values, dict(same, day_of_month=6)))
+        # The bank's identifier decides where both have one.
+        self.assertTrue(orders.same_order(
+            values, {"bank_task_id": "7", "amount": 1}))
+        self.assertFalse(orders.same_order(
+            values, dict(same, bank_task_id="8")))
+
+
 if __name__ == "__main__":
     unittest.main()

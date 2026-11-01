@@ -285,3 +285,67 @@ def items_from(rows, today):
                 "task_id": row.get("task_id") or None,
             })
     return {"items": items, "skipped": skipped}
+
+
+#: The standing order's cycle in the words of Kefiya Standing Order: months
+#: between two executions. A weekly order has no place there and is skipped.
+FREQUENCY_BY_MONTHS = {1: "Monthly", 3: "Quarterly", 6: "Half-Yearly",
+                       12: "Yearly"}
+
+#: Purpose length Kefiya Standing Order accepts.
+MAX_PURPOSE = 140
+
+
+def standing_order_values(row):
+    """A standing order the bank holds, in the fields of Kefiya Standing
+    Order -- or why it cannot be.
+
+    :param row: a row from standing_orders.parse_standing_order()
+    :return: (values, None) or (None, reason)
+    """
+    row = row or {}
+    schedule = row.get("schedule") or {}
+    if not is_readable(schedule):
+        return None, "schedule not readable"
+    if schedule.get("time_unit") != "M":
+        return None, "not a monthly cycle"
+    frequency = FREQUENCY_BY_MONTHS.get(schedule.get("rhythm"))
+    if not frequency:
+        return None, "rhythm of {0} months".format(schedule.get("rhythm"))
+    day = schedule.get("execution_day")
+    if day == 99:
+        # Ultimo: the 31st is the last day of every month there.
+        day = 31
+    elif day in ULTIMO:
+        return None, "a day counted from the end of the month"
+    amount = abs(float(row.get("amount") or 0))
+    iban = "".join((row.get("recipient_iban") or "").split()).upper()
+    if not amount or not iban:
+        return None, "no amount or no IBAN"
+    return {
+        "amount": amount,
+        "frequency": frequency,
+        "day_of_month": day,
+        "valid_from": schedule.get("first_execution"),
+        "valid_until": schedule.get("last_execution"),
+        "counterparty_name": (row.get("recipient_name") or iban)[:140],
+        "counterparty_iban": iban,
+        "purpose": (row.get("purpose") or "")[:MAX_PURPOSE] or None,
+        "bank_task_id": row.get("task_id") or None,
+    }, None
+
+
+def same_order(values, existing):
+    """Is the bank's order the one already on file?
+
+    The bank's order identifier decides where both have it. Without one:
+    same IBAN, same amount to the cent, same day.
+    """
+    if values.get("bank_task_id") and existing.get("bank_task_id"):
+        return values["bank_task_id"] == existing["bank_task_id"]
+    iban = "".join((existing.get("counterparty_iban") or "").split()).upper()
+    return (iban == values["counterparty_iban"]
+            and abs(float(existing.get("amount") or 0)
+                    - values["amount"]) < 0.005
+            and int(existing.get("day_of_month") or 0)
+            == values["day_of_month"])

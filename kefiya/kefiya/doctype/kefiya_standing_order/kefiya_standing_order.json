@@ -41,7 +41,11 @@
   "last_seen",
   "cb4",
   "last_bank_transaction",
-  "detection_confidence"
+  "detection_confidence",
+  "sb_bank",
+  "bank_task_id",
+  "cb_bank",
+  "bank_seen_on"
  ],
  "fields": [
   {
@@ -278,10 +282,34 @@
    "fieldtype": "Percent",
    "label": "Detection Confidence",
    "read_only": 1
+  },
+  {
+   "fieldname": "sb_bank",
+   "fieldtype": "Section Break",
+   "label": "At the bank",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "bank_task_id",
+   "fieldtype": "Data",
+   "label": "Bank Order ID",
+   "read_only": 1,
+   "description": "The bank's identifier for this order, from its list of standing orders (HKCDB)."
+  },
+  {
+   "fieldname": "cb_bank",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bank_seen_on",
+   "fieldtype": "Date",
+   "label": "Last Reported by the Bank",
+   "read_only": 1,
+   "description": "When the bank last listed this order. Empty: the bank has never reported it."
   }
  ],
  "links": [],
- "modified": "2026-10-30 21:00:00.000000",
+ "modified": "2026-11-01 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Standing Order",

@@ -287,10 +287,18 @@ def account_standing(bank_account):
     fetched has no balance at all rather than a balance of zero.
 
     :return: {"balance", "credit_line", "available", "as_of", "currency"} with
-        balance None where nothing was ever fetched
+        balance None where nothing was ever fetched; {"hidden": 1} for a
+        user who may not see balances (balance_visibility)
     """
     if not bank_account:
         return {}
+
+    # Read with get_value, which knows nothing of field permissions -- so the
+    # question whether this user may see a balance is asked here.
+    from kefiya.utils.balance_visibility import may_see_balances
+
+    if not may_see_balances():
+        return {"balance": None, "credit_line": None, "hidden": 1}
 
     meta = frappe.get_meta("Bank Account")
     # "account", not "account_currency". A Bank Account has no currency of its
