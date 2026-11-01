@@ -522,3 +522,15 @@ No transfer limit is known for {0}. It must be kept on the bank access before a 
 "{0} of {1} does not fit the limits between today and {2}. Nothing would be placed: pick another account, or set a later date.",{0} von {1} passen zwischen heute und {2} nicht in die Limits. Es würde nichts angelegt: ein weiteres Konto wählen oder ein späteres Datum setzen.
 {0} does not fit the limits between today and {1}. Nothing was changed.,{0} passen zwischen heute und {1} nicht in die Limits. Es wurde nichts geändert.
 Paid in {0} parts. Each part is a draft: approve and send it like any transfer.,In {0} Teile aufgeteilt. Jeder Teil ist ein Entwurf: wie jede Überweisung freigeben und senden.
+How the parts are paid,Wie die Teile gezahlt werden
+"Dated orders at the bank: all executed on the due date, sent on different days","Terminüberweisungen bei der Bank: alle am Fälligkeitstag ausgeführt, an verschiedenen Tagen gesendet"
+"Each part executed on its own day, kept here until then","Jeder Teil an seinem eigenen Tag ausgeführt, bis dahin hier gehalten"
+Send on,Senden am
+Executed on,Ausgeführt am
+Every part becomes a draft dated order for the due date. Send each to the bank on its day — the bank counts the limit on the day of sending. The day is noted on each part.,Jeder Teil wird ein Entwurf einer Terminüberweisung zum Fälligkeitstag. Jeden an seinem Tag an die Bank senden – die Bank zählt das Limit am Sendetag. Der Tag ist an jedem Teil vermerkt.
+"Every part becomes a draft transfer of its own, kept here until its date.",Jeder Teil wird ein eigener Überweisungsentwurf und bis zu seinem Datum hier gehalten.
+Each is approved and sent with its own TAN.,Jeder wird einzeln freigegeben und mit eigener TAN gesendet.
+Unknown way of paying in parts: {0},Unbekannte Art der Teilzahlung: {0}
+Part {0} of {1}: send to the bank on {2}. Executed by the bank on {3}.,Teil {0} von {1}: am {2} an die Bank senden. Ausführung durch die Bank am {3}.
+Sent to the Bank On,An die Bank gesendet am
+"When the bank took the order. A dated order counts against the transfer limit on the day it is sent, not on the day it is executed.","Wann die Bank den Auftrag angenommen hat. Eine Terminüberweisung zählt am Sendetag gegen das Überweisungslimit, nicht am Ausführungstag."

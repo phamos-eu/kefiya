@@ -1040,8 +1040,13 @@ def _mark_sent(docs, result, scheduled):
     is the one state that invites a second send. See send_transfer_tan.
     """
     task_id = (result or {}).get("task_id")
+    from frappe.utils import now_datetime
+
     for doc in docs:
         doc.db_set("status", "Scheduled at Bank" if scheduled else "Sent")
+        # The day the bank took it: a dated order counts against the limit
+        # on that day, not on its execution date (transfer_limit).
+        doc.db_set("sent_on", now_datetime())
         if task_id:
             doc.db_set("bank_task_id", task_id)
         # What the bank said when it took the order, on the order. Its own
@@ -1160,7 +1165,9 @@ def _refuse_over_limit(docs):
     """
     from kefiya.utils.transfer_limit import check_batch
 
-    verdict = check_batch(docs)
+    # Counted on the day of sending: a dated order the bank executes later
+    # uses up today's limit, not that of its execution date.
+    verdict = check_batch(docs, on=frappe.utils.nowdate())
     if verdict["ok"]:
         return None
 

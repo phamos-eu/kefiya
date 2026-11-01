@@ -194,6 +194,38 @@ class TestTheServerSide(unittest.TestCase):
             'login.transfer_limit_amount = flt(chosen.get("amount"))',
             refresh)
 
+    def test_dated_orders_all_carry_the_due_date(self):
+        """Agreed 01.11.2026: parts sent on several days, all executed by
+        the bank on the due date."""
+        bank = self.part[self.part.index("if mode == MODE_BANK:"):]
+        self.assertIn("target.execution_date = str(due)", bank)
+        self.assertIn("target.manage_due_date = 0", bank)
+        self.assertIn("target.instant_payment = 0", bank)
+        self.assertIn('target.add_comment("Comment"', self.part)
+
+    def test_a_dated_order_counts_on_the_day_it_was_sent(self):
+        day = self.source[self.source.index("def limit_day"):self.source.index(
+            "def committed_amount")]
+        self.assertLess(day.index('row.get("sent_on")'),
+                        day.index('row.get("execution_date")'))
+        committed = self.source[self.source.index(
+            "def committed_amount"):self.source.index("def check_transfer")]
+        self.assertIn("if start <= limit_day(r) <= end", committed)
+
+    def test_sending_counts_today(self):
+        client = _read("utils", "client.py")
+        refuse = client[client.index("def _refuse_over_limit"):]
+        self.assertIn("check_batch(docs, on=frappe.utils.nowdate())", refuse)
+        marked = client[client.index("def _mark_sent"):client.index(
+            "def _mark_sent") + 1500]
+        self.assertIn('doc.db_set("sent_on", now_datetime())', marked)
+
+    def test_the_sent_day_is_a_field(self):
+        import json
+        meta = json.loads(_read("kefiya", "doctype", "kefiya_transfer",
+                                "kefiya_transfer.json"))
+        self.assertIn("sent_on", meta["field_order"])
+
     def test_the_form_offers_it(self):
         js = _read("kefiya", "doctype", "kefiya_transfer",
                    "kefiya_transfer.js")

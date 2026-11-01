@@ -121,8 +121,25 @@ def limit_window(limit_type, days, date):
     return None, None
 
 
+def limit_day(row, today=None):
+    """The day an order counts against the limit.
+
+    The day the bank took it, once it has: a dated order (Terminueberweisung)
+    is counted on the day it is sent, not on the day it is executed -- several
+    parts of one payment, sent on several days and all executed on the last,
+    is how a large payment is paid within the limit (01.11.2026). Until it is
+    sent, the day it is meant to leave: its execution date.
+    """
+    if row.get("sent_on"):
+        return getdate(row.get("sent_on"))
+    return getdate(row.get("execution_date") or today or now_datetime().date())
+
+
 def committed_amount(kefiya_login, start, end, exclude=None):
     """How much is already spoken for in a window, ignoring the given documents.
+
+    Each order counts on its limit_day: the day it was sent, or, not sent
+    yet, its execution date.
 
     :param exclude: one document name or a list of them -- the ones being
         judged right now, which must not be counted against themselves.
@@ -130,19 +147,27 @@ def committed_amount(kefiya_login, start, end, exclude=None):
     if isinstance(exclude, str):
         exclude = [exclude]
     exclude = [name for name in (exclude or []) if name]
+    start, end = getdate(start), getdate(end)
 
     filters = {
         "kefiya_login": kefiya_login,
         "docstatus": 1,
         "status": ("in", COMMITTED_STATUSES),
-        "execution_date": ("between", [getdate(start), getdate(end)]),
     }
     if exclude:
         filters["name"] = ("not in", exclude)
+    or_filters = [
+        ["execution_date", "between", [start, end]],
+        ["sent_on", "between", [str(start) + " 00:00:00",
+                                str(end) + " 23:59:59.999999"]],
+    ]
 
     rows = frappe.get_all("Kefiya Transfer", filters=filters,
-                          fields=["total_amount"])
-    return sum(flt(r.total_amount) for r in rows)
+                          or_filters=or_filters,
+                          fields=["total_amount", "execution_date",
+                                  "sent_on"])
+    return sum(flt(r.total_amount) for r in rows
+               if start <= limit_day(r) <= end)
 
 
 def check_transfer(doc):
@@ -150,8 +175,12 @@ def check_transfer(doc):
     return check_batch([doc])
 
 
-def check_batch(docs):
+def check_batch(docs, on=None):
     """The same question for several orders leaving together.
+
+    ``on`` is the day they count on. Sending, that is today -- also for a
+    dated order the bank executes later (see limit_day). Planning, it is
+    left empty and the execution date stands in.
 
     The limit applies to what leaves the ACCOUNT, not to one document, so a
     batch is measured as a whole. Judging each document on its own would wave
@@ -192,7 +221,8 @@ def check_batch(docs):
                 "available": limit, "total": total, "reason": None}
 
     start, end = limit_window(limit_type, login.transfer_limit_days,
-                              docs[0].execution_date or now_datetime().date())
+                              on or docs[0].execution_date
+                              or now_datetime().date())
     used = committed_amount(docs[0].kefiya_login, start, end,
                             exclude=[d.name for d in docs])
     available = limit - used
@@ -507,6 +537,24 @@ def partial_payment_accounts(transfer_name):
             "accounts": accounts}
 
 
+#: How the parts reach the payee (agreed 01.11.2026, both on offer):
+#: "bank" -- dated orders (Terminueberweisung): every part carries the due
+#: date and is held by the bank; the parts are SENT on different days, and the
+#: bank counts the limit on the day of sending, executing all of them on the
+#: due date. "kefiya" -- each part is executed on its own day, kept here until
+#: then.
+MODE_BANK = "bank"
+MODE_KEFIYA = "kefiya"
+MODES = (MODE_BANK, MODE_KEFIYA)
+
+
+def _mode(mode):
+    mode = mode or MODE_BANK
+    if mode not in MODES:
+        frappe.throw(_("Unknown way of paying in parts: {0}").format(mode))
+    return mode
+
+
 def _plan(doc, extra_logins):
     """Plan the parts of ``doc`` -- always on the server, from the database.
 
@@ -544,18 +592,27 @@ def _plan(doc, extra_logins):
     return parts, rest, due
 
 
+def _part_rows(parts, due, mode):
+    """Each part as shown: the day it is sent and the day it is executed."""
+    return [{"send_on": str(day),
+             "execution_date": str(due if mode == MODE_BANK else day),
+             "kefiya_login": login, "amount": amount}
+            for day, login, amount in parts]
+
+
 @frappe.whitelist()
-def plan_partial_payments(transfer_name, extra_logins=None):
+def plan_partial_payments(transfer_name, extra_logins=None, mode=None):
     """What paying this draft in parts would place -- nothing is changed."""
+    mode = _mode(mode)
     doc, error = _partial_payment_source(transfer_name)
     if error:
         return {"status": "error", "message": error}
     parts, rest, due = _plan(doc, extra_logins)
     result = {
         "status": "ok" if rest <= 0.004 else "does_not_fit",
+        "mode": mode,
         "due": str(due),
-        "parts": [{"execution_date": str(day), "kefiya_login": login,
-                   "amount": amount} for day, login, amount in parts],
+        "parts": _part_rows(parts, due, mode),
         "rest": rest,
     }
     if rest > 0.004:
@@ -570,19 +627,23 @@ def plan_partial_payments(transfer_name, extra_logins=None):
 
 
 @frappe.whitelist()
-def split_into_partial_payments(transfer_name, extra_logins=None):
+def split_into_partial_payments(transfer_name, extra_logins=None, mode=None):
     """Pay a draft in parts: one draft transfer per part.
 
     The plan is made again here rather than taken from the browser, so the
     limits are those of this moment. All or nothing: when the amount does not
     fit, nothing is changed. The first part stays on the original document,
     so its name and anything referring to it survive; every part is a draft,
-    approved and sent like any transfer, each with its own TAN. Each part is
-    kept here until its date (manage_due_date), because the bank counts the
-    limit on the day the money leaves.
+    approved and sent like any transfer, each with its own TAN.
+
+    mode "bank": every part is a dated order for the due date, held by the
+    bank; the day to send it is written on it as a comment -- the bank counts
+    the limit on that day. mode "kefiya": every part is executed on its own
+    day and kept here until then (manage_due_date).
     """
     from kefiya.utils import partial_payment_plan
 
+    mode = _mode(mode)
     doc, error = _partial_payment_source(transfer_name)
     if error:
         return {"status": "error", "message": error}
@@ -609,19 +670,33 @@ def split_into_partial_payments(transfer_name, extra_logins=None):
         else:
             target = frappe.new_doc("Kefiya Transfer")
             target.company = doc.company
-            target.instant_payment = doc.instant_payment
             target.standing_order = doc.standing_order
         target.kefiya_login = login
-        target.execution_date = str(day)
-        target.manage_due_date = 1
+        if mode == MODE_BANK:
+            # A dated order at the bank: not instant -- the bank holds it.
+            target.execution_date = str(due)
+            target.manage_due_date = 0
+            target.instant_payment = 0
+        else:
+            target.execution_date = str(day)
+            target.manage_due_date = 1
+            target.instant_payment = doc.instant_payment
         target.append("items", item)
         if index == 1:
             target.save()
         else:
             target.insert()
+        if mode == MODE_BANK:
+            target.add_comment("Comment", _(
+                "Part {0} of {1}: send to the bank on {2}. Executed by the"
+                " bank on {3}."
+            ).format(index, count, frappe.utils.formatdate(day),
+                     frappe.utils.formatdate(due)))
         names.append(target.name)
 
-    return {"status": "ok", "documents": names, "message": _(
-        "Paid in {0} parts. Each part is a draft: approve and send it like any"
-        " transfer."
-    ).format(count)}
+    return {"status": "ok", "documents": names,
+            "parts": _part_rows(parts, due, mode),
+            "message": _(
+                "Paid in {0} parts. Each part is a draft: approve and send it"
+                " like any transfer."
+            ).format(count)}
