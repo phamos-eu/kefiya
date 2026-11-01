@@ -670,6 +670,17 @@ def fetch_all(kefiya_login, user_scope=None):
 
         summary["balance"] = _optional_fetch(
             summary, "balance", "balance", _fetch_balance)
+        # Stored either way; shown only to whoever may see balances. The log
+        # still says that it was stored, so a missing balance is not mistaken
+        # for a failed fetch.
+        from kefiya.utils.balance_visibility import may_see_balances
+
+        if summary["balance"] and not may_see_balances():
+            summary["balance"] = {
+                "stored": summary["balance"].get("stored"),
+                "reason": summary["balance"].get("reason"),
+                "hidden": 1,
+            }
 
         # 2b) Pending entries (vorgemerkte Umsaetze) -> the forecast table.
         #     A pending entry is a payment the bank accepted but has not booked
@@ -1014,6 +1025,13 @@ def submit_kefiya_transfer(transfer_name, user_scope, confirmed=0):
     over = _refuse_over_limit([doc])
     if over:
         return over
+    # And no more than the account holds -- unless the bank keeps the date
+    # or a standing order placed it; those the bank refuses itself.
+    from kefiya.utils import funds_check
+
+    short = funds_check.check([doc], scheduled)
+    if short:
+        return short
 
     # Guard against a double click resending real money. Claimed atomically
     # just before the bank is contacted, see _claim_send_lock.
@@ -1512,6 +1530,12 @@ def send_transfer_outbox(transfer_names, user_scope, confirmed=0,
     over = _refuse_over_limit(docs)
     if over:
         return over
+    # Measured as a whole, like the limit: what leaves the account together.
+    from kefiya.utils import funds_check
+
+    short = funds_check.check(docs, scheduled)
+    if short:
+        return short
 
     # Every refusal is behind us. Only now is it safe to approve, because from
     # here the order either goes to the bank or fails at the bank -- and an

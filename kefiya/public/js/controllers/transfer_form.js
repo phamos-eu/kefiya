@@ -427,7 +427,9 @@ kefiya.transfer_form = function (options) {
 // is the difference between a fact and a guess. An account nobody has fetched
 // says so rather than showing a confident zero.
 kefiya.account_standing_html = function (payer) {
-	if (!payer) return "";
+	// Not this reader's to see: no line at all rather than "nothing
+	// fetched", which would be a false statement about the account.
+	if (!payer || payer.hidden) return "";
 	const esc = frappe.utils.escape_html;
 	const money = function (v) {
 		return format_currency(v || 0, payer.currency || undefined);

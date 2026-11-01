@@ -80,6 +80,12 @@ frappe.provide("kefiya");
         report(__("Balance"), "balance", function () {
             var b = x.balance;
             if (!b) return null;
+            // Stored, but not this reader's to see.
+            if (b.hidden) {
+                return b.stored ? __("stored, visible to authorised roles")
+                    : __("not stored") + " (" + (b.reason || __("unknown"))
+                        + ")";
+            }
             if (!b.stored) {
                 return __("not stored") + " ("
                     + (b.reason || __("unknown")) + ")";
