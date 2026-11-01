@@ -17,8 +17,14 @@
   "column_break_ievsf",
   "submit_after_success",
   "status",
+  "import_log_section",
+  "file_format",
+  "file_hash",
   "payload_count",
-  "imported_records"
+  "column_break_import_log",
+  "imported_records",
+  "duplicate_records",
+  "skipped_records"
  ],
  "fields": [
   {
@@ -90,21 +96,56 @@
   {
    "fieldname": "payload_count",
    "fieldtype": "Int",
-   "hidden": 1,
    "label": "Payload Count",
    "read_only": 1
   },
   {
    "fieldname": "imported_records",
    "fieldtype": "Int",
-   "hidden": 1,
    "label": "Imported Records",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.file_hash",
+   "fieldname": "import_log_section",
+   "fieldtype": "Section Break",
+   "label": "Import Log"
+  },
+  {
+   "fieldname": "file_format",
+   "fieldtype": "Data",
+   "label": "File Format",
+   "read_only": 1
+  },
+  {
+   "description": "SHA-256 of the imported file, so the log names exactly what was read.",
+   "fieldname": "file_hash",
+   "fieldtype": "Data",
+   "label": "File Hash (SHA-256)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_import_log",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "duplicate_records",
+   "fieldtype": "Int",
+   "label": "Already Present",
+   "read_only": 1
+  },
+  {
+   "description": "Rows not booked for any reason: already present, other currency, not yet booked by the bank, unknown account or unreadable.",
+   "fieldname": "skipped_records",
+   "fieldtype": "Int",
+   "label": "Skipped Records",
    "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-05-21 16:30:24.896644",
+ "modified": "2026-10-31 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Bank Statement Import",

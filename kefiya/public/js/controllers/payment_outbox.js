@@ -252,6 +252,17 @@ kefiya.payment_outbox = function (root) {
 	if (!root) return null;
 	kefiya.outbox_style(root);
 
+	// Two parts: the orders waiting to be sent, and below them the standing
+	// orders -- the ones kept here place some of those orders. Each draws into
+	// its own element, because render() below rewrites its element on every
+	// draw and would take the other part with it.
+	const host = root;
+	host.innerHTML = "<div class='zk-main'></div><div class='zk-so'></div>";
+	root = host.querySelector(".zk-main");
+	if (kefiya.standing_orders_panel) {
+		kefiya.standing_orders_panel(host.querySelector(".zk-so"));
+	}
+
 	const esc = frappe.utils.escape_html;
 	const kept = kefiya.outbox_settings.read();
 

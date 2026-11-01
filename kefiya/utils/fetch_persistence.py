@@ -44,8 +44,12 @@ def _as_dict(entry):
 
 def _first(mapping, keys, default=None):
     for key in keys:
-        if key in mapping and mapping[key] not in (None, ""):
-            return mapping[key]
+        # Not "not in (None, '')": that compares with ==, and an MT940
+        # Amount answers "== None" with an AttributeError.
+        value = mapping[key] if key in mapping else None
+        if value is None or (isinstance(value, str) and not value):
+            continue
+        return value
     return default
 
 

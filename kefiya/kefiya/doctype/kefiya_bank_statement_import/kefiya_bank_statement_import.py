@@ -33,8 +33,11 @@ class KefiyaBankStatementImport(Document):
 		"""
 		frappe.has_permission(
 			"Kefiya Bank Statement Import", ptype="read", doc=self, throw=True)
-		return statement_import.without_entries(
-			statement_import.plan(file_url, bank_account or self.bank_account))
+		summary = statement_import.plan(
+			file_url, bank_account or self.bank_account)
+		summary["same_file_imported_as"] = self.same_file_imported_as(
+			summary.get("file_hash"))
+		return statement_import.without_entries(summary)
 
 	@frappe.whitelist()
 	def start_import(self, file_url, bank_account=None, company=None):
@@ -53,12 +56,22 @@ class KefiyaBankStatementImport(Document):
 		summary = statement_import.plan(
 			file_url, bank_account or self.bank_account, dry_run=False)
 
-		self.db_set('payload_count', summary.get("total") or 0)
-		self.db_set('imported_records', summary.get("created") or 0)
+		# The import log: what was read, how it was recognised, and what
+		# became of every row. Written before the status, so an import that
+		# ends in "Error" still names the file it could not read.
+		self.db_set({
+			"file_hash": summary.get("file_hash"),
+			"file_format": summary.get("label") or summary.get("format"),
+			"payload_count": summary.get("total") or 0,
+			"imported_records": summary.get("created") or 0,
+			"duplicate_records": summary.get("duplicates") or 0,
+			"skipped_records": summary.get("skipped") or 0,
+		})
 
 		if not summary.get("profile"):
 			self.update_status('Error')
-		elif summary.get("failed") or summary.get("unreadable"):
+		elif any(summary.get(key) for key in (
+				"failed", "unreadable", "currency_mismatch")):
 			self.update_status('Partial Success')
 
 		if summary.get("unreadable_lines"):
@@ -101,6 +114,22 @@ class KefiyaBankStatementImport(Document):
 			"Kefiya Bank Statement Import", ptype="write", doc=self, throw=True)
 		return auszug_einlesen.start(
 			file_url, bank_account or self.bank_account, docname=self.name)
+
+	def same_file_imported_as(self, file_hash):
+		"""Earlier imports of exactly this file, by content.
+
+		Not a refusal: the duplicate check would hold every row back anyway.
+		But "this file was imported on Tuesday" is the faster answer to why
+		nothing is new, and it is the one a reviewer of the log asks first.
+		"""
+		if not file_hash:
+			return []
+		return frappe.get_all(
+			"Kefiya Bank Statement Import",
+			filters={
+				"file_hash": file_hash, "name": ["!=", self.name],
+				"status": ["in", ["Success", "Partial Success"]]},
+			pluck="name", limit=5)
 
 	def update_status(self, status):
 		self.db_set('status', status)

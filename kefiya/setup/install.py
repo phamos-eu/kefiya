@@ -3,7 +3,28 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 
 def after_migrate():
-	create_custom_fields(get_custom_fields())
+	create_custom_fields(keep_site_permlevels(get_custom_fields()))
+
+
+def keep_site_permlevels(custom_fields):
+	"""The definitions, with the permission level the site has given.
+
+	create_custom_fields() updates an existing field from its definition, and
+	the definitions carry no permlevel -- so every migrate put the balance
+	fields back on level 0 and showed them to everybody again, whatever the
+	site had decided about who may read them (balance_visibility).
+	"""
+	for doctype, rows in custom_fields.items():
+		for row in rows:
+			if "permlevel" in row:
+				continue
+			level = frappe.db.get_value(
+				"Custom Field",
+				{"dt": doctype, "fieldname": row.get("fieldname")},
+				"permlevel")
+			if level:
+				row["permlevel"] = level
+	return custom_fields
 
 #: Fields this app declares but must not take away again. Deleting a Custom
 #: Field drops its column, and these carry values the site keeps using after
@@ -99,6 +120,46 @@ def get_custom_fields():
 			"description": (
 				"Von Hand gesetztes Kennzeichen: hier will jemand noch einmal "
 				"hinsehen. Traegt keine Buchungslogik."
+			),
+		},
+		# The exchange rate the bank applied to this booking, where its
+		# statement states one (camt.053 CcyXchg). Read as 1 <from> = <rate>
+		# <to>. A Journal Entry made from the booking uses it before the
+		# system's own rate -- see overrides.bank_reconciliation_tool.
+		{
+			"label": "Bank Exchange Rate",
+			"fieldname": "kefiya_fx_section",
+			"fieldtype": "Section Break",
+			"insert_after": "kefiya_followup",
+			"collapsible": 1,
+			"depends_on": "eval:doc.kefiya_fx_rate",
+		},
+		{
+			"label": "Rate From Currency",
+			"fieldname": "kefiya_fx_from",
+			"fieldtype": "Link",
+			"options": "Currency",
+			"insert_after": "kefiya_fx_section",
+			"read_only": 1,
+		},
+		{
+			"label": "Rate To Currency",
+			"fieldname": "kefiya_fx_to",
+			"fieldtype": "Link",
+			"options": "Currency",
+			"insert_after": "kefiya_fx_from",
+			"read_only": 1,
+		},
+		{
+			"label": "Bank Exchange Rate (1 From = Rate To)",
+			"fieldname": "kefiya_fx_rate",
+			"fieldtype": "Float",
+			"precision": "9",
+			"insert_after": "kefiya_fx_to",
+			"read_only": 1,
+			"description": (
+				"As stated in the bank statement. Empty where the statement "
+				"names no rate; the system's exchange rate applies then."
 			),
 		},
 	]

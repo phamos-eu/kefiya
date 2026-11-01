@@ -446,6 +446,17 @@ Transfer entered,Überweisung erfasst
 "The bank no longer accepts transfers in the SEPA format pain.001.001.03, and this order cannot be built in {0} from here. It was NOT sent.","Die Bank nimmt Überweisungen im SEPA-Format pain.001.001.03 nicht mehr an, und dieser Auftrag lässt sich von hier aus nicht in {0} bauen. Er wurde NICHT gesendet."
 Sending the TAN to the bank …,TAN wird an die Bank gesendet …
 The bank asks for another TAN.,Die Bank verlangt eine weitere TAN.
+Bank Exchange Rate,Kurs der Bank
+Rate From Currency,Kurs von Währung
+Rate To Currency,Kurs in Währung
+Bank Exchange Rate (1 From = Rate To),Kurs der Bank (1 Von = Kurs In)
+As stated in the bank statement. Empty where the statement names no rate; the system's exchange rate applies then.,"Wie im Kontoauszug angegeben. Leer, wenn der Auszug keinen Kurs nennt; dann gilt der Kurs des Systems."
+Other currency than the bank account,Andere Währung als das Bankkonto
+Not yet booked by the bank (pending),Von der Bank noch nicht gebucht (vorgemerkt)
+Repeated within the file,In der Datei wiederholt
+"Account without IBAN, not assignable","Konto ohne IBAN, nicht zuzuordnen"
+This exact file was already imported,Genau diese Datei wurde bereits eingelesen
+This camt file is not read: {0},Diese camt-Datei wird nicht gelesen: {0}
 Scheduled transfers,Terminierte Überweisungen
 The recipient's IBAN is not plausible: {0},Die IBAN des Empfängers ist nicht plausibel: {0}
 The day of execution must lie between 1 and 31.,Der Ausführungstag muss zwischen 1 und 31 liegen.
@@ -504,6 +515,75 @@ Bank Logo,Bank-Logo
 "Waiting for the bank to report the release. This page carries on by itself.","Warte darauf, dass die Bank die Freigabe meldet. Diese Seite macht von selbst weiter."
 "These lines could not be read and were skipped: {0}","Diese Zeilen konnten nicht gelesen werden und wurden übersprungen: {0}"
 lines,Zeilen
+"{0} removed from the forecast","{0} aus der Vorschau genommen"
+"{0} back in the forecast","{0} wieder in der Vorschau"
+Select the lines to remove first.,"Bitte zuerst die Zeilen auswählen, die herausgenommen werden sollen."
+Remove from the forecast,Aus der Vorschau nehmen
+"Remove {0} lines from the forecast","{0} Zeilen aus der Vorschau nehmen"
+Reason for removing,Grund
+Counted twice,Doppelt erfasst
+Settled otherwise,Anderweitig erledigt
+Waived,Verzichtet
+Cannot be collected,Uneinbringlich
+Reversed,Rückabgewickelt
+Another reason,Anderer Grund
+Remark for the record,Bemerkung
+"The line is cancelled, not deleted: whatever wrote it does not write it again, and it can be brought back.","Die Zeile wird storniert, nicht gelöscht: Was sie geschrieben hat, legt sie nicht wieder an, und sie lässt sich zurückholen."
+Take it out,Herausnehmen
+Select the lines to bring back first.,"Bitte zuerst die Zeilen auswählen, die zurückkommen sollen."
+Bring this line back into the forecast?,Diese Zeile wieder in die Vorschau aufnehmen?
+"Bring {0} lines back into the forecast?","{0} Zeilen wieder in die Vorschau aufnehmen?"
+Plan a payment,Zahlung planen
+Incoming or outgoing,Eingang oder Ausgang
+"Lets the forecast recognise the payment when the bank reports it, and replace this plan.","Damit erkennt die Vorschau die Zahlung, wenn die Bank sie meldet, und ersetzt diese Planung."
+Add to the forecast,In die Vorschau aufnehmen
+Added to the forecast,In die Vorschau aufgenommen
+Back into the forecast,Zurück in die Vorschau
+"Replaced by a later stage of the same payment: {0}","Ersetzt durch eine spätere Stufe derselben Zahlung: {0}"
+Choose a reason for the cancellation.,Bitte einen Grund für die Stornierung wählen.
+already answered by a booking,bereits durch eine Buchung erledigt
+not cancelled,nicht storniert
+Direction must be Incoming or Outgoing.,Die Richtung muss Eingang oder Ausgang sein.
+Batch bookings split into single bookings,Sammelbuchungen in Einzelbuchungen aufgeteilt
+as stated by the bank,laut Bank
+system rate of the booking day,Systemkurs des Buchungstags
+{0} of the transaction pay {1} of the invoice. Exchange rate: 1 {2} = {3} {4} ({5}).,{0} der Buchung begleichen {1} der Rechnung. Kurs: 1 {2} = {3} {4} ({5}).
+There is no exchange rate from {0} to {1} for {2}. Enter one under Currency Exchange.,Es gibt keinen Kurs von {0} nach {1} für den {2}. Bitte unter „Wechselkurs“ erfassen.
+Cannot reconcile against {0}.,Gegen {0} kann nicht abgeglichen werden.
+Nothing is left to reconcile between {0} and {1}.,Zwischen {0} und {1} ist nichts mehr abzugleichen.
+{0} {1} would not be paid in the direction of the booking.,{0} {1} würde nicht in Richtung der Buchung bezahlt.
+"The card account is in {0}, the invoice in {1} and the company in {2}. Card reconciliation works in one currency only; reconcile this invoice as a Purchase Invoice instead.","Das Kartenkonto führt {0}, die Rechnung {1} und das Unternehmen {2}. Der Kartenabgleich funktioniert nur in einer Währung; bitte diese Rechnung als Eingangsrechnung abgleichen."
+Bank Account {0} has no account set.,Für das Bankkonto {0} ist kein Buchungskonto hinterlegt.
+Active and paused,Aktiv und pausiert
+Proposals,Vorschläge
+Finished,Beendet
+Running,Läuft
+On pause,Pausiert
+Proposal,Vorschlag
+Turned down,Abgelehnt
+Kept,Geführt
+Cycle,Turnus
+Next execution,Nächste Ausführung
+New standing order,Neuer Dauerauftrag
+No standing orders here.,Hier gibt es keine Daueraufträge.
+The standing orders could not be loaded.,Die Daueraufträge konnten nicht geladen werden.
+What the bank says,Was die Bank meldet
+"active: {0} a month","aktiv: {0} im Monat"
+at the bank,bei der Bank
+"here, sent from the outgoing payments","bei uns, gesendet aus dem Zahlungsausgang"
+"last listed on {0}","zuletzt gemeldet am {0}"
+"listed by the bank on {0}","von der Bank gemeldet am {0}"
+not listed by the bank yet,von der Bank noch nicht gemeldet
+"monthly on the {0}.","monatlich am {0}."
+"quarterly on the {0}.","vierteljährlich am {0}."
+"half-yearly on the {0}.","halbjährlich am {0}."
+"yearly on the {0}.","jährlich am {0}."
+"until {0}","bis {0}"
+"Purchase Order {0}","Bestellung {0}"
+"stored, visible to authorised roles","gespeichert, sichtbar für berechtigte Rollen"
+"No recent balance is known for {0}, so it cannot be checked whether the account covers this transfer. Fetch the account, then send again.","Für {0} ist kein aktueller Saldo bekannt, deshalb lässt sich nicht prüfen, ob das Konto diese Überweisung deckt. Bitte das Konto abrufen und dann erneut senden."
+"{0} would leave the account below what is available: {1} available (balance and credit line), {2} already on its way, {3} left.","{0} übersteigt das Verfügbare: {1} verfügbar (Saldo und Kreditlinie), {2} bereits unterwegs, {3} übrig."
+The account does not cover this transfer.,Das Konto deckt diese Überweisung nicht.
 Pay in parts,In Teilzahlungen zahlen
 Show plan,Plan anzeigen
 Does not fit,Passt nicht
@@ -532,5 +612,3 @@ Every part becomes a draft dated order for the due date. Send each to the bank o
 Each is approved and sent with its own TAN.,Jeder wird einzeln freigegeben und mit eigener TAN gesendet.
 Unknown way of paying in parts: {0},Unbekannte Art der Teilzahlung: {0}
 Part {0} of {1}: send to the bank on {2}. Executed by the bank on {3}.,Teil {0} von {1}: am {2} an die Bank senden. Ausführung durch die Bank am {3}.
-Sent to the Bank On,An die Bank gesendet am
-"When the bank took the order. A dated order counts against the transfer limit on the day it is sent, not on the day it is executed.","Wann die Bank den Auftrag angenommen hat. Eine Terminüberweisung zählt am Sendetag gegen das Überweisungslimit, nicht am Ausführungstag."

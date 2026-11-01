@@ -164,6 +164,15 @@ scheduler_events = {
             "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_fints_payments"  # noqa: E501
         ]
     },
+    # One payment, one line in the forecast. Other apps write their lines at
+    # their own times; the ladder catches up with them every hour, and runs
+    # after every bank fetch anyway.
+    "hourly": [
+        # Open purchase orders first, so the ladder sees them in the same
+        # hour.
+        "kefiya.utils.order_forecast.refresh_purchase_order_lines",
+        "kefiya.utils.planned_payment.apply_stage_ladder",
+    ],
     "daily": [
         "kefiya.utils.planned_payment.expire_stale_planned_payments",
         # Transfers whose due date we keep ourselves. They are presented, not
@@ -190,6 +199,7 @@ scheduler_events = {
 #
 override_whitelisted_methods = {
     "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_journal_entry_bts": "kefiya.overrides.bank_reconciliation_tool.bank_reconciliation_tool.custom_create_journal_entry_bts",
+    "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.create_payment_entry_bts": "kefiya.overrides.bank_reconciliation_tool.bank_reconciliation_tool.custom_create_payment_entry_bts",
     "frappe.core.doctype.user.user.update_password": "kefiya.overrides.user.update_password"
 }
 #

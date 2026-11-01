@@ -1,7 +1,9 @@
 # custom_app/custom_app/overrides.py
 
-import frappe
+import inspect
 import json
+
+import frappe
 from erpnext import get_default_cost_center
 from erpnext.setup.utils import get_exchange_rate
 from frappe.utils import flt
@@ -9,6 +11,38 @@ from frappe import _
 from erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool import (
     reconcile_vouchers,
 )
+
+from kefiya.utils.camt_statement import rate_between
+
+
+def bank_rate_of(bank_transaction_name):
+    """The exchange rate the bank's statement stated for this booking.
+
+    :return: {"from", "to", "rate"} or None -- None also where the custom
+        fields are not migrated yet, so this never stands in the way of a
+        Journal Entry.
+    """
+    if not frappe.get_meta("Bank Transaction").has_field("kefiya_fx_rate"):
+        return None
+    row = frappe.db.get_value(
+        "Bank Transaction", bank_transaction_name,
+        ["kefiya_fx_from", "kefiya_fx_to", "kefiya_fx_rate"], as_dict=True)
+    if not row or not row.kefiya_fx_rate:
+        return None
+    return {"from": row.kefiya_fx_from, "to": row.kefiya_fx_to,
+            "rate": row.kefiya_fx_rate}
+
+
+def exchange_rate_for(bank_fx, from_currency, to_currency, posting_date):
+    """The bank's rate where it is about these two currencies, else ERPNext's.
+
+    A statement in CHF that converted an incoming EUR payment states the
+    rate the bank actually applied; that is the rate the money moved at, and
+    it is preferred to the system's rate of the day. Any other pair is not
+    what the bank said anything about.
+    """
+    return (rate_between(bank_fx, from_currency, to_currency)
+            or get_exchange_rate(from_currency, to_currency, posting_date))
 
 @frappe.whitelist()
 def custom_create_journal_entry_bts(
@@ -37,6 +71,7 @@ def custom_create_journal_entry_bts(
         fieldname=["name", "deposit", "withdrawal", "bank_account", "currency"],
         as_dict=True,
     )[0]
+    bank_fx = bank_rate_of(bank_transaction_name)
     company_account = frappe.get_value("Bank Account", bank_transaction.bank_account, "account")
     account_type = frappe.db.get_value("Account", second_account, "account_type")
     if account_type in ["Receivable", "Payable"]:
@@ -94,7 +129,9 @@ def custom_create_journal_entry_bts(
 
     # convert transaction amount to company currency
     if is_multi_currency:
-        exc_rate = get_exchange_rate(bank_transaction.currency, company_default_currency, posting_date)
+        exc_rate = exchange_rate_for(
+            bank_fx, bank_transaction.currency, company_default_currency,
+            posting_date)
         if not exc_rate:
             frappe.throw('Set the transaction exchange rate.')
         withdrawal_in_company_currency = flt(exc_rate * abs(bank_transaction.withdrawal))
@@ -105,7 +142,9 @@ def custom_create_journal_entry_bts(
 
     # if second account is of foreign currency, convert and set debit and credit fields.
     if second_account_currency != company_default_currency:
-        exc_rate = get_exchange_rate(second_account_currency, company_default_currency, posting_date)
+        exc_rate = exchange_rate_for(
+            bank_fx, second_account_currency, company_default_currency,
+            posting_date)
         second_account_dict.update(
             {
                 "exchange_rate": exc_rate,
@@ -148,7 +187,9 @@ def custom_create_journal_entry_bts(
 
     # if company account is of foreign currency, convert and set debit and credit fields.
     if company_account_currency != company_default_currency:
-        exc_rate = get_exchange_rate(company_account_currency, company_default_currency, posting_date)
+        exc_rate = exchange_rate_for(
+            bank_fx, company_account_currency, company_default_currency,
+            posting_date)
         company_account_dict.update(
             {
                 "exchange_rate": exc_rate,
@@ -220,4 +261,97 @@ def custom_create_journal_entry_bts(
         ]
     )
 
+    return reconcile_vouchers(bank_transaction_name, vouchers)
+
+@frappe.whitelist()
+def custom_create_payment_entry_bts(
+    bank_transaction_name,
+    reference_number=None,
+    reference_date=None,
+    party_type=None,
+    party=None,
+    posting_date=None,
+    mode_of_payment=None,
+    project=None,
+    cost_center=None,
+    allow_edit=None,
+    company_bank_account=None,
+):
+    """ERPNext's Payment Entry from a Bank Transaction, at the bank's rate.
+
+    A wrapper, not a copy. ERPNext builds the entry -- with its permission
+    checks, party account and validation, which differ between v15 and v16
+    and must stay ERPNext's -- and returns it unsaved (allow_edit). Only the
+    amounts and exchange rates are then set from the rate the statement
+    stated, where that one rate decides the entry (see bank_exchange_rate).
+    Everywhere else this is ERPNext's function, called exactly as before.
+    """
+    from erpnext.accounts.doctype.bank_reconciliation_tool import (
+        bank_reconciliation_tool as core)
+    from kefiya.utils.bank_exchange_rate import FIELDS, payment_entry_values
+
+    original = getattr(core.create_payment_entry_bts, "__wrapped__",
+                       core.create_payment_entry_bts)
+    # The parameters of ERPNext v15 and v16, named one by one: a whitelisted
+    # method with **kwargs would receive whatever the request carried.
+    kwargs = {
+        "reference_number": reference_number,
+        "reference_date": reference_date,
+        "party_type": party_type,
+        "party": party,
+        "posting_date": posting_date,
+        "mode_of_payment": mode_of_payment,
+        "project": project,
+        "cost_center": cost_center,
+        "company_bank_account": company_bank_account,
+    }
+
+    bank_fx = bank_rate_of(bank_transaction_name)
+    if not bank_fx:
+        return original(bank_transaction_name, allow_edit=allow_edit,
+                        **kwargs)
+
+    pe = original(bank_transaction_name, allow_edit=1, **kwargs)
+    bank_transaction = frappe.db.get_value(
+        "Bank Transaction", bank_transaction_name,
+        ["unallocated_amount", "currency"], as_dict=True)
+    bank_currency = (pe.paid_to_account_currency
+                     if pe.payment_type == "Receive"
+                     else pe.paid_from_account_currency)
+    party_currency = (pe.paid_from_account_currency
+                      if pe.payment_type == "Receive"
+                      else pe.paid_to_account_currency)
+    company_currency = frappe.get_cached_value(
+        "Company", pe.company, "default_currency")
+
+    values = payment_entry_values(
+        pe.payment_type, bank_transaction.unallocated_amount, bank_currency,
+        party_currency, company_currency, bank_fx)
+    if values is None:
+        # Nothing was saved yet: hand the caller what ERPNext alone gives.
+        return original(bank_transaction_name, allow_edit=allow_edit,
+                        **kwargs)
+
+    for field in FIELDS:
+        pe.set(field, values[field])
+    pe.validate()
+
+    if allow_edit:
+        return pe
+
+    pe.insert()
+    pe.submit()
+
+    vouchers = json.dumps([{
+        "payment_doctype": "Payment Entry",
+        "payment_name": pe.name,
+        "amount": bank_transaction.unallocated_amount,
+    }])
+    # v16 marks a voucher made for this transaction as new; v15 has no such
+    # parameter. Asked, not assumed.
+    if "is_new_voucher" in inspect.signature(
+            getattr(reconcile_vouchers, "__wrapped__", reconcile_vouchers)
+    ).parameters:
+        return reconcile_vouchers(bank_transaction_name, vouchers,
+                                  is_new_voucher=True)
     return reconcile_vouchers(bank_transaction_name, vouchers)

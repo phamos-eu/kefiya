@@ -44,10 +44,6 @@ import re
 import frappe
 from frappe.utils import flt
 
-#: What the bank calls a cycle. Kept as the raw code as well, because the
-#: mapping is only worth as much as the position it was read from.
-TIME_UNIT = {"M": "monthly", "W": "weekly"}
-
 
 def _text(value):
     if value is None:
@@ -88,27 +84,11 @@ def _pain_summary(payload):
 
 
 def _schedule_from(raw):
-    """Best reading of the standing order's schedule -- clearly marked as such.
+    """Best reading of the standing order's schedule -- clearly marked as
+    such. Read by shape, not by position; see bank_held_orders."""
+    from kefiya.utils import bank_held_orders
 
-    The group is reported raw as well. Where the reading below turns out wrong
-    against a real bank, the raw values are what says so.
-    """
-    if not isinstance(raw, (list, tuple)) or not raw:
-        return {"raw": raw}
-
-    parts = [_text(x) for x in raw]
-    out = {"raw": parts, "confirmed": False}
-    if parts and parts[0] in TIME_UNIT:
-        out["time_unit"] = parts[0]
-        out["cycle"] = TIME_UNIT[parts[0]]
-    for index, key in ((1, "rhythm"), (2, "execution_day")):
-        if len(parts) > index and parts[index].isdigit():
-            out[key] = int(parts[index])
-    for index, key in ((3, "first_execution"), (4, "last_execution")):
-        if len(parts) > index and re.match(r"^\d{8}$", parts[index] or ""):
-            value = parts[index]
-            out[key] = "{0}-{1}-{2}".format(value[:4], value[4:6], value[6:])
-    return out
+    return bank_held_orders.schedule_from(raw)
 
 
 def parse_standing_order(segment):
@@ -185,10 +165,79 @@ def _write_down_the_answer(login, command_seg, response, segments, rows):
             "content": standing_order_evidence.message(
                 login, segments, said=said, parsed=rows),
         }).insert(ignore_permissions=True)
-        frappe.cache().set_value(key, 1,
-                                 expires_in_sec=EVIDENCE_EVERY_SECONDS)
+        # Only an answer with orders in it settles the schedule. A refusal
+        # must not keep the first real answer from being written down.
+        if segments:
+            frappe.cache().set_value(key, 1,
+                                     expires_in_sec=EVIDENCE_EVERY_SECONDS)
     except Exception:
         pass
+
+
+def _pain_messages(connection, command_class, family="pain.001"):
+    """The mandatory "Unterstuetzte SEPA pain messages" of a bestand query,
+    from the bank's own list (HISPAS).
+
+    Left empty, both banks asked answered 9110/9160 -- see bank_held_orders.
+    """
+    from kefiya.utils import bank_held_orders, sepa_descriptor
+
+    try:
+        listed = sepa_descriptor.formats_in(
+            connection.bpd.find_segment_first("HISPAS"))
+    except Exception:
+        listed = []
+    deg = command_class._fields["supported_sepa_pain_messages"].type
+    return deg(sepa_descriptors=bank_held_orders.pain_messages(
+        listed, family=family))
+
+
+def _fetch_pages(connection, dialog, make_segment, response_type,
+                 on_answer=None):
+    """Send a bestand query and follow the bank's touchdown points.
+
+    The library's _fetch_with_touchdowns does the same, but it reads a 9xxx
+    answer to the segment as an empty page. Here it raises
+    BankRefusedQuery, so the fetch log says the bank refused the question
+    instead of reporting that the bank holds nothing.
+
+    :param make_segment: callable(touchdown) -> command segment
+    :param response_type: the answer segment, e.g. "HICSB"
+    :param on_answer: optional callable(command_seg, response, segments),
+        called for every page before its verdict is read
+    :return: list of answer segments over all pages
+    """
+    from kefiya.utils import bank_held_orders
+
+    collected = []
+    pages = [0]
+
+    def resume(command_seg, response):
+        segments = list(response.response_segments(
+            command_seg, response_type))
+        if on_answer:
+            on_answer(command_seg, response, segments)
+        refused = bank_held_orders.refusals(response, command_seg)
+        if refused:
+            raise bank_held_orders.BankRefusedQuery(
+                command_seg.header.type, refused)
+        collected.extend(segments)
+        pages[0] += 1
+        touchdown = bank_held_orders.touchdown_of(response, command_seg)
+        if touchdown and pages[0] < bank_held_orders.MAX_PAGES:
+            return connection._send_with_possible_retry(
+                dialog, make_segment(touchdown), resume)
+        return collected
+
+    result = connection._send_with_possible_retry(
+        dialog, make_segment(None), resume)
+    if not isinstance(result, list):
+        # A NeedTANResponse: the bank wants a TAN for reading its bestand.
+        # Nothing parks it on this path, so say so instead of reading the
+        # challenge as an empty bestand.
+        raise bank_held_orders.BankRefusedQuery(
+            response_type, ["the bank asks for a TAN to read this"])
+    return collected
 
 
 def fetch_standing_orders(connection, account, login=None):
@@ -197,29 +246,38 @@ def fetch_standing_orders(connection, account, login=None):
     :param login: the Kefiya Login asking, for the written-down answer
     :return: list of rows from parse_standing_order()
     :raises FinTSUnsupportedOperation: where the bank does not offer HKCDB
+    :raises BankRefusedQuery: where the bank answers the query with 9xxx
     """
     from kefiya.utils.fints_segments import HKCDB1
 
-    def _extract(command_seg, response):
-        rows = []
-        segments = list(response.find_segments("HICDB"))
+    rows = []
+
+    def note(command_seg, response, segments):
+        page = []
         for segment in segments:
             try:
-                rows.append(parse_standing_order(segment))
+                page.append(parse_standing_order(segment))
             except Exception:
                 # One unreadable order must not lose the others.
                 frappe.log_error(
                     title="Kefiya: could not read a standing order",
                     message=frappe.get_traceback())
-        _write_down_the_answer(login, command_seg, response, segments, rows)
-        return rows
+        rows.extend(page)
+        _write_down_the_answer(login, command_seg, response, segments, page)
 
     with connection._get_dialog() as dialog:
         hkcdb = connection._find_highest_supported_command(HKCDB1)
-        seg = hkcdb(
-            account=hkcdb._fields["account"].type.from_sepa_account(account),
-        )
-        return connection._send_with_possible_retry(dialog, seg, _extract)
+        pain = _pain_messages(connection, hkcdb)
+        _fetch_pages(
+            connection, dialog,
+            lambda touchdown: hkcdb(
+                account=hkcdb._fields["account"].type.from_sepa_account(
+                    account),
+                supported_sepa_pain_messages=pain,
+                touchdown_point=touchdown,
+            ),
+            "HICDB", on_answer=note)
+    return rows
 
 
 def fetch_scheduled_transfers(connection, account):
@@ -231,21 +289,22 @@ def fetch_scheduled_transfers(connection, account):
 
     :return: list of HICSB segments
     :raises FinTSUnsupportedOperation: where the bank does not offer HKCSB
+    :raises BankRefusedQuery: where the bank answers the query with 9xxx
     """
     from kefiya.utils.fints_segments import HKCSB1
 
     with connection._get_dialog() as dialog:
         hkcsb = connection._find_highest_supported_command(HKCSB1)
-        return connection._fetch_with_touchdowns(
-            dialog,
+        pain = _pain_messages(connection, hkcsb)
+        return _fetch_pages(
+            connection, dialog,
             lambda touchdown: hkcsb(
                 account=hkcsb._fields["account"].type.from_sepa_account(
                     account),
+                supported_sepa_pain_messages=pain,
                 touchdown_point=touchdown,
             ),
-            lambda responses: responses,
-            "HICSB",
-        )
+            "HICSB")
 
 
 def fetch_scheduled_debits(connection, account):

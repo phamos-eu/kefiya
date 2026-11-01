@@ -86,7 +86,7 @@ class TestTheFetchWritesItDown(unittest.TestCase):
     def test_after_reading_once_a_week(self):
         fetch = self.source.split("def fetch_standing_orders(")[1]
         self.assertIn("_write_down_the_answer(login, command_seg, response,"
-                      " segments, rows)", fetch)
+                      " segments, page)", fetch)
         self.assertIn("EVIDENCE_EVERY_SECONDS = 7 * 24 * 3600", self.source)
 
     def test_as_a_file_on_the_login_not_in_the_error_log(self):

@@ -22,6 +22,7 @@ is a caller.
 
 import base64
 import datetime
+import hashlib
 import re
 
 import frappe
@@ -29,6 +30,7 @@ from frappe import _
 from frappe.utils import cint, flt
 
 from kefiya.utils import booking_budget
+from kefiya.utils import camt_statement
 from kefiya.utils import statement_formats as formats
 from kefiya.utils.statement_formats import (  # noqa: F401 -- the public names
     PROFILES, decode, normalise_pushed, parse_amount, parse_date, read_rows,
@@ -134,8 +136,46 @@ def create_booking(bank_account, entry, reference=None, company=None):
         party, party_type = party_for_iban(entry["iban"])
         booking.party, booking.party_type = party, party_type
 
+    # Where the statement names its currency, the booking carries it -- the
+    # standard field, which ERPNext itself checks against the Bank Account's
+    # ledger account (book_entries has already held back a mismatch).
+    if entry.get("currency"):
+        booking.currency = entry["currency"]
+
+    # The rate the bank applied, where the statement states one. Used when a
+    # Journal Entry is made from this booking, before the system's own rate;
+    # see kefiya.overrides.bank_reconciliation_tool.
+    fx = entry.get("fx")
+    if fx and fx.get("rate"):
+        booking.kefiya_fx_from = fx["from"]
+        booking.kefiya_fx_to = fx["to"]
+        booking.kefiya_fx_rate = fx["rate"]
+
     booking.insert(ignore_permissions=True)
     return booking.name
+
+
+def account_currency_of(bank_account):
+    """The currency a Bank Account books in, or None where it names none.
+
+    The same question ERPNext's Bank Transaction.validate_currency asks: a
+    Bank Account has no currency of its own, its ledger Account has.
+    """
+    account = frappe.db.get_value("Bank Account", bank_account, "account")
+    if not account:
+        return None
+    return frappe.db.get_value("Account", account, "account_currency") or None
+
+
+def currency_fits(entry_currency, account_currency):
+    """May a booking in entry_currency go onto an account in account_currency?
+
+    Unknown on either side is no objection -- that is ERPNext's own rule, and
+    every path that names no currency (CSV, MT940) depends on it.
+    """
+    if not entry_currency or not account_currency:
+        return True
+    return str(entry_currency).upper() == str(account_currency).upper()
 
 
 def party_for_iban(iban):
@@ -222,6 +262,10 @@ def book_entries(entries, dry_run=True, sample_size=5):
     :return: dict(total, created|would_create, duplicates, accounts, sample)
     """
     result = {"total": 0, "created": 0, "would_create": 0, "duplicates": 0,
+              # Held back because the statement is in another currency than
+              # the Bank Account books in. Booked, ERPNext would refuse each
+              # one at insert; counted here, the plan says so beforehand.
+              "currency_mismatch": 0,
               # Wie viele der Doppel nur ueber das Datumsfenster erkannt
               # wurden. Steht in der Vorschau, damit sichtbar ist, worauf
               # die Erkennung beruht.
@@ -229,6 +273,7 @@ def book_entries(entries, dry_run=True, sample_size=5):
               "accounts": {}, "sample": [], "dry_run": bool(dry_run)}
     seen = {}
     companies = {}
+    currencies = {}
 
     # What each account already holds, counted once before anything is booked.
     # Per account rather than globally: two accounts of one house see the same
@@ -247,6 +292,14 @@ def book_entries(entries, dry_run=True, sample_size=5):
         result["total"] += 1
         per = result["accounts"].setdefault(
             target, {"new": 0, "duplicates": 0})
+
+        if entry.get("currency"):
+            if target not in currencies:
+                currencies[target] = account_currency_of(target)
+            if not currency_fits(entry["currency"], currencies[target]):
+                result["currency_mismatch"] += 1
+                per["currency_mismatch"] = per.get("currency_mismatch", 0) + 1
+                continue
 
         reference = entry.get("reference_number") or reference_number(
             target, entry)
@@ -340,6 +393,17 @@ def file_content(file_url):
     return frappe.get_doc("File", name).get_content()
 
 
+def file_sha256(raw):
+    """The SHA-256 of a file's content, so an import names what it read.
+
+    Of the bytes as stored, not the decoded text: the hash identifies the
+    file, and the same file must hash the same however it is decoded later.
+    """
+    if isinstance(raw, str):
+        raw = raw.encode("utf-8")
+    return hashlib.sha256(bytes(raw or b"")).hexdigest()
+
+
 def _bank_account_for_iban(iban):
     """The Bank Account carrying this IBAN, or None.
 
@@ -365,9 +429,28 @@ def read_entries(file_url, bank_account=None):
     against another. Only where the format names no account does the caller's
     choice apply.
 
-    :return: (profile_name, entries, notes)
+    :return: (profile_name, entries, notes) -- notes carry the file's
+        SHA-256 under "file_hash", whatever the format
     """
-    text = decode(file_content(file_url))
+    raw = file_content(file_url)
+    file_hash = file_sha256(raw)
+
+    # camt before anything else reads the bytes as text: XML declares its own
+    # encoding, and the parser must see the bytes it declared it for.
+    if camt_statement.looks_like_camt(raw):
+        try:
+            entries, notes = camt_statement.read_statement(raw)
+        except camt_statement.CamtError as error:
+            return None, [], {"header_row": None, "unreadable": 0,
+                              "unmatched": {}, "format": "camt",
+                              "file_hash": file_hash,
+                              "reason": _("This camt file is not read: {0}")
+                              .format(error)}
+        notes.update({"header_row": None, "unmatched": {},
+                      "file_hash": file_hash})
+        return _address_entries("camt053", entries, bank_account, notes)
+
+    text = decode(raw)
 
     # MT940 first, because it cannot be recognised the way the tables are: it
     # has no header row, so every CSV profile would decline it and the file
@@ -376,13 +459,13 @@ def read_entries(file_url, bank_account=None):
     if formats.looks_like_mt940(text):
         entries = formats.mt940_entries(text)
         notes = {"header_row": None, "unreadable": 0, "unmatched": {},
-                 "format": "mt940"}
+                 "format": "mt940", "file_hash": file_hash}
         return _address_entries("mt940", entries, bank_account, notes)
 
     profile_name, columns, rows, header_index = formats.read_rows(text)
 
     notes = {"header_row": header_index, "unreadable": 0, "unmatched": {},
-             "pending": 0, "unreadable_lines": []}
+             "pending": 0, "unreadable_lines": [], "file_hash": file_hash}
     if not profile_name:
         return None, [], notes
 
@@ -435,18 +518,49 @@ def plan(file_url, bank_account=None, dry_run=True):
     profile_name, entries, notes = read_entries(file_url, bank_account)
 
     if not profile_name:
-        return dict(notes, profile=None, label=None, entries=[],
-                    total=0, created=0, would_create=0, duplicates=0,
-                    accounts={}, sample=[], dry_run=bool(dry_run),
-                    reason=_("No known column layout was recognised in this "
-                             "file."))
+        summary = dict(notes, profile=None, label=None, entries=[],
+                       total=0, created=0, would_create=0, duplicates=0,
+                       accounts={}, sample=[], dry_run=bool(dry_run))
+        summary.setdefault("reason", _(
+            "No known column layout was recognised in this file."))
+        return summary
 
     summary = book_entries(entries, dry_run=dry_run)
     summary.update(notes)
     summary["profile"] = profile_name
-    summary["label"] = PROFILES[profile_name]["label"]
+    summary["label"] = format_label(profile_name)
     summary["entries"] = entries
+    summary["skipped"] = skipped_count(summary)
     return summary
+
+
+#: The formats that are read, not described as a column layout.
+FILE_FORMAT_LABELS = {"mt940": "MT940", "camt053": "camt.053"}
+
+
+def format_label(profile_name):
+    """What a recognised format is called on the form.
+
+    The bank formats are no PROFILES entry -- they have no columns -- and
+    looking them up there raised a KeyError for every MT940 file.
+    """
+    if profile_name in FILE_FORMAT_LABELS:
+        return FILE_FORMAT_LABELS[profile_name]
+    return PROFILES[profile_name]["label"]
+
+
+def skipped_count(summary):
+    """Everything in the file that did not become a booking, for any reason.
+
+    Duplicates are part of it on purpose: the import log answers "how many
+    rows, how many booked, how many not" -- and the reasons are kept apart
+    in the summary itself.
+    """
+    unmatched = summary.get("unmatched") or {}
+    return sum(int(summary.get(key) or 0) for key in (
+        "duplicates", "currency_mismatch", "unreadable", "pending",
+        "repeated", "unaddressable", "failed")) + sum(
+            int(n or 0) for n in unmatched.values())
 
 
 # --------------------------------------------------------------------------

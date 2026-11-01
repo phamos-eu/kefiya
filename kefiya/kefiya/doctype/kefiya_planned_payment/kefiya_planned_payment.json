@@ -264,9 +264,8 @@
    "fieldname": "reference_key",
    "fieldtype": "Data",
    "label": "Reference Key",
-   "reqd": 1,
    "unique": 1,
-   "description": "Stable key: the record name, and what every generator updates by."
+   "description": "Stable key: the record name, and what every generator updates by. Left empty, a line added by hand gets MAN-..."
   },
   {
    "fieldname": "section_break_cancel",
@@ -289,7 +288,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-10-30 21:00:00.000000",
+ "modified": "2026-11-01 11:00:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Planned Payment",

@@ -74,15 +74,33 @@ class TestReadingAnAnswerWithoutGuessing(unittest.TestCase):
         self.assertIn("_pain_summary(data[2])", source)
         self.assertIn("tail = data[3:]", source)
 
-    def test_the_schedule_is_marked_unconfirmed(self):
+    def test_the_schedule_is_read_where_it_can_be_tested(self):
+        """By shape, without frappe -- see test_bank_held_orders."""
         source = inspect.getsource(standing_orders._schedule_from)
-        self.assertIn('"confirmed": False', source)
+        self.assertIn("bank_held_orders.schedule_from(raw)", source)
 
-    def test_the_raw_group_is_kept(self):
-        """Where the reading turns out wrong against a real bank, the raw
-        values are what says so."""
-        source = inspect.getsource(standing_orders._schedule_from)
-        self.assertIn('out = {"raw": parts', source)
+
+class TestTheQueryCarriesItsMandatoryField(unittest.TestCase):
+    """Left empty, a Sparkasse and a Volksbank both answered HKCDB with
+    9110 / 9160 "Pflichtfeld nicht gefunden"."""
+
+    def test_both_queries_name_the_pain_messages(self):
+        for fetch in (standing_orders.fetch_standing_orders,
+                      standing_orders.fetch_scheduled_transfers):
+            source = inspect.getsource(fetch)
+            self.assertIn("supported_sepa_pain_messages=pain", source)
+            self.assertIn("_pain_messages(connection,", source)
+
+    def test_the_list_is_the_banks_own(self):
+        source = inspect.getsource(standing_orders._pain_messages)
+        self.assertIn('find_segment_first("HISPAS")', source)
+
+    def test_a_refusal_is_raised_not_counted_as_nothing(self):
+        source = inspect.getsource(standing_orders._fetch_pages)
+        self.assertIn("raise bank_held_orders.BankRefusedQuery(", source)
+        for fetch in (standing_orders.fetch_standing_orders,
+                      standing_orders.fetch_scheduled_transfers):
+            self.assertIn("_fetch_pages(", inspect.getsource(fetch))
 
     def test_the_pain_message_is_read_leniently(self):
         """It arrives as raw bytes from a bank and its shape varies by pain
@@ -104,6 +122,14 @@ class TestTheLogTellsThemApart(unittest.TestCase):
 
         source = inspect.getsource(client.fetch_all)
         self.assertIn('"standing_orders", "standing_orders"', source)
+
+    def test_the_orders_reach_the_forecast(self):
+        """Read and counted is not enough -- the forecast stayed empty."""
+        from kefiya.utils import client
+
+        source = inspect.getsource(client.fetch_all)
+        self.assertIn("bank_held_orders.items_from(rows,", source)
+        self.assertIn("payment_kinds=(bank_held_orders.KIND,)", source)
 
     def test_the_old_wrong_label_is_gone(self):
         import os

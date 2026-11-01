@@ -80,6 +80,12 @@ frappe.provide("kefiya");
         report(__("Balance"), "balance", function () {
             var b = x.balance;
             if (!b) return null;
+            // Stored, but not this reader's to see.
+            if (b.hidden) {
+                return b.stored ? __("stored, visible to authorised roles")
+                    : __("not stored") + " (" + (b.reason || __("unknown"))
+                        + ")";
+            }
             if (!b.stored) {
                 return __("not stored") + " ("
                     + (b.reason || __("unknown")) + ")";
@@ -136,8 +142,30 @@ frappe.provide("kefiya");
             var o = x.standing_orders;
             if (!o) return null;
             var txt = __("{0} held by the bank", [o.count || 0]);
+            if (o.count) {
+                txt += " · " + __("{0} new, {1} unchanged, {2} cancelled",
+                                  [o.created || 0, o.updated || 0,
+                                   o.cancelled || 0]);
+            }
+            if (o.skipped) {
+                txt += " · " + __("{0} without a readable cycle",
+                                  [o.skipped]);
+            }
             if (o.count && !o.schedule_confirmed) {
                 txt += " · " + __("cycle not yet verified");
+            }
+            return txt;
+        });
+
+        // One payment, one line: lines a higher stage replaced.
+        report(__("Forecast"), "forecast_stages", function () {
+            var g = x.stages;
+            if (!g) return null;
+            var txt = __("{0} replaced by a higher stage, {1} back",
+                         [g.superseded || 0, g.reopened || 0]);
+            if (g.ambiguous && g.ambiguous.length) {
+                txt += " · " + __("{0} not unique, left standing",
+                                  [g.ambiguous.length]);
             }
             return txt;
         });

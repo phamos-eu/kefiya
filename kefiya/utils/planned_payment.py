@@ -7,8 +7,11 @@
 One table for two kinds of rows. Rows the BANK reports -- dated transfers,
 standing orders, pending entries -- carry from_bank = 1 and are kept by this
 module alone. Every other row (rent, invoices, loan instalments, anything an
-app or a person plans) has from_bank = 0, and this module never touches it:
-not on refresh, not on matching, not on expiry. The table used to be two --
+app or a person plans) has from_bank = 0, and this module does not keep it:
+not on refresh, not on matching, not on expiry. The one exception is the
+stage ladder (apply_stage_ladder): when a higher stage of the same payment
+appears, it sets status, cancellation_reason and superseded_by on the lower
+line, and nothing else -- one payment, one line. The table used to be two --
 Kefiya Planned Payment for the bank, a forecast of the instance's own beside
 it -- and is one since 30.10.2026, under this name and with the instance's
 field names (due_date, expected_amount, source_kind), so a script written
@@ -17,6 +20,7 @@ against either reads the same rows.
 They never touch the bank balance or reconciliation. The flow for bank rows:
 
     bank fetch ---> refresh_planned_payments(login, items)   (idempotent upsert)
+               ---> apply_stage_ladder()     (one line per payment)
     real txn   ---> match_on_bank_transaction(bank_transaction)  (mark Matched)
     daily      ---> expire_stale_planned_payments()          (housekeeping)
 
@@ -109,13 +113,47 @@ def expand_standing_order_occurrences(next_date, frequency):
     return occurrences
 
 
+def _is_blank(value):
+    """None, or an empty string or list.
+
+    Not ``value in (None, "", [])``: that compares with ``==``, and the
+    Amount of an MT940 entry answers ``== None`` with an AttributeError.
+    On 31.10.2026 that ended the pending-entry fetch at every account.
+    """
+    if value is None:
+        return True
+    if isinstance(value, (str, list, tuple, dict)):
+        return not value
+    return False
+
+
 def _first(mapping, keys):
     """Return the first non-empty value among ``keys`` in ``mapping``."""
     for k in keys:
         v = mapping.get(k)
-        if v not in (None, "", []):
+        if not _is_blank(v):
             return v
     return None
+
+
+def _number(value):
+    """A signed float out of a bare number, a string, a dict or an MT940
+    Amount object; None when there is none."""
+    if isinstance(value, dict):
+        value = _first(value, ["amount", "value"])
+    elif not _is_blank(value) and not isinstance(value, (int, float, str)) \
+            and hasattr(value, "amount"):
+        # mt940.models.Amount: the number sits in .amount, as a Decimal.
+        value = value.amount
+    if _is_blank(value):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        try:
+            return float(str(value).replace(",", "."))
+        except (TypeError, ValueError):
+            return None
 
 
 def _coerce_amount(value):
@@ -125,14 +163,8 @@ def _coerce_amount(value):
     ``{"amount": .., "currency": ..}`` object. Returns ``None`` if nothing
     numeric can be found (the item is then skipped rather than guessed).
     """
-    if isinstance(value, dict):
-        value = _first(value, ["amount", "value"])
-    if value in (None, ""):
-        return None
-    try:
-        return abs(flt(value))
-    except Exception:
-        return None
+    number = _number(value)
+    return None if number is None else abs(number)
 
 
 def normalize_scheduled_debits(raw_items):
@@ -316,10 +348,10 @@ def _pending_direction(entry, raw_amount):
         if token.startswith("C"):
             return "Incoming"
 
-    try:
-        return "Outgoing" if flt(raw_amount) < 0 else "Incoming"
-    except Exception:
+    number = _number(raw_amount)
+    if number is None:
         return "Outgoing"
+    return "Outgoing" if number < 0 else "Incoming"
 
 
 def refresh_planned_payments(kefiya_login, items, payment_kinds=None):
@@ -364,7 +396,14 @@ def refresh_planned_payments(kefiya_login, items, payment_kinds=None):
             doc = frappe.get_doc(DOCTYPE, existing)
             # Reopened only from a state the bank can undo. A row matched to
             # a booking stays matched: the booking is the bank's last word.
-            if doc.status not in SETTLED_STATUSES:
+            # A cancelled row with a reason stays cancelled: a higher stage
+            # replaced it (the stage ladder reopens those itself), or a
+            # person took it out of the forecast. Only the sweep below
+            # cancels without a reason, and the bank reporting the order
+            # again undoes exactly that.
+            kept = (doc.status == "Cancelled"
+                    and bool(doc.cancellation_reason))
+            if doc.status not in SETTLED_STATUSES and not kept:
                 doc.status = "Open"
             doc.fetched_on = now
             doc.save(ignore_permissions=True)
@@ -413,6 +452,199 @@ def refresh_planned_payments(kefiya_login, items, payment_kinds=None):
     return {"created": created, "updated": updated, "cancelled": cancelled}
 
 
+def _sync_mirrors():
+    """The incoming side of every transfer between our own accounts.
+
+    See forecast_stages.mirror_actions. Mirror lines are kefiya's own: named
+    MIR-<source>, generated_by kefiya_mirror, pointing at their source via
+    reference_doctype/reference_name, with no Kefiya Login -- so the sweep of
+    a bank fetch never cancels them; their source decides.
+
+    :return: {"created": n, "updated": n, "cancelled": n}
+    """
+    from kefiya.utils import forecast_stages as fs
+
+    own, own_name, company_of = {}, {}, {}
+    for acc in frappe.get_all(
+            "Bank Account",
+            filters={"disabled": 0, "is_company_account": 1},
+            fields=["name", "iban", "account_name", "company"],
+            limit_page_length=0):
+        company_of[acc["name"]] = acc.get("company")
+        own_name[acc["name"]] = acc.get("account_name") or acc["name"]
+        iban = fs.normalize_iban(acc.get("iban"))
+        if iban:
+            own.setdefault(iban, acc["name"])
+    if not own:
+        return {"created": 0, "updated": 0, "cancelled": 0}
+
+    fields = ["name", "status", "cancellation_reason", "direction",
+              "source_kind", "from_bank", "bank_account", "due_date",
+              "expected_amount", "purpose", "counterparty_iban",
+              "reference_name", "generated_by"]
+    # IBANs are stored as entered; the comparison is on the normalized form,
+    # so outgoing lines with any IBAN are read and filtered here.
+    lines = []
+    for r in frappe.get_all(
+            DOCTYPE,
+            filters={"direction": "Outgoing",
+                     "counterparty_iban": ("is", "set")},
+            fields=fields, limit_page_length=0):
+        if r.get("generated_by") != fs.MIRROR_GENERATOR and \
+                fs.normalize_iban(r.get("counterparty_iban")) in own:
+            lines.append(dict(r))
+    for r in frappe.get_all(
+            DOCTYPE, filters={"generated_by": fs.MIRROR_GENERATOR},
+            fields=fields, limit_page_length=0):
+        r = dict(r)
+        r["mirror_of"] = r.get("reference_name")
+        lines.append(r)
+
+    actions = fs.mirror_actions(lines, own, own_name)
+    now = now_datetime()
+    for source, values in actions["create"]:
+        doc = frappe.get_doc(dict(
+            values,
+            doctype=DOCTYPE,
+            reference_key=fs.MIRROR_PREFIX + source,
+            company=company_of.get(values["bank_account"]),
+            status="Open",
+            reference_doctype=DOCTYPE,
+            reference_name=source,
+            generated_by=fs.MIRROR_GENERATOR,
+            last_generated_on=now,
+        ))
+        doc.insert(ignore_permissions=True, ignore_if_duplicate=True)
+    for name, values in actions["update"]:
+        frappe.db.set_value(DOCTYPE, name, values)
+    for name, reason in actions["cancel"]:
+        frappe.db.set_value(DOCTYPE, name, {
+            "status": "Cancelled", "cancellation_reason": reason})
+    return {"created": len(actions["create"]),
+            "updated": len(actions["update"]),
+            "cancelled": len(actions["cancel"])}
+
+
+def _party_ibans(rows):
+    """IBANs for lines that name a party but no IBAN.
+
+    Standard ERPNext knows them in two places: the party's own Bank Account,
+    and -- for an internal customer or supplier -- the company it represents,
+    whose accounts are ours. The second is what pairs a rent our company
+    charges another of our companies with the standing order that pays it.
+    """
+    wanted = {}
+    for r in rows:
+        if not r.get("counterparty_iban") and r.get("party") \
+                and r.get("party_type") in ("Customer", "Supplier"):
+            wanted.setdefault((r["party_type"], r["party"]), []).append(r)
+    if not wanted:
+        return
+
+    found = {}
+    parties = sorted({p for (_t, p) in wanted})
+    for acc in frappe.get_all(
+            "Bank Account",
+            filters={"party": ("in", parties), "disabled": 0},
+            fields=["party_type", "party", "iban"], limit_page_length=0):
+        found.setdefault((acc.get("party_type"), acc.get("party")),
+                         []).append(acc.get("iban"))
+
+    represents = {}
+    for party_type in ("Customer", "Supplier"):
+        names = sorted({p for (t, p) in wanted if t == party_type})
+        if not names:
+            continue
+        for party in frappe.get_all(
+                party_type,
+                filters={"name": ("in", names),
+                         "represents_company": ("is", "set")},
+                fields=["name", "represents_company"], limit_page_length=0):
+            represents[(party_type, party["name"])] = \
+                party["represents_company"]
+    if represents:
+        for acc in frappe.get_all(
+                "Bank Account",
+                filters={"is_company_account": 1, "disabled": 0,
+                         "company": ("in", sorted(set(represents.values())))},
+                fields=["company", "iban"], limit_page_length=0):
+            for key, company in represents.items():
+                if company == acc.get("company"):
+                    found.setdefault(key, []).append(acc.get("iban"))
+
+    for key, lines in wanted.items():
+        for r in lines:
+            r["party_ibans"] = list(found.get(key, []))
+
+
+def apply_stage_ladder():
+    """One payment, one line: replace every open line by the line of the
+    next higher stage that is the same payment, and bring a line back when
+    the bank no longer holds what replaced it.
+
+    Runs after every bank fetch and hourly. On lines it does not own it
+    writes nothing but status, cancellation_reason and superseded_by --
+    including the ones another app planned, because that is the one thing a
+    forecast must not do: count one payment twice. Its own lines are the
+    mirrors of transfers between our accounts. See forecast_stages.
+
+    :return: {"superseded": n, "reopened": n, "mirrors": {...},
+              "ambiguous": [...]}
+    """
+    from kefiya.utils import forecast_stages as fs
+
+    # Mirrors first: a transfer between our own accounts gets its incoming
+    # side before the ladder looks for duplicates on the receiving account.
+    mirrors = _sync_mirrors()
+
+    # Bring back next, so a returning line can be paired again below.
+    superseded = frappe.get_all(
+        DOCTYPE,
+        filters={"status": "Cancelled", "cancellation_reason": fs.SUPERSEDED},
+        fields=["name", "superseded_by"], limit_page_length=0)
+    targets = {}
+    names = sorted({r.get("superseded_by") for r in superseded
+                    if r.get("superseded_by")})
+    if names:
+        for t in frappe.get_all(
+                DOCTYPE, filters={"name": ("in", names)},
+                fields=["name", "from_bank", "status",
+                        "cancellation_reason"],
+                limit_page_length=0):
+            targets[t["name"]] = t
+    reopened = fs.to_reopen(superseded, targets)
+    for name in reopened:
+        frappe.db.set_value(DOCTYPE, name, {
+            "status": "Open", "cancellation_reason": None,
+            "superseded_by": None})
+
+    rows = frappe.get_all(
+        DOCTYPE,
+        filters={"status": ("in", list(fs.OPEN_STATES))},
+        fields=["name", "source_kind", "from_bank", "status", "bank_account",
+                "direction", "expected_amount", "due_date",
+                "counterparty_iban", "party_type", "party"],
+        limit_page_length=0)
+    rows = [dict(r) for r in rows]
+    _party_ibans(rows)
+    decision = fs.decide(rows)
+    for lower, higher in decision["supersede"]:
+        frappe.db.set_value(DOCTYPE, lower, {
+            "status": "Cancelled", "cancellation_reason": fs.SUPERSEDED,
+            "superseded_by": higher})
+
+    if decision["ambiguous"]:
+        # Not an error: two lines that may be one payment, left standing on
+        # purpose. Written where a reader of the forecast finds the reason.
+        frappe.logger("kefiya").info(
+            "Kefiya forecast: left standing, not unique: %s",
+            decision["ambiguous"][:50])
+    return {"superseded": len(decision["supersede"]),
+            "reopened": len(reopened),
+            "mirrors": mirrors,
+            "ambiguous": decision["ambiguous"][:20]}
+
+
 def _counterparty_matches(planned, txn):
     """True when planned payment and bank transaction refer to the same party."""
     p_iban = (planned.get("counterparty_iban") or "").replace(" ", "").upper()
@@ -457,25 +689,41 @@ def match_on_bank_transaction(doc, method=None):
             return
 
         txn_date = getdate(doc.date)
+        window = [
+            "between",
+            [
+                add_days(txn_date, -MATCH_DATE_TOLERANCE_DAYS),
+                add_days(txn_date, MATCH_DATE_TOLERANCE_DAYS),
+            ],
+        ]
+        fields = ["name", "expected_amount", "counterparty_iban",
+                  "counterparty_name"]
+        # The bank's own rows. The others are matched by whoever planned
+        # them, with their own tolerances.
         candidates = frappe.get_all(
             DOCTYPE,
             filters={
                 "bank_account": doc.bank_account,
                 "status": "Open",
-                # The bank's own rows. The others are matched by whoever
-                # planned them, with their own tolerances.
                 "from_bank": 1,
                 "direction": direction,
-                "due_date": [
-                    "between",
-                    [
-                        add_days(txn_date, -MATCH_DATE_TOLERANCE_DAYS),
-                        add_days(txn_date, MATCH_DATE_TOLERANCE_DAYS),
-                    ],
-                ],
+                "due_date": window,
             },
-            fields=["name", "expected_amount", "counterparty_iban",
-                    "counterparty_name"],
+            fields=fields,
+        )
+        # And kefiya's own: the incoming side of a transfer between our
+        # accounts. Nobody else knows they exist, so nobody else matches them.
+        candidates += frappe.get_all(
+            DOCTYPE,
+            filters={
+                "bank_account": doc.bank_account,
+                "status": "Open",
+                "from_bank": 0,
+                "generated_by": "kefiya_mirror",
+                "direction": direction,
+                "due_date": window,
+            },
+            fields=fields,
         )
 
         for cand in candidates:

@@ -293,6 +293,9 @@ msgstr "{0} bei der Bank hinterlegt"
 msgid "cycle not yet verified"
 msgstr "Turnus noch nicht bestätigt"
 
+msgid "{0} without a readable cycle"
+msgstr "{0} ohne lesbaren Turnus"
+
 msgid "Transfer"
 msgstr "Überweisung"
 
@@ -635,6 +638,33 @@ msgstr "Wer eine dieser Rollen hat, darf eine Überweisung, die er selbst erfass
 msgid "Kefiya Self Approval Role"
 msgstr "Rolle mit eigener Freigabe"
 
+msgid "Import Log"
+msgstr "Importprotokoll"
+
+msgid "File Format"
+msgstr "Dateiformat"
+
+msgid "File Hash (SHA-256)"
+msgstr "Prüfsumme der Datei (SHA-256)"
+
+msgid "SHA-256 of the imported file, so the log names exactly what was read."
+msgstr "SHA-256 der eingelesenen Datei, damit das Protokoll genau benennt, was gelesen wurde."
+
+msgid "Payload Count"
+msgstr "Zeilen in der Datei"
+
+msgid "Imported Records"
+msgstr "Eingelesene Buchungen"
+
+msgid "Already Present"
+msgstr "Bereits vorhanden"
+
+msgid "Skipped Records"
+msgstr "Übersprungene Zeilen"
+
+msgid "Rows not booked for any reason: already present, other currency, not yet booked by the bank, unknown account or unreadable."
+msgstr "Zeilen, die aus irgendeinem Grund nicht gebucht wurden: bereits vorhanden, andere Währung, von der Bank noch nicht gebucht, unbekanntes Konto oder unlesbar."
+
 msgid "Kefiya Standing Order"
 msgstr "Dauerauftrag"
 
@@ -703,3 +733,30 @@ msgstr "Dauerauftrag bei der Bank"
 
 msgid "Scheduled Debit"
 msgstr "Terminierte Lastschrift"
+
+msgid "Forecast"
+msgstr "Vorschau"
+
+msgid "{0} replaced by a higher stage, {1} back"
+msgstr "{0} durch eine höhere Stufe ersetzt, {1} wieder offen"
+
+msgid "{0} not unique, left standing"
+msgstr "{0} nicht eindeutig, stehen gelassen"
+
+msgid "Bank Order ID"
+msgstr "Auftragsnummer der Bank"
+
+msgid "The bank's identifier for this order, from its list of standing orders (HKCDB)."
+msgstr "Die Kennung der Bank für diesen Auftrag, aus ihrer Liste der Daueraufträge (HKCDB)."
+
+msgid "Last Reported by the Bank"
+msgstr "Zuletzt von der Bank gemeldet"
+
+msgid "When the bank last listed this order. Empty: the bank has never reported it."
+msgstr "Wann die Bank diesen Auftrag zuletzt gelistet hat. Leer: Die Bank hat ihn nie gemeldet."
+
+msgid "Sent to the Bank On"
+msgstr "An die Bank gesendet am"
+
+msgid "When the bank took the order. A dated order counts against the transfer limit on the day it is sent, not on the day it is executed."
+msgstr "Wann die Bank den Auftrag angenommen hat. Eine Terminüberweisung zählt am Sendetag gegen das Überweisungslimit, nicht am Ausführungstag."

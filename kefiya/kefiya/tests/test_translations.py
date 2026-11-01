@@ -70,6 +70,11 @@ LEFT_TO_THE_FRAMEWORK = {
     "Amount", "Draft", "Delete", "Send", "Refresh", "Total", "Company",
     "IBAN", "Recipient", "Transfer", "Loading ...", "public",
     "Order", "Payments", "Yes", "No", "Save", "When",
+    # Planning a payment by hand: the dialog's fields are the forecast's own
+    # words, and the framework already says them the way this app would.
+    "Due Date", "Purpose", "Incoming", "Outgoing",
+    # The standing orders below the outgoing payments: "All" as a filter.
+    "All",
 }
 
 #: Words the framework already uses for something else. Translating them from
@@ -102,6 +107,11 @@ CLAIMED_ELSEWHERE = {"Accounts", "Note", "Failed", "Credentials", "Status",
 #: would only make this test fail for work nobody has started.
 COVERED_CONTROLLERS = (
     "transfer_details.js", "transfer_form.js", "payment_outbox.js",
+    # Correcting the forecast by hand -- three dialogs every page that shows
+    # the forecast opens.
+    "forecast_actions.js",
+    # The standing orders, shown below the outgoing payments.
+    "standing_orders_panel.js",
 )
 
 #: `__("a" + "b")` -- one message written across two lines. Matching only the
