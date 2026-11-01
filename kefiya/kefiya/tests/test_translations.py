@@ -112,6 +112,8 @@ COVERED_CONTROLLERS = (
     "forecast_actions.js",
     # The standing orders, shown below the outgoing payments.
     "standing_orders_panel.js",
+    # Not covered by the account: a dated transfer or a split, on the spot.
+    "funds_way_out.js",
 )
 
 #: `__("a" + "b")` -- one message written across two lines. Matching only the

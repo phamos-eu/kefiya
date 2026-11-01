@@ -61,6 +61,23 @@ function kefiya_handle_transfer_response(frm, msg) {
         }
     } else if (msg.status === "vop_mismatch") {
         kefiya_prompt_vop_release(frm, msg.docname, msg.vop_result);
+    } else if (msg.over_funds && kefiya.funds_way_out) {
+        // Not covered by the account: a dated transfer is offered on the
+        // spot, and sent again once the date is set.
+        kefiya.funds_way_out(msg, {
+            resend: function () {
+                frappe.call({
+                    method: "kefiya.utils.client.submit_kefiya_transfer",
+                    args: { transfer_name: frm.doc.name,
+                            user_scope: frm.docname, confirmed: 1 },
+                    freeze: true,
+                    callback: function (r) {
+                        kefiya_handle_transfer_response(frm, r.message);
+                    }
+                });
+            },
+            changed: function () { frm.reload_doc(); }
+        });
     } else {
         frappe.msgprint({
             title: __("Transfer failed"),
