@@ -12,7 +12,9 @@ class KefiyaPlannedPayment(Document):
 
     from_bank = 1: reported by the bank (dated transfer, standing order,
     pending entry) and kept by kefiya.utils.planned_payment alone.
-    from_bank = 0: planned here or by another app; kefiya never touches it.
+    from_bank = 0: planned here or by another app; kefiya only marks it
+    superseded when a higher stage of the same payment appears
+    (kefiya.utils.forecast_stages).
 
     Never affects the bank balance or reconciliation. A bank row is marked
     Matched once the real Bank Transaction is booked.

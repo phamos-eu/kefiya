@@ -164,6 +164,12 @@ scheduler_events = {
             "kefiya.kefiya.doctype.kefiya_schedule.kefiya_schedule.scheduled_import_fints_payments"  # noqa: E501
         ]
     },
+    # One payment, one line in the forecast. Other apps write their lines at
+    # their own times; the ladder catches up with them every hour, and runs
+    # after every bank fetch anyway.
+    "hourly": [
+        "kefiya.utils.planned_payment.apply_stage_ladder",
+    ],
     "daily": [
         "kefiya.utils.planned_payment.expire_stale_planned_payments",
         # Transfers whose due date we keep ourselves. They are presented, not

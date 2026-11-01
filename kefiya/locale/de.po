@@ -706,3 +706,12 @@ msgstr "Dauerauftrag bei der Bank"
 
 msgid "Scheduled Debit"
 msgstr "Terminierte Lastschrift"
+
+msgid "Forecast"
+msgstr "Vorschau"
+
+msgid "{0} replaced by a higher stage, {1} back"
+msgstr "{0} durch eine höhere Stufe ersetzt, {1} wieder offen"
+
+msgid "{0} not unique, left standing"
+msgstr "{0} nicht eindeutig, stehen gelassen"

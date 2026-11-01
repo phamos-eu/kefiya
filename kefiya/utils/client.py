@@ -778,6 +778,17 @@ def fetch_all(kefiya_login, user_scope=None):
             summary, "standing_orders", "standing_orders",
             _fetch_standing_orders)
 
+        # 3d) One payment, one line. What the bank just reported replaces the
+        #     lines of lower stages that are the same payment -- the plan,
+        #     the invoice, our own order -- so the preview counts it once.
+        def _apply_stages():
+            from kefiya.utils.planned_payment import apply_stage_ladder
+
+            return apply_stage_ladder()
+
+        summary["stages"] = _optional_fetch(
+            summary, "stages", "forecast_stages", _apply_stages)
+
         # 4) Electronic statements -> the documents themselves, attached to the
         #    login. The list alone only says which ones exist; each has to be
         #    fetched separately.

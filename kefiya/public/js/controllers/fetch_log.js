@@ -151,6 +151,19 @@ frappe.provide("kefiya");
             return txt;
         });
 
+        // One payment, one line: lines a higher stage replaced.
+        report(__("Forecast"), "forecast_stages", function () {
+            var g = x.stages;
+            if (!g) return null;
+            var txt = __("{0} replaced by a higher stage, {1} back",
+                         [g.superseded || 0, g.reopened || 0]);
+            if (g.ambiguous && g.ambiguous.length) {
+                txt += " · " + __("{0} not unique, left standing",
+                                  [g.ambiguous.length]);
+            }
+            return txt;
+        });
+
         report(__("Statements"), "statements", function () {
             var s = x.statements;
             if (!s) return null;
