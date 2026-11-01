@@ -136,7 +136,7 @@ At the bank,Bei der Bank
 Approved for sending,Freigegeben
 Unknown error.,Unbekannter Fehler.
 Loading …,Lädt …
-The outgoing payments could not be loaded.,Der Zahlungsausgang konnte nicht geladen werden.
+The outgoing payments could not be loaded.,Die Überweisungen konnten nicht geladen werden.
 "Search — recipient, IBAN, reference, amount","Suchen — Empfänger, IBAN, Verwendungszweck, Betrag"
 show sent,abgesendete zeigen
 Select all listed orders,Alle angezeigten Aufträge markieren
@@ -152,7 +152,7 @@ Cancel hold,Zurückstellung aufheben
 Approve for sending,Freigeben
 Sending needs the right to approve.,"Absenden darf nur, wer Freigaberecht hat."
 Nothing found.,Nichts gefunden.
-There is nothing to send. Transfers collect here until they go out.,"Der Zahlungsausgang ist leer. Erfasste Überweisungen sammeln sich hier, bis sie abgesendet werden."
+There is nothing to send. Transfers collect here until they go out.,"Keine Überweisungen zu senden. Erfasste Überweisungen sammeln sich hier, bis sie abgesendet werden."
 Approve {0} orders over {1}?,{0} Aufträge über {1} freigeben?
 "Approving locks the amounts and the recipients. No money moves: sending is the next, separate step and the bank asks for a TAN then.","Mit der Freigabe stehen Beträge und Empfänger fest. Es fließt kein Geld: Absenden ist der nächste, eigene Schritt, und dann verlangt die Bank eine TAN."
 Approving …,Gebe frei …
@@ -441,7 +441,7 @@ Fetch at most every n days,Höchstens alle n Tage abrufen
 Outcome unknown,Ergebnis unklar
 Transfer entered,Überweisung erfasst
 "The server did not answer in time, so whether the changes were stored is not known. Open the transfer again before changing it once more.","Der Server hat nicht rechtzeitig geantwortet, deshalb ist nicht bekannt, ob die Änderungen gespeichert wurden. Öffnen Sie die Überweisung erneut, bevor Sie sie noch einmal ändern."
-"The server did not answer in time, so whether the transfer was entered is not known. Look in the outgoing payments before entering it again -- if it is there, entering it a second time would pay it twice.","Der Server hat nicht rechtzeitig geantwortet, deshalb ist nicht bekannt, ob die Überweisung erfasst wurde. Sehen Sie im Zahlungsausgang nach, bevor Sie sie erneut erfassen — liegt sie dort, würde eine zweite Erfassung sie doppelt bezahlen."
+"The server did not answer in time, so whether the transfer was entered is not known. Look in the outgoing payments before entering it again -- if it is there, entering it a second time would pay it twice.","Der Server hat nicht rechtzeitig geantwortet, deshalb ist nicht bekannt, ob die Überweisung erfasst wurde. Sehen Sie in den Überweisungen nach, bevor Sie sie erneut erfassen — liegt sie dort, würde eine zweite Erfassung sie doppelt bezahlen."
 "The server answered late, but the transfer is there: {0}. Do not enter it again.","Der Server hat spät geantwortet, aber die Überweisung ist da: {0}. Bitte nicht noch einmal erfassen."
 "The bank no longer accepts transfers in the SEPA format pain.001.001.03, and this order cannot be built in {0} from here. It was NOT sent.","Die Bank nimmt Überweisungen im SEPA-Format pain.001.001.03 nicht mehr an, und dieser Auftrag lässt sich von hier aus nicht in {0} bauen. Er wurde NICHT gesendet."
 Sending the TAN to the bank …,TAN wird an die Bank gesendet …
@@ -477,7 +477,7 @@ Standing order,Dauerauftrag
 Standing order {0} is active. The next transfer is placed on {1}.,Dauerauftrag {0} ist aktiv. Die nächste Überweisung wird am {1} angelegt.
 Standing order {0} was entered. It places transfers once a second person has activated it.,"Dauerauftrag {0} wurde erfasst. Er legt Überweisungen an, sobald eine zweite Person ihn aktiviert hat."
 "The transfer was entered, the standing order was not. Create it under Kefiya Standing Order.","Die Überweisung wurde erfasst, der Dauerauftrag nicht. Bitte unter „Dauerauftrag“ anlegen."
-"This transfer is the first one. The next ones are placed in the outgoing payments on their date, approved, once a second person has activated the standing order.","Diese Überweisung ist die erste. Die folgenden werden zu ihrem Termin freigegeben in den Zahlungsausgang gestellt, sobald eine zweite Person den Dauerauftrag aktiviert hat."
+"This transfer is the first one. The next ones are placed in the outgoing payments on their date, approved, once a second person has activated the standing order.","Diese Überweisung ist die erste. Die folgenden werden zu ihrem Termin freigegeben in die Überweisungen gestellt, sobald eine zweite Person den Dauerauftrag aktiviert hat."
 "Only a single transfer can be repeated as a standing order, not a collective one.","Nur eine Einzelüberweisung lässt sich als Dauerauftrag wiederholen, keine Sammelüberweisung."
 Bank Refused Request,Bank hat die Anfrage abgelehnt
 Error Log,Fehlerprotokoll
@@ -570,7 +570,7 @@ The standing orders could not be loaded.,Die Daueraufträge konnten nicht gelade
 What the bank says,Was die Bank meldet
 "active: {0} a month","aktiv: {0} im Monat"
 at the bank,bei der Bank
-"here, sent from the outgoing payments","bei uns, gesendet aus dem Zahlungsausgang"
+"here, sent from the outgoing payments","bei uns, gesendet aus den Überweisungen"
 "last listed on {0}","zuletzt gemeldet am {0}"
 "listed by the bank on {0}","von der Bank gemeldet am {0}"
 not listed by the bank yet,von der Bank noch nicht gemeldet
