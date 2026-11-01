@@ -49,3 +49,6 @@ import "./controllers/transfer_form";
 // Das Aussehen dieser Liste, getrennt von ihrem Verhalten.
 import "./controllers/outbox_style";
 import "./controllers/payment_outbox";
+// Correcting the forecast by hand. The form, the list and any page that shows
+// the forecast use the same three dialogs.
+import "./controllers/forecast_actions";

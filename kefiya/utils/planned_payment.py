@@ -371,8 +371,6 @@ def refresh_planned_payments(kefiya_login, items, payment_kinds=None):
         every run.
     :return: dict with created / updated / cancelled counts
     """
-    from kefiya.utils import forecast_stages
-
     login = frappe.get_doc("Kefiya Login", kefiya_login)
     bank_account = login.bank_account
     company = login.company
@@ -398,12 +396,14 @@ def refresh_planned_payments(kefiya_login, items, payment_kinds=None):
             doc = frappe.get_doc(DOCTYPE, existing)
             # Reopened only from a state the bank can undo. A row matched to
             # a booking stays matched: the booking is the bank's last word.
-            # A row a higher stage replaced stays replaced -- the stage
-            # ladder reopens it when that stage goes away.
-            superseded = (doc.status == "Cancelled"
-                          and doc.cancellation_reason
-                          == forecast_stages.SUPERSEDED)
-            if doc.status not in SETTLED_STATUSES and not superseded:
+            # A cancelled row with a reason stays cancelled: a higher stage
+            # replaced it (the stage ladder reopens those itself), or a
+            # person took it out of the forecast. Only the sweep below
+            # cancels without a reason, and the bank reporting the order
+            # again undoes exactly that.
+            kept = (doc.status == "Cancelled"
+                    and bool(doc.cancellation_reason))
+            if doc.status not in SETTLED_STATUSES and not kept:
                 doc.status = "Open"
             doc.fetched_on = now
             doc.save(ignore_permissions=True)

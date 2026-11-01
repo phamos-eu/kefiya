@@ -504,3 +504,32 @@ Bank Logo,Bank-Logo
 "Waiting for the bank to report the release. This page carries on by itself.","Warte darauf, dass die Bank die Freigabe meldet. Diese Seite macht von selbst weiter."
 "These lines could not be read and were skipped: {0}","Diese Zeilen konnten nicht gelesen werden und wurden übersprungen: {0}"
 lines,Zeilen
+"{0} removed from the forecast","{0} aus der Vorschau genommen"
+"{0} back in the forecast","{0} wieder in der Vorschau"
+Select the lines to remove first.,"Bitte zuerst die Zeilen auswählen, die herausgenommen werden sollen."
+Remove from the forecast,Aus der Vorschau nehmen
+"Remove {0} lines from the forecast","{0} Zeilen aus der Vorschau nehmen"
+Reason for removing,Grund
+Counted twice,Doppelt erfasst
+Settled otherwise,Anderweitig erledigt
+Waived,Verzichtet
+Cannot be collected,Uneinbringlich
+Reversed,Rückabgewickelt
+Another reason,Anderer Grund
+Remark for the record,Bemerkung
+"The line is cancelled, not deleted: whatever wrote it does not write it again, and it can be brought back.","Die Zeile wird storniert, nicht gelöscht: Was sie geschrieben hat, legt sie nicht wieder an, und sie lässt sich zurückholen."
+Take it out,Herausnehmen
+Select the lines to bring back first.,"Bitte zuerst die Zeilen auswählen, die zurückkommen sollen."
+Bring this line back into the forecast?,Diese Zeile wieder in die Vorschau aufnehmen?
+"Bring {0} lines back into the forecast?","{0} Zeilen wieder in die Vorschau aufnehmen?"
+Plan a payment,Zahlung planen
+Incoming or outgoing,Eingang oder Ausgang
+"Lets the forecast recognise the payment when the bank reports it, and replace this plan.","Damit erkennt die Vorschau die Zahlung, wenn die Bank sie meldet, und ersetzt diese Planung."
+Add to the forecast,In die Vorschau aufnehmen
+Added to the forecast,In die Vorschau aufgenommen
+Back into the forecast,Zurück in die Vorschau
+"Replaced by a later stage of the same payment: {0}","Ersetzt durch eine spätere Stufe derselben Zahlung: {0}"
+Choose a reason for the cancellation.,Bitte einen Grund für die Stornierung wählen.
+already answered by a booking,bereits durch eine Buchung erledigt
+not cancelled,nicht storniert
+Direction must be Incoming or Outgoing.,Die Richtung muss Eingang oder Ausgang sein.

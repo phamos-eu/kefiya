@@ -188,8 +188,9 @@ def to_reopen(superseded, by_name):
     """Superseded lines whose higher stage is gone.
 
     Only a line the bank reported can go away on its own: the bank no longer
-    holds the order, and the sweep cancelled it. A line someone planned is
-    left alone -- whoever cancelled it had a reason this module cannot see.
+    holds the order, and the sweep cancelled it -- without a reason. A line
+    someone planned, or any line a person cancelled with a reason, is left
+    alone: whoever cancelled it had a reason this module cannot see.
 
     :param superseded: lines with status Cancelled and reason SUPERSEDED
     :param by_name: {name: line} of the lines they point to
@@ -206,9 +207,7 @@ def to_reopen(superseded, by_name):
         if target.get("status") in ALIVE_STATES:
             continue
         if target.get("status") == "Cancelled" and \
-                target.get("cancellation_reason") == SUPERSEDED:
-            continue
-        if target.get("status") == "Cancelled":
+                not target.get("cancellation_reason"):
             out.append(row["name"])
     return sorted(out)
 

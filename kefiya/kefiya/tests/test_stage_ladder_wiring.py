@@ -70,9 +70,27 @@ class _Doc(dict):
         super().__init__(values)
         self.tables = tables
 
+    def __getattr__(self, key):
+        if key in ("tables",):
+            raise AttributeError(key)
+        return self.get(key)
+
+    def __setattr__(self, key, value):
+        if key == "tables":
+            dict.__setattr__(self, key, value)
+        else:
+            self[key] = value
+
+    def save(self, **kwargs):
+        for row in self.tables.get(self["doctype"], []):
+            if row["name"] == self["name"]:
+                row.update({k: v for k, v in self.items()
+                            if k != "doctype"})
+        return self
+
     def insert(self, **kwargs):
         row = dict(self)
-        row["name"] = row.get("reference_key")
+        row["name"] = row.get("name") or row.get("reference_key")
         table = self.tables.setdefault(row.pop("doctype"), [])
         if any(r["name"] == row["name"] for r in table):
             return self
@@ -101,7 +119,19 @@ def _fake_frappe(tables):
         return out
 
     fake.get_all = get_all
-    fake.get_doc = lambda values: _Doc(tables, values)
+
+    def get_doc(values, name=None):
+        if name is None:
+            return _Doc(tables, values)
+        for row in tables.get(values, []):
+            if row["name"] == name:
+                return _Doc(tables, dict(row, doctype=values))
+        raise KeyError(name)
+
+    fake.get_doc = get_doc
+    fake.db.exists = lambda doctype, name: (
+        name if any(r["name"] == name for r in tables.get(doctype, []))
+        else None)
     fake.log_error = lambda *a, **k: None
     fake.get_traceback = lambda: ""
     fake.logger = lambda name=None: types.SimpleNamespace(
@@ -115,7 +145,8 @@ def _line(name, kind, due, from_bank=0, status="Open", account="ACC-1",
            "status": status, "bank_account": account, "direction": direction,
            "expected_amount": amount, "due_date": due,
            "counterparty_iban": iban, "party_type": None, "party": None,
-           "cancellation_reason": None, "superseded_by": None}
+           "cancellation_reason": None, "superseded_by": None,
+           "reference_key": name}
     row.update(extra)
     return row
 
@@ -172,6 +203,17 @@ class TestTheLadderWrites(_WithFakeFrappe):
             self.assertEqual(set(values), {"status", "cancellation_reason",
                                            "superseded_by"})
 
+    def test_not_back_when_a_person_cancelled_the_higher_one(self):
+        rows = [_line("KSO-1", "Bank Standing Order", "2026-11-03",
+                      status="Cancelled",
+                      cancellation_reason="Superseded by higher stage",
+                      superseded_by="bank-1"),
+                _line("bank-1", "Bank Standing Order", "2026-11-03",
+                      from_bank=1, status="Cancelled",
+                      cancellation_reason="Reversal")]
+        pp = self.load({"Kefiya Planned Payment": rows})
+        self.assertEqual(pp.apply_stage_ladder()["reopened"], 0)
+
     def test_back_when_the_bank_dropped_it(self):
         rows = [_line("KSO-1", "Bank Standing Order", "2026-11-03",
                       status="Cancelled",
@@ -185,10 +227,36 @@ class TestTheLadderWrites(_WithFakeFrappe):
         self.assertEqual(rows[0]["status"], "Open")
         self.assertIsNone(rows[0]["superseded_by"])
 
-    def test_refresh_does_not_reopen_a_replaced_bank_line(self):
-        source = inspect.getsource(
-            self.load({}).refresh_planned_payments)
-        self.assertIn("not superseded", source)
+    def _refresh(self, status, reason):
+        item = {"planned_date": "2026-11-16", "amount": 100.0,
+                "direction": "Outgoing", "payment_kind": "Scheduled Transfer",
+                "counterparty_iban": IBAN_A, "counterparty_name": "Payee",
+                "purpose": "Invoice"}
+        pp = self.load({})
+        key = pp.compute_reference_key("ACC-1", "2026-11-16", 100.0,
+                                       IBAN_A, "Payee", "Invoice")
+        row = _line(key, "Scheduled Transfer", "2026-11-16", from_bank=1,
+                    status=status, cancellation_reason=reason,
+                    kefiya_login="L1")
+        pp = self.load({
+            "Kefiya Planned Payment": [row],
+            "Kefiya Login": [{"name": "L1", "bank_account": "ACC-1",
+                              "company": "C1"}]})
+        pp.refresh_planned_payments("L1", [item],
+                                    payment_kinds=("Scheduled Transfer",))
+        return row
+
+    def test_a_person_s_cancellation_survives_the_next_fetch(self):
+        """The bank still reports the order; the person said it is wrong."""
+        for reason in ("Duplicate", "Superseded by higher stage"):
+            row = self._refresh("Cancelled", reason)
+            self.assertEqual(row["status"], "Cancelled", reason)
+
+    def test_the_sweep_s_cancellation_does_not(self):
+        """Cancelled without a reason: the sweep did it because the bank
+        stopped reporting the order. Reported again, it is open again."""
+        row = self._refresh("Cancelled", None)
+        self.assertEqual(row["status"], "Open")
 
 
 class TestATransferToOurselves(_WithFakeFrappe):
