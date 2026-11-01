@@ -109,6 +109,31 @@ def import_fints_holdings(kefiya_login, user_scope):
 
 
 @frappe.whitelist()
+def import_depot_holdings(securities_account):
+    """Fetch one depot's holdings now, from its form.
+
+    Ignores the once-a-day rhythm of the scheduled fetch: a person pressing
+    the button wants the answer now, and may have to confirm a TAN for it.
+
+    :param securities_account: Kefiya Securities Account name
+    :return: {"status", "created", "updated", "message"}
+    """
+    depot = frappe.get_doc("Kefiya Securities Account", securities_account)
+    depot.check_permission("write")
+    if not depot.kefiya_login:
+        frappe.throw(_("This securities account has no bank login. "
+                       "Maintain its holdings by hand."))
+    frappe.has_permission("Kefiya Login", ptype="write",
+                          doc=depot.kefiya_login, throw=True)
+    from kefiya.utils.fints_controller import FinTSController
+    from kefiya.utils.securities import refresh_one_depot
+
+    controller = FinTSController(
+        depot.kefiya_login, {"docname": securities_account, "enabled": True})
+    return refresh_one_depot(depot.kefiya_login, depot.as_dict(), controller)
+
+
+@frappe.whitelist()
 def get_fetch_groups():
     """Group the logins into sets that may be fetched in parallel.
 
@@ -715,6 +740,17 @@ def fetch_all(kefiya_login, user_scope=None):
 
         summary["holdings"] = _optional_fetch(
             summary, "holdings", "holdings", _fetch_holdings)
+
+        # 2d) Depots that hang off this login by account number. A depot has
+        #     no IBAN at most banks, so 2c (which asks the login's own account)
+        #     never reaches it. Each depot records its own outcome.
+        def _fetch_depots():
+            from kefiya.utils.securities import refresh_linked_depots
+
+            return refresh_linked_depots(kefiya_login, FetchCtl)
+
+        summary["depots"] = _optional_fetch(
+            summary, "depots", "securities_accounts", _fetch_depots)
 
         # 3) Standing orders / scheduled debits -> forecast table (best effort).
         def _fetch_planned():

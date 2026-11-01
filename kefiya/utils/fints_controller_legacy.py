@@ -285,19 +285,8 @@ class FinTSController:
             account = self.get_fints_account_by_iban(
                 self.kefiya_login.account_iban)
             holdings = self.fints_connection.get_holdings(account)
-            result = []
-            for h in holdings or []:
-                result.append({
-                    "isin": getattr(h, "isin", None),
-                    "security_name": getattr(h, "name", None),
-                    "quantity": getattr(h, "pieces", None),
-                    "price": getattr(h, "market_value", None),
-                    "market_value": getattr(h, "total_value", None),
-                    "currency": getattr(h, "value_symbol", None),
-                    "valuation_date": getattr(h, "valuation_date", None),
-                    "securities_account": self.kefiya_login.account_iban,
-                })
-            return result
+            from kefiya.utils.securities_rows import holding_rows
+            return holding_rows(holdings, self.kefiya_login.account_iban)
 
     def import_fints_transactions(self, kefiya_import):
         """Create payment entries by FinTS transactions.

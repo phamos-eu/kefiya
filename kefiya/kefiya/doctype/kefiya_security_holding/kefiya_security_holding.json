@@ -8,6 +8,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "source",
   "kefiya_login",
   "securities_account",
   "company",
@@ -22,6 +23,7 @@
   "quantity",
   "price",
   "market_value",
+  "acquisition_price",
   "section_break_meta",
   "reference_key"
  ],
@@ -32,7 +34,8 @@
    "in_standard_filter": 1,
    "label": "Kefiya Login",
    "options": "Kefiya Login",
-   "reqd": 1
+   "reqd": 0,
+   "description": "Set for holdings fetched from the bank. Blank for holdings entered by hand."
   },
   {
    "fieldname": "securities_account",
@@ -129,11 +132,28 @@
    "label": "Reference Key",
    "read_only": 1,
    "unique": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "options": "Manual\nBank",
+   "default": "Manual",
+   "label": "Source",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "description": "Bank: fetched over FinTS and overwritten by the next fetch. Manual: entered by hand."
+  },
+  {
+   "fieldname": "acquisition_price",
+   "fieldtype": "Currency",
+   "options": "currency",
+   "label": "Acquisition Price (per unit)",
+   "description": "Average purchase price per unit, as the bank reports it or as entered."
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-28 00:00:00.000000",
+ "modified": "2026-11-01 19:00:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Security Holding",
