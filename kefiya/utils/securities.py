@@ -16,6 +16,8 @@ import hashlib
 import frappe
 from frappe.utils import now_datetime, getdate, flt, time_diff_in_hours
 
+from kefiya.utils.securities_rows import sold_positions
+
 DOCTYPE = "Kefiya Security Holding"
 ACCOUNT_DOCTYPE = "Kefiya Securities Account"
 
@@ -62,13 +64,18 @@ def refresh_holdings(kefiya_login, holdings):
     :param kefiya_login: Kefiya Login name
     :param holdings: list of dicts with keys isin, security_name, quantity,
         price, market_value, currency, valuation_date, securities_account
-    :return: dict with created / updated counts
+    :return: dict with created / updated / closed counts
     """
     login = frappe.get_doc("Kefiya Login", kefiya_login)
     company = login.company
     now = now_datetime()
 
     created = updated = 0
+    # Per depot: the valuation date of this snapshot and the ISINs it
+    # reported. Both are needed afterwards to recognise what the bank has
+    # STOPPED reporting -- see _close_sold_positions.
+    snapshots = {}
+
     for item in holdings or []:
         isin = item.get("isin")
         valuation_date = item.get("valuation_date")
@@ -81,7 +88,6 @@ def refresh_holdings(kefiya_login, holdings):
             account = get_or_create_securities_account(
                 securities_account, company, kefiya_login
             )
-            key = compute_holding_key(account, isin, valuation_date)
             # only set the Currency link when it resolves to a real Currency,
             # otherwise a non-ISO value_symbol would abort the row.
             currency = (item.get("currency") or "").strip().upper()
@@ -104,16 +110,18 @@ def refresh_holdings(kefiya_login, holdings):
                 "fetched_on": now,
             }
 
-            existing = frappe.db.get_value(DOCTYPE, {"reference_key": key}, "name")
-            if existing:
-                doc = frappe.get_doc(DOCTYPE, existing)
-                doc.update(values)
-                doc.save(ignore_permissions=True)
-                updated += 1
-            else:
-                doc = frappe.get_doc(dict(doctype=DOCTYPE, reference_key=key, **values))
-                doc.insert(ignore_permissions=True)
+            if _upsert_snapshot_row(values):
                 created += 1
+            else:
+                updated += 1
+
+            snapshot = snapshots.setdefault(account, {
+                "valuation_date": values["valuation_date"], "isins": set()})
+            snapshot["isins"].add(str(isin).strip().upper())
+            # Reports several valuation dates in one run: the youngest is
+            # this depot's state.
+            if values["valuation_date"] > snapshot["valuation_date"]:
+                snapshot["valuation_date"] = values["valuation_date"]
         except Exception:
             # one malformed holding must not drop the whole snapshot
             frappe.log_error(
@@ -121,7 +129,123 @@ def refresh_holdings(kefiya_login, holdings):
                 message="{0}\n\n{1}".format(isin, frappe.get_traceback()),
             )
 
-    return {"created": created, "updated": updated}
+    closed = 0
+    for account, snapshot in snapshots.items():
+        closed += _close_sold_positions(
+            kefiya_login, company, account, snapshot, now)
+
+    return {"created": created, "updated": updated, "closed": closed}
+
+
+def _upsert_snapshot_row(values):
+    """Write one snapshot row. True when it was new, False when it existed.
+
+    The identity is (depot, ISIN, valuation date): the same day fetched
+    again updates instead of adding a second row. One writer for both the
+    positions the bank reports and the zero rows that close the ones it no
+    longer does.
+    """
+    key = compute_holding_key(
+        values["securities_account"], values["isin"],
+        values["valuation_date"])
+    existing = frappe.db.get_value(DOCTYPE, {"reference_key": key}, "name")
+    if existing:
+        doc = frappe.get_doc(DOCTYPE, existing)
+        doc.update(values)
+        doc.save(ignore_permissions=True)
+        return False
+    doc = frappe.get_doc(dict(doctype=DOCTYPE, reference_key=key, **values))
+    doc.insert(ignore_permissions=True)
+    return True
+
+
+def _close_sold_positions(kefiya_login, company, account, snapshot, now):
+    """Carry positions the bank no longer reports forward with quantity 0.
+
+    A sold position otherwise just stops appearing. The last snapshot stays
+    as history, and nothing says whether it was closed or whether the fetch
+    came back short -- put two days side by side and a missing line is
+    unreadable. So every ISIN that was held at the previous snapshot and is
+    absent from this one gets a row at this valuation date with quantity 0.
+
+    All three numbers are 0, the price included: what is no longer in the
+    depot has no price for this depot, and a price left standing reads as a
+    current one.
+
+    Only rows the BANK delivered count. A holding entered by hand (source
+    Manual) is somebody's own record of a depot the bank does not report;
+    zeroing it would throw their work away.
+
+    Compared against the latest EARLIER valuation date of this depot, not
+    against everything ever held -- otherwise every position sold once would
+    be zeroed again at every single fetch.
+
+    Never raises: by the time this runs, the snapshot itself is stored.
+
+    :return: how many positions were closed
+    """
+    try:
+        previous_date = frappe.db.get_value(
+            DOCTYPE,
+            {"securities_account": account,
+             "source": SOURCE_BANK,
+             "valuation_date": ("<", snapshot["valuation_date"])},
+            "valuation_date",
+            order_by="valuation_date desc")
+        if not previous_date:
+            return 0
+
+        held = {}
+        for row in frappe.get_all(
+                DOCTYPE,
+                filters={"securities_account": account,
+                         "source": SOURCE_BANK,
+                         "valuation_date": getdate(previous_date)},
+                fields=["isin", "security_name", "currency", "quantity"],
+                limit_page_length=0):
+            if flt(row.get("quantity")) == 0:
+                # already closed -- not a second time
+                continue
+            held[str(row.get("isin") or "").strip().upper()] = row
+
+        closed = 0
+        for isin in sold_positions(held.keys(), snapshot["isins"]):
+            row = held.get(isin) or {}
+            # compute_holding_key does not know the source, so a zero row
+            # would land on top of a position somebody keeps BY HAND at this
+            # very date -- and the bank not reporting it is exactly why they
+            # do. No row yet, or one of ours, is written; a manual one is
+            # left alone.
+            standing = frappe.db.get_value(
+                DOCTYPE,
+                {"reference_key": compute_holding_key(
+                    account, isin, snapshot["valuation_date"])},
+                "source")
+            if standing not in (None, SOURCE_BANK):
+                continue
+            _upsert_snapshot_row({
+                "kefiya_login": kefiya_login,
+                "securities_account": account,
+                "company": company,
+                "valuation_date": snapshot["valuation_date"],
+                "isin": row.get("isin") or isin,
+                "security_name": row.get("security_name"),
+                "currency": row.get("currency"),
+                "quantity": 0.0,
+                "price": 0.0,
+                "market_value": 0.0,
+                "acquisition_price": None,
+                "source": SOURCE_BANK,
+                "fetched_on": now,
+            })
+            closed += 1
+        return closed
+    except Exception:
+        frappe.log_error(
+            title="Kefiya: closing sold securities positions failed",
+            message="{0}\n\n{1}".format(account, frappe.get_traceback()),
+        )
+        return 0
 
 
 def depots_due(kefiya_login, now=None):

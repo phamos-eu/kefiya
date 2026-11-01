@@ -54,6 +54,42 @@ def _log_import_failure(login_name):
             pass
 
 
+def _fetch_due_depots(login_name, controller_class):
+    """Die faelligen Depots dieses Zugangs abrufen -- nachrangig, folgenlos.
+
+    Der Depotbestand hing nur an fetch_all, also am Knopf. Ein Stand, der
+    nur erscheint, wenn jemand drueckt, ist kein Stand, sondern eine
+    Momentaufnahme von irgendwann. Hier laeuft er in dem Rhythmus, den der
+    Zeitplan fuer diesen Zugang ohnehin hat.
+
+    Was faellig ist, entscheidet depots_due: nur Depots mit "Bestand
+    abrufen", und erst wieder nach DEPOT_FETCH_MIN_HOURS. Ein Zugang ohne
+    faelliges Depot fasst die Bank gar nicht an -- die Verbindung wird erst
+    im Schleifenkoerper von refresh_linked_depots gebaut, und der laeuft
+    dann nicht.
+
+    NACH dem commit der Umsaetze und mit eigenem Fang: ein Fehler in der
+    Datenbank macht die laufende Transaktion unbrauchbar, und die
+    Momentaufnahme darf die soeben gebuchten Umsaetze nicht mitnehmen.
+    """
+    try:
+        from kefiya.utils.securities import refresh_linked_depots
+
+        refresh_linked_depots(login_name, controller_class)
+        frappe.db.commit()
+    except TanInteractionRequired:
+        # Eine Freigabe, die niemand gibt. Der Bestand wartet auf einen
+        # Abruf von Hand; die Umsaetze sind schon da. Kein Protokolleintrag:
+        # dass dieser Zugang eine TAN will, steht bereits beim Umsatzabruf.
+        pass
+    except Exception:
+        frappe.log_error(
+            title="Kefiya: scheduled securities snapshot failed",
+            message=frappe.get_traceback(),
+            reference_doctype="Kefiya Login",
+            reference_name=login_name)
+
+
 def _record_fetch_attempt(login_name):
     """Stamp the login with "we tried", so the frequency gate can see it.
 
@@ -273,18 +309,22 @@ def scheduled_import_fints_payments(manual=None):
             })
             kefiya_import.save()
 
+            # Named once, because the depot fetch below needs the same
+            # class. Reading the login's own toggle, as before.
+            controller_class = (
+                FinTSController
+                if frappe.db.get_value(
+                    "Kefiya Login", login_name, "enable_tan_authentication")
+                else FinTSControllerLegacy)
+
             if manual:
                 import_fints_transactions(
                     kefiya_import.name,
                     login_name,
                     schedule_settings.name
                 )
-            elif frappe.db.get_value(
-                    "Kefiya Login", login_name, "enable_tan_authentication"):
-                FinTSController(login_name) \
-                    .import_fints_transactions(kefiya_import.name)
             else:
-                FinTSControllerLegacy(login_name) \
+                controller_class(login_name) \
                     .import_fints_transactions(kefiya_import.name)
 
             _record_fetch_attempt(login_name)
@@ -293,6 +333,9 @@ def scheduled_import_fints_payments(manual=None):
             # later rollback would also discard the logins that already
             # succeeded in this tick.
             frappe.db.commit()
+
+            # Die Depots dieses Zugangs mitnehmen -- NACH dem commit.
+            _fetch_due_depots(login_name, controller_class)
         except TanInteractionRequired:
             # Kein Fehler, eine Lage: die Bank will eine Freigabe, und ein
             # Zeitplan hat niemanden, der sie gibt. Geparkt wird dabei

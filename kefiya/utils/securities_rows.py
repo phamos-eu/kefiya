@@ -64,3 +64,22 @@ def same_account_number(left, right):
     a = str(left or "").strip().lstrip("0")
     b = str(right or "").strip().lstrip("0")
     return bool(a) and a == b
+
+
+def sold_positions(previous_isins, current_isins):
+    """ISINs held at the previous snapshot and absent from this one.
+
+    Those are the positions that were sold or transferred away. Without this
+    they simply stop appearing: the last snapshot stays as history, and
+    nothing says whether the position was closed or whether the fetch came
+    back short. Put two days' snapshots side by side and a missing line is
+    unreadable.
+
+    Compared as upper-case ISINs, empty entries ignored, sorted so two runs
+    produce the same order.
+    """
+    before = {str(isin).strip().upper()
+              for isin in (previous_isins or []) if str(isin or "").strip()}
+    now = {str(isin).strip().upper()
+           for isin in (current_isins or []) if str(isin or "").strip()}
+    return sorted(before - now)
