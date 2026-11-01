@@ -146,12 +146,13 @@ def check(docs, scheduled=False):
     if answer["ok"]:
         return None
 
+    seen = may_see_balances()
     if answer["why"] in ("unknown", "stale"):
         message = _(
             "No recent balance is known for {0}, so it cannot be checked"
             " whether the account covers this transfer. Fetch the account,"
             " then send again.").format(bank_account)
-    elif may_see_balances():
+    elif seen:
         message = _(
             "{0} would leave the account below what is available: {1}"
             " available (balance and credit line), {2} already on its way,"
@@ -162,5 +163,15 @@ def check(docs, scheduled=False):
         # Not this reader's to see -- the refusal must not tell them the
         # balance it refused against.
         message = _("The account does not cover this transfer.")
+    # What the way out of this refusal needs (funds_way_out): the orders, and
+    # whether one of them can be split. "left" only for whoever may see
+    # balances -- it would tell the others the balance it was refused against.
     return {"status": "error", "over_funds": True, "why": answer["why"],
-            "message": message}
+            "message": message,
+            "names": [d.name for d in judged], "kefiya_login": login,
+            "total": total,
+            "left": answer["left"] if seen else None,
+            "can_split": 1 if (len(judged) == 1
+                               and getattr(judged[0], "docstatus", 1) == 0
+                               and len(getattr(judged[0], "items", None)
+                                       or []) == 1) else 0}

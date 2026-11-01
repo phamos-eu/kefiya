@@ -944,7 +944,16 @@ kefiya.payment_outbox = function (root) {
 
 	function reportSendResult(m, count, login, names) {
 		const outcome = sendOutcome(m);
-		if (outcome === "error") {
+		if (outcome === "error" && m.over_funds && kefiya.funds_way_out) {
+			// Not covered: offered a dated transfer or a split on the spot,
+			// rather than a refusal to work out the next step from.
+			kefiya.funds_way_out(m, {
+				resend: function () {
+					handToBank(m.names || names, login, 1);
+				},
+				changed: load,
+			});
+		} else if (outcome === "error") {
 			frappe.msgprint({ title: __("Not sent"), indicator: "red",
 				message: esc(m.message || "") });
 		} else if (outcome === "payee") {

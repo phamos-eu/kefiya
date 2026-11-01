@@ -588,10 +588,10 @@ msgid "Pick one of the company's own accounts to move money between them. Name a
 msgstr "Ein eigenes Konto der Gesellschaft wählen, um Geld zwischen den eigenen Konten zu bewegen. Name und IBAN werden daraus gefüllt und bleiben änderbar."
 
 msgid "Held back — this order stays in the outbox and is skipped by a collective send."
-msgstr "Zurückgestellt — der Auftrag bleibt im Zahlungsausgang und wird beim Sammelsenden übersprungen."
+msgstr "Zurückgestellt — der Auftrag bleibt in den Überweisungen und wird beim Sammelsenden übersprungen."
 
 msgid "Keep this order in the outbox: it is skipped by the collective send until released."
-msgstr "Den Auftrag im Zahlungsausgang halten: bis zur Freigabe wird er beim Sammelsenden übersprungen."
+msgstr "Den Auftrag in den Überweisungen halten: bis zur Freigabe wird er beim Sammelsenden übersprungen."
 
 msgid "The identifier the bank filed the dated order under. It is what a later change or cancellation at the bank refers to."
 msgstr "Die Nummer, unter der die Bank den Terminauftrag führt. Auf sie bezieht sich eine spätere Änderung oder Streichung bei der Bank."
@@ -609,7 +609,7 @@ msgid "Stored VoP-ID"
 msgstr "Gespeicherte VoP-ID"
 
 msgid "Outgoing payments"
-msgstr "Zahlungsausgang"
+msgstr "Überweisungen"
 
 msgid "Default for several orders"
 msgstr "Vorgabe bei mehreren Aufträgen"
@@ -673,6 +673,24 @@ msgstr "Auftraggeberkonto"
 
 msgid "Day of Execution"
 msgstr "Ausführungstag"
+
+msgid "Bank: set up at the bank, shown in the forecast only. System: kept here; on its date the transfer is placed in the outgoing payments, approved, for somebody to send with a TAN."
+msgstr "Bank: bei der Bank eingerichtet, erscheint nur in der Vorschau. System: hier geführt; am Ausführungstag wird die Überweisung freigegeben in die Überweisungen gestellt, wo sie jemand mit TAN sendet."
+
+msgid "Day of the month (1-31). Where a month has no such day, its last day applies."
+msgstr "Tag des Monats (1–31). Hat ein Monat diesen Tag nicht, gilt sein letzter Tag."
+
+msgid "Kept on the schedule and moved on after every execution."
+msgstr "Wird vom Zeitplan geführt und nach jeder Ausführung weitergesetzt."
+
+msgid "Ledger account for automatic booking where the standing order belongs to no supplier contract."
+msgstr "Sachkonto für die automatische Buchung, wenn der Dauerauftrag zu keinem Lieferantenvertrag gehört."
+
+msgid "How many days before its date the transfer is placed in the outgoing payments. It waits there until the date."
+msgstr "Wie viele Tage vor dem Ausführungstag die Überweisung in die Überweisungen gestellt wird. Dort wartet sie bis zum Termin."
+
+msgid "Who activated it. Activating approves every execution, so it takes a second person -- the four-eyes rule of Kefiya Settings."
+msgstr "Wer ihn aktiviert hat. Die Aktivierung gibt jede Ausführung frei und braucht deshalb eine zweite Person – das Vier-Augen-Prinzip aus den Kefiya-Einstellungen."
 
 msgid "Next Execution"
 msgstr "Nächste Ausführung"
