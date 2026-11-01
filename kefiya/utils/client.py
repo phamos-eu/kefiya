@@ -2193,6 +2193,137 @@ def create_mastercard_journal_entry_from_purchase_invoice(invoice_doc, bank_tran
     return bt.unallocated_amount, frappe.format(bt.unallocated_amount, "Currency")
 
 
+#: What the assignment wizard reconciles a booking against, and the side of
+#: the booking that can pay it.
+_WIZARD_INVOICES = {"Sales Invoice": "Receive", "Purchase Invoice": "Pay"}
+
+
+def invoice_payment_plan(bank_transaction, invoice_doc):
+    """How a booking pays an invoice, in both currencies, before anything is
+    written.
+
+    The booking is in the currency of its bank account, the invoice in the
+    currency of its party account. The rate between them is the bank's,
+    where its statement stated one for these two currencies; otherwise
+    ERPNext's rate of the booking day -- the same rate a Payment Entry of
+    that day would take. Shared by the confirmation and the booking, so what
+    the user confirmed is what is booked.
+
+    :return: frappe._dict with bank_amount, party_amount, remaining_bank,
+        remaining_party, settles_invoice, settles_booking, bank_currency,
+        party_currency, company_currency, rate, rate_source ("same", "bank",
+        "system"), gl_account, fx
+    """
+    from frappe.utils import flt
+    from erpnext.setup.utils import get_exchange_rate
+    from kefiya.overrides.bank_reconciliation_tool.bank_reconciliation_tool \
+        import bank_rate_of
+    from kefiya.utils.bank_exchange_rate import invoice_allocation
+    from kefiya.utils.camt_statement import rate_between
+
+    gl_account = frappe.db.get_value(
+        "Bank Account", bank_transaction.bank_account, "account")
+    if not gl_account:
+        frappe.throw(_("Bank Account {0} has no account set.").format(
+            bank_transaction.bank_account))
+    bank_currency = frappe.db.get_value(
+        "Account", gl_account, "account_currency")
+    party_account = (invoice_doc.debit_to
+                     if invoice_doc.doctype == "Sales Invoice"
+                     else invoice_doc.credit_to)
+    party_currency = (invoice_doc.get("party_account_currency")
+                      or frappe.db.get_value(
+                          "Account", party_account, "account_currency"))
+    company_currency = frappe.get_cached_value(
+        "Company", invoice_doc.company, "default_currency")
+
+    # Also where booking and invoice share a currency: a franc invoice paid
+    # from a franc account still converts to the company's euro, and the
+    # bank's rate is the one for that.
+    fx = bank_rate_of(bank_transaction.name)
+    if bank_currency == party_currency:
+        rate, rate_source = 1.0, "same"
+    else:
+        rate = rate_between(fx, bank_currency, party_currency)
+        rate_source = "bank"
+        if not rate:
+            rate = flt(get_exchange_rate(
+                bank_currency, party_currency, bank_transaction.date))
+            rate_source = "system"
+        if not rate:
+            frappe.throw(_(
+                "There is no exchange rate from {0} to {1} for {2}. Enter"
+                " one under Currency Exchange."
+            ).format(bank_currency, party_currency, bank_transaction.date))
+
+    plan = frappe._dict(invoice_allocation(
+        bank_transaction.unallocated_amount, invoice_doc.outstanding_amount,
+        rate))
+    plan.update({
+        "bank_currency": bank_currency, "party_currency": party_currency,
+        "company_currency": company_currency, "rate": rate,
+        "rate_source": rate_source, "gl_account": gl_account, "fx": fx,
+    })
+    return plan
+
+
+def _wizard_documents(bank_transaction_name, invoice_name, match_against,
+                      ptype):
+    """The booking and the invoice, permission-checked, for the wizard."""
+    if match_against not in _WIZARD_INVOICES:
+        frappe.throw(_("Cannot reconcile against {0}.").format(match_against))
+    bank_transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
+    frappe.has_permission("Bank Transaction", ptype=ptype,
+                          doc=bank_transaction, throw=True)
+    invoice_doc = frappe.get_doc(match_against, invoice_name)
+    frappe.has_permission(match_against, ptype="read", doc=invoice_doc,
+                          throw=True)
+    return bank_transaction, invoice_doc
+
+
+@frappe.whitelist()
+def preview_invoice_payment(bank_transaction_name, invoice_name,
+                            match_against):
+    """What reconciling would book, for the confirmation -- nothing written.
+
+    :return: the plan, with every amount also formatted in its currency
+    """
+    bank_transaction, invoice_doc = _wizard_documents(
+        bank_transaction_name, invoice_name, match_against, "read")
+    plan = invoice_payment_plan(bank_transaction, invoice_doc)
+    money = {"bank_amount": plan.bank_currency,
+             "remaining_bank": plan.bank_currency,
+             "party_amount": plan.party_currency,
+             "remaining_party": plan.party_currency}
+    out = {k: v for k, v in plan.items() if k not in ("fx", "gl_account")}
+    for field, currency in money.items():
+        out[field + "_formatted"] = frappe.format(
+            plan[field], {"fieldtype": "Currency"}, currency=currency)
+    out["unallocated_formatted"] = frappe.format(
+        bank_transaction.unallocated_amount,
+        {"fieldtype": "Currency"}, currency=plan.bank_currency)
+    out["outstanding_formatted"] = frappe.format(
+        invoice_doc.outstanding_amount,
+        {"fieldtype": "Currency"}, currency=plan.party_currency)
+    return out
+
+
+def _allocate_references(references, party_amount):
+    """Spread the amount over the invoice's references in their order.
+
+    With payment terms an invoice comes as one reference per term; giving
+    each the full amount -- as before -- allocated a partial payment several
+    times over.
+    """
+    from frappe.utils import flt
+
+    remaining = flt(party_amount, 2)
+    for reference in references:
+        share = min(flt(reference.outstanding_amount, 2), remaining)
+        reference.allocated_amount = share
+        remaining = flt(remaining - share, 2)
+
+
 # Create Payment Entry record when reconcile button is clicked
 @frappe.whitelist()
 def create_payment_entry(bank_transaction_name, invoice_name, match_against):
@@ -2214,53 +2345,102 @@ def create_payment_entry(bank_transaction_name, invoice_name, match_against):
             )[0]
         if bank_account:
             if bank_account.account:
+                _same_currency_for_the_card(invoice_doc, bank_account.account)
                 return create_mastercard_journal_entry_from_purchase_invoice(invoice_doc, bank_transaction_name, bank_account.account)
             else:
                 frappe.throw("Bank Account {} has no account set.".format(bank_transaction.bank_account))
-    else:
-        bank_transaction = frappe.get_doc("Bank Transaction", bank_transaction_name)
-        invoice_doc = frappe.get_doc(match_against, invoice_name)
+        return
 
-        unallocated_amount = bank_transaction.unallocated_amount
-        outstanding_amount = invoice_doc.outstanding_amount
-        diff = frappe.format(abs(unallocated_amount - outstanding_amount), "Currency")
-        paid_amount = outstanding_amount
+    bank_transaction, invoice_doc = _wizard_documents(
+        bank_transaction_name, invoice_name, match_against, "write")
+    plan = invoice_payment_plan(bank_transaction, invoice_doc)
+    if plan.bank_amount <= 0 or plan.party_amount <= 0:
+        frappe.throw(_("Nothing is left to reconcile between {0} and {1}.")
+                     .format(bank_transaction_name, invoice_name))
 
-        if unallocated_amount <= outstanding_amount:
-            paid_amount = unallocated_amount
+    # ERPNext builds the entry in both currencies itself when it is told the
+    # bank account and both amounts -- the way its own "Get Payment Entry"
+    # does. Without the bank account it took the company's default one, in
+    # whatever currency that is, and the account was swapped afterwards
+    # while amounts and currencies stayed the default account's.
+    payment_entry = frappe.call(
+        "erpnext.accounts.doctype.payment_entry.payment_entry"
+        ".get_payment_entry",
+        match_against, invoice_name,
+        party_amount=plan.party_amount,
+        bank_account=plan.gl_account,
+        bank_amount=(plan.bank_amount
+                     if plan.bank_currency != plan.party_currency else None))
 
-        payment_entry = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", match_against, invoice_name)
+    if payment_entry.payment_type != _WIZARD_INVOICES[match_against]:
+        frappe.throw(_("{0} {1} would not be paid in the direction of the"
+                       " booking.").format(match_against, invoice_name))
 
-        payment_entry.paid_amount = paid_amount
-        payment_entry.posting_date = bank_transaction.date
-        payment_entry.reference_date = bank_transaction.date
-        payment_entry.reference_no = 'BTN Wizard ' + str(bank_transaction.date)
-        payment_entry.payment_type = "Receive" if bank_transaction.deposit > 0.0 else "Pay"
-        account_from_to = "paid_to" if bank_transaction.deposit > 0.0 else "paid_from"
+    payment_entry.posting_date = bank_transaction.date
+    payment_entry.reference_date = bank_transaction.date
+    payment_entry.reference_no = 'BTN Wizard ' + str(bank_transaction.date)
+    payment_entry.bank_account = bank_transaction.bank_account
 
-        bank_account = ''
-        if bank_transaction.bank_account:
-            bank_account = frappe.db.get_values(
-                "Bank Account", bank_transaction.bank_account, ["account", "company"], as_dict=True
-            )[0]
+    # The rate the money moved at, where the bank stated it and it decides
+    # the entry alone; otherwise the entry is left to ERPNext, which fills
+    # the rates of the posting day.
+    if plan.fx:
+        from kefiya.utils.bank_exchange_rate import (
+            FIELDS, payment_entry_values)
+        values = payment_entry_values(
+            payment_entry.payment_type, plan.bank_amount, plan.bank_currency,
+            plan.party_currency, plan.company_currency, plan.fx)
+        if values:
+            for field in FIELDS:
+                payment_entry.set(field, values[field])
+            # The party side is what the invoice is allocated, to the cent;
+            # a rounding remainder between the sides is ERPNext's to book as
+            # exchange gain or loss, as for any foreign-currency payment.
+            party_side = ("paid_amount"
+                          if payment_entry.payment_type == "Receive"
+                          else "received_amount")
+            payment_entry.set(party_side, plan.party_amount)
 
-        if bank_account and bank_account.account:
-            (gl_account, company) = (bank_account.account, bank_account.company)
+    _allocate_references(payment_entry.references, plan.party_amount)
 
-            payment_entry.bank_account = bank_transaction.bank_account
+    payment_entry.insert()
+    payment_entry.submit()
 
-            if account_from_to == "paid_to":
-                payment_entry.paid_to = gl_account
-            else:
-                payment_entry.paid_from = gl_account
+    return {
+        "payment_entry": payment_entry.name,
+        "bank_amount": plan.bank_amount,
+        "settles_invoice": plan.settles_invoice,
+        "settles_booking": plan.settles_booking,
+        "remaining_bank": frappe.format(
+            plan.remaining_bank, {"fieldtype": "Currency"},
+            currency=plan.bank_currency),
+        "remaining_party": frappe.format(
+            plan.remaining_party, {"fieldtype": "Currency"},
+            currency=plan.party_currency),
+    }
 
-        for reference in payment_entry.references:
-            reference.allocated_amount = paid_amount
 
-        payment_entry.insert()
-        payment_entry.submit()
+def _same_currency_for_the_card(invoice_doc, card_account):
+    """The card reconciliation books a Journal Entry without exchange rates.
 
-        return paid_amount, payment_entry.name, unallocated_amount, outstanding_amount, diff
+    That is right only where card, invoice and company share one currency.
+    In any other case it would book the card's amount as if it were the
+    invoice's, so it is refused with a reason instead.
+    """
+    card_currency = frappe.db.get_value(
+        "Account", card_account, "account_currency")
+    invoice_currency = (invoice_doc.get("party_account_currency")
+                        or frappe.db.get_value(
+                            "Account", invoice_doc.credit_to,
+                            "account_currency"))
+    company_currency = frappe.get_cached_value(
+        "Company", invoice_doc.company, "default_currency")
+    if len({card_currency, invoice_currency, company_currency}) > 1:
+        frappe.throw(_(
+            "The card account is in {0}, the invoice in {1} and the company"
+            " in {2}. Card reconciliation works in one currency only;"
+            " reconcile this invoice as a Purchase Invoice instead."
+        ).format(card_currency, invoice_currency, company_currency))
 
 
 def _get_priority_parties(assign_against):

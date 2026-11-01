@@ -638,6 +638,33 @@ msgstr "Wer eine dieser Rollen hat, darf eine Überweisung, die er selbst erfass
 msgid "Kefiya Self Approval Role"
 msgstr "Rolle mit eigener Freigabe"
 
+msgid "Import Log"
+msgstr "Importprotokoll"
+
+msgid "File Format"
+msgstr "Dateiformat"
+
+msgid "File Hash (SHA-256)"
+msgstr "Prüfsumme der Datei (SHA-256)"
+
+msgid "SHA-256 of the imported file, so the log names exactly what was read."
+msgstr "SHA-256 der eingelesenen Datei, damit das Protokoll genau benennt, was gelesen wurde."
+
+msgid "Payload Count"
+msgstr "Zeilen in der Datei"
+
+msgid "Imported Records"
+msgstr "Eingelesene Buchungen"
+
+msgid "Already Present"
+msgstr "Bereits vorhanden"
+
+msgid "Skipped Records"
+msgstr "Übersprungene Zeilen"
+
+msgid "Rows not booked for any reason: already present, other currency, not yet booked by the bank, unknown account or unreadable."
+msgstr "Zeilen, die aus irgendeinem Grund nicht gebucht wurden: bereits vorhanden, andere Währung, von der Bank noch nicht gebucht, unbekanntes Konto oder unlesbar."
+
 msgid "Kefiya Standing Order"
 msgstr "Dauerauftrag"
 

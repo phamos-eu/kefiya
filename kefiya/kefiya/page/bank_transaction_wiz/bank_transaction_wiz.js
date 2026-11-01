@@ -349,7 +349,10 @@ kefiya.tools.AssignWizardTool = class AssignWizardTool extends (
 				"deposit",
 				"withdrawal",
 				"unallocated_amount", 
-				"description"
+				"description",
+				// A booking is shown in its own currency, not the invoice's:
+				// a CHF booking under a EUR invoice is CHF.
+				"currency"
 			];
 			
 			filters = {
@@ -507,7 +510,7 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 			this.data.payments.forEach(payment => {
 				payment.unallocated_amount_raw = parseFloat(payment.unallocated_amount) || 0;
 				payment.date = moment(payment.date).format(date_format);
-				payment.unallocated_amount = format_currency(payment.unallocated_amount, this.data.currency);
+				payment.unallocated_amount = format_currency(payment.unallocated_amount, payment.currency || this.data.currency);
 			});
 	
 			this.data.optionValue = optionValue;
@@ -583,16 +586,15 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 						}).remove();
 
 					} else {
-						const paid_amount = r.message[0];
-						const payment_entry_name = r.message[1];
-						const unallocated_amount = r.message[2];
-						const outstanding_amount = r.message[3];
-						const diff = r.message[4];
+						// Decided on the server, in both currencies: comparing
+						// a CHF booking with a EUR invoice here would compare
+						// numbers, not money.
+						const result = r.message || {};
 
 						vouchers.push({
 							payment_doctype: "Payment Entry",
-							payment_name: payment_entry_name,
-							amount: format_currency(paid_amount, currency),
+							payment_name: result.payment_entry,
+							amount: result.bank_amount,
 						});
 						
 						frappe.call({
@@ -606,16 +608,16 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 								// Refresh page after asignment		
 								// kefiya.tools.assignWizardList.refresh();
 
-								if (unallocated_amount > outstanding_amount){
+								if (result.settles_invoice && !result.settles_booking){
 
 									$('.list-row-contain').filter(function() {
 										return $(this).find(`[data-fieldname="${invoice_name}"]`).length > 0;
 									}).remove();
 
 									$(`[data-fieldname="${bank_transaction_name}"]`).each(function() {
-										$(this).find('.data-amount').text(diff);
+										$(this).find('.data-amount').text(result.remaining_bank);
 									});
-								}else if(unallocated_amount == outstanding_amount){
+								}else if(result.settles_invoice && result.settles_booking){
 
 									$('.list-row-contain').filter(function() {
 										return $(this).find(`[data-fieldname="${invoice_name}"]`).length > 0;
@@ -625,7 +627,7 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 								}else{
 									
 									$(`[data-fieldname="${bank_transaction_name}"]`).remove();
-									$(`[data-fieldname="${invoice_name}"]`).find('.data-amount').text(diff);
+									$(`[data-fieldname="${invoice_name}"]`).find('.data-amount').text(result.remaining_party);
 								}
 
 								$('.list-row-contain').filter(function() {
@@ -639,37 +641,62 @@ kefiya.tools.AssignWizardRow = class AssignWizardRow {
 			};
 
 			const show_dialog = kefiya.tools.assignWizardList?.kefiyaSettings?.show_reconcile_confirmation_dialog;
-			if (show_dialog) {
-				const payment = me.data.payments.find(p => p.name === bank_transaction_name);
-				const invoice_outstanding = me.data.outstanding_amount_raw ?? 0;
-				const transaction_amount = payment ? (payment.unallocated_amount_raw ?? 0) : 0;
-
-				let message;
-				if (invoice_outstanding > transaction_amount) {
-					const remaining_outstanding = invoice_outstanding - transaction_amount;
-					message = __(
-						"The invoice outstanding ({0}) is greater than the transaction amount ({1}). The full transaction amount will be applied to this invoice. The invoice will still have an outstanding amount of {2}. Are you sure you want to continue?",
-						[format_currency(invoice_outstanding, currency), format_currency(transaction_amount, currency), format_currency(remaining_outstanding, currency)]
-					);
-				} else if (invoice_outstanding < transaction_amount) {
-					const remaining_unallocated = transaction_amount - invoice_outstanding;
-					message = __(
-						"The transaction amount ({0}) is greater than the invoice outstanding ({1}). This invoice will be fully paid. The transaction will still have an unallocated amount of {2} and can be assigned to other invoices. Are you sure you want to continue?",
-						[format_currency(transaction_amount, currency), format_currency(invoice_outstanding, currency), format_currency(remaining_unallocated, currency)]
-					);
-				} else {
-					message = __(
-						"The amounts match ({0}). This invoice will be fully paid and the transaction will be fully reconciled. Are you sure you want to continue?",
-						[format_currency(invoice_outstanding, currency)]
-					);
-				}
-
-				frappe.confirm(message, () => {
-					do_reconcile();
-				});
-			} else {
+			const payment = me.data.payments.find(p => p.name === bank_transaction_name);
+			// A booking in another currency than the invoice is always
+			// confirmed: the rate decides how much of the invoice it pays,
+			// and the user sees that rate before a Payment Entry is posted.
+			const foreign = payment && payment.currency && payment.currency !== currency;
+			if (!(show_dialog || foreign)) {
 				do_reconcile();
+				return;
 			}
+
+			frappe.call({
+				method: "kefiya.utils.client.preview_invoice_payment",
+				args: {
+					bank_transaction_name: bank_transaction_name,
+					invoice_name: invoice_name,
+					match_against: match_against,
+				},
+				callback(r) {
+					const plan = r.message;
+					if (!plan) return;
+
+					let message;
+					if (plan.settles_invoice && plan.settles_booking) {
+						message = __(
+							"The amounts match ({0}). This invoice will be fully paid and the transaction will be fully reconciled. Are you sure you want to continue?",
+							[plan.outstanding_formatted]
+						);
+					} else if (plan.settles_invoice) {
+						message = __(
+							"The transaction amount ({0}) is greater than the invoice outstanding ({1}). This invoice will be fully paid. The transaction will still have an unallocated amount of {2} and can be assigned to other invoices. Are you sure you want to continue?",
+							[plan.unallocated_formatted, plan.outstanding_formatted, plan.remaining_bank_formatted]
+						);
+					} else {
+						message = __(
+							"The invoice outstanding ({0}) is greater than the transaction amount ({1}). The full transaction amount will be applied to this invoice. The invoice will still have an outstanding amount of {2}. Are you sure you want to continue?",
+							[plan.outstanding_formatted, plan.unallocated_formatted, plan.remaining_party_formatted]
+						);
+					}
+
+					if (plan.bank_currency !== plan.party_currency) {
+						const source = plan.rate_source === "bank"
+							? __("as stated by the bank")
+							: __("system rate of the booking day");
+						message = `<p>${__(
+							"{0} of the transaction pay {1} of the invoice. Exchange rate: 1 {2} = {3} {4} ({5}).",
+							[plan.bank_amount_formatted, plan.party_amount_formatted,
+								plan.bank_currency, frappe.utils.escape_html(String(plan.rate)),
+								plan.party_currency, source]
+						)}</p><p>${message}</p>`;
+					}
+
+					frappe.confirm(message, () => {
+						do_reconcile();
+					});
+				},
+			});
 		});
 
 		// create journal entry from bank transaction

@@ -446,6 +446,17 @@ Transfer entered,Überweisung erfasst
 "The bank no longer accepts transfers in the SEPA format pain.001.001.03, and this order cannot be built in {0} from here. It was NOT sent.","Die Bank nimmt Überweisungen im SEPA-Format pain.001.001.03 nicht mehr an, und dieser Auftrag lässt sich von hier aus nicht in {0} bauen. Er wurde NICHT gesendet."
 Sending the TAN to the bank …,TAN wird an die Bank gesendet …
 The bank asks for another TAN.,Die Bank verlangt eine weitere TAN.
+Bank Exchange Rate,Kurs der Bank
+Rate From Currency,Kurs von Währung
+Rate To Currency,Kurs in Währung
+Bank Exchange Rate (1 From = Rate To),Kurs der Bank (1 Von = Kurs In)
+As stated in the bank statement. Empty where the statement names no rate; the system's exchange rate applies then.,"Wie im Kontoauszug angegeben. Leer, wenn der Auszug keinen Kurs nennt; dann gilt der Kurs des Systems."
+Other currency than the bank account,Andere Währung als das Bankkonto
+Not yet booked by the bank (pending),Von der Bank noch nicht gebucht (vorgemerkt)
+Repeated within the file,In der Datei wiederholt
+"Account without IBAN, not assignable","Konto ohne IBAN, nicht zuzuordnen"
+This exact file was already imported,Genau diese Datei wurde bereits eingelesen
+This camt file is not read: {0},Diese camt-Datei wird nicht gelesen: {0}
 Scheduled transfers,Terminierte Überweisungen
 The recipient's IBAN is not plausible: {0},Die IBAN des Empfängers ist nicht plausibel: {0}
 The day of execution must lie between 1 and 31.,Der Ausführungstag muss zwischen 1 und 31 liegen.
@@ -533,6 +544,16 @@ Choose a reason for the cancellation.,Bitte einen Grund für die Stornierung wä
 already answered by a booking,bereits durch eine Buchung erledigt
 not cancelled,nicht storniert
 Direction must be Incoming or Outgoing.,Die Richtung muss Eingang oder Ausgang sein.
+Batch bookings split into single bookings,Sammelbuchungen in Einzelbuchungen aufgeteilt
+as stated by the bank,laut Bank
+system rate of the booking day,Systemkurs des Buchungstags
+{0} of the transaction pay {1} of the invoice. Exchange rate: 1 {2} = {3} {4} ({5}).,{0} der Buchung begleichen {1} der Rechnung. Kurs: 1 {2} = {3} {4} ({5}).
+There is no exchange rate from {0} to {1} for {2}. Enter one under Currency Exchange.,Es gibt keinen Kurs von {0} nach {1} für den {2}. Bitte unter „Wechselkurs“ erfassen.
+Cannot reconcile against {0}.,Gegen {0} kann nicht abgeglichen werden.
+Nothing is left to reconcile between {0} and {1}.,Zwischen {0} und {1} ist nichts mehr abzugleichen.
+{0} {1} would not be paid in the direction of the booking.,{0} {1} würde nicht in Richtung der Buchung bezahlt.
+"The card account is in {0}, the invoice in {1} and the company in {2}. Card reconciliation works in one currency only; reconcile this invoice as a Purchase Invoice instead.","Das Kartenkonto führt {0}, die Rechnung {1} und das Unternehmen {2}. Der Kartenabgleich funktioniert nur in einer Währung; bitte diese Rechnung als Eingangsrechnung abgleichen."
+Bank Account {0} has no account set.,Für das Bankkonto {0} ist kein Buchungskonto hinterlegt.
 Active and paused,Aktiv und pausiert
 Proposals,Vorschläge
 Finished,Beendet

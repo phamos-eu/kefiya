@@ -122,6 +122,46 @@ def get_custom_fields():
 				"hinsehen. Traegt keine Buchungslogik."
 			),
 		},
+		# The exchange rate the bank applied to this booking, where its
+		# statement states one (camt.053 CcyXchg). Read as 1 <from> = <rate>
+		# <to>. A Journal Entry made from the booking uses it before the
+		# system's own rate -- see overrides.bank_reconciliation_tool.
+		{
+			"label": "Bank Exchange Rate",
+			"fieldname": "kefiya_fx_section",
+			"fieldtype": "Section Break",
+			"insert_after": "kefiya_followup",
+			"collapsible": 1,
+			"depends_on": "eval:doc.kefiya_fx_rate",
+		},
+		{
+			"label": "Rate From Currency",
+			"fieldname": "kefiya_fx_from",
+			"fieldtype": "Link",
+			"options": "Currency",
+			"insert_after": "kefiya_fx_section",
+			"read_only": 1,
+		},
+		{
+			"label": "Rate To Currency",
+			"fieldname": "kefiya_fx_to",
+			"fieldtype": "Link",
+			"options": "Currency",
+			"insert_after": "kefiya_fx_from",
+			"read_only": 1,
+		},
+		{
+			"label": "Bank Exchange Rate (1 From = Rate To)",
+			"fieldname": "kefiya_fx_rate",
+			"fieldtype": "Float",
+			"precision": "9",
+			"insert_after": "kefiya_fx_to",
+			"read_only": 1,
+			"description": (
+				"As stated in the bank statement. Empty where the statement "
+				"names no rate; the system's exchange rate applies then."
+			),
+		},
 	]
 
 	# The balance and the credit line are written by this app -- store_balance()
