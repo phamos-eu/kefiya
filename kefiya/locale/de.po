@@ -715,3 +715,15 @@ msgstr "{0} durch eine höhere Stufe ersetzt, {1} wieder offen"
 
 msgid "{0} not unique, left standing"
 msgstr "{0} nicht eindeutig, stehen gelassen"
+
+msgid "Bank Order ID"
+msgstr "Auftragsnummer der Bank"
+
+msgid "The bank's identifier for this order, from its list of standing orders (HKCDB)."
+msgstr "Die Kennung der Bank für diesen Auftrag, aus ihrer Liste der Daueraufträge (HKCDB)."
+
+msgid "Last Reported by the Bank"
+msgstr "Zuletzt von der Bank gemeldet"
+
+msgid "When the bank last listed this order. Empty: the bank has never reported it."
+msgstr "Wann die Bank diesen Auftrag zuletzt gelistet hat. Leer: Die Bank hat ihn nie gemeldet."

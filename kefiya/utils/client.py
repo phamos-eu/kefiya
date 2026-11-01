@@ -770,6 +770,18 @@ def fetch_all(kefiya_login, user_scope=None):
                 # orders, say so rather than let a number imply certainty.
                 "schedule_confirmed": False,
             })
+            # And onto file, as Kefiya Standing Order with execution_mode
+            # Bank -- where the outgoing payments show them next to the ones
+            # kept here. Its own failure must not cost the forecast above.
+            try:
+                from kefiya.utils import bank_standing_orders
+
+                result["on_file"] = bank_standing_orders.sync(
+                    kefiya_login, rows)
+            except Exception:
+                frappe.log_error(
+                    title="Kefiya: bank standing orders not put on file",
+                    message=frappe.get_traceback())
             return result
 
         # Standing orders are a different business transaction from the

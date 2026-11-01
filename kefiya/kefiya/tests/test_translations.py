@@ -73,6 +73,8 @@ LEFT_TO_THE_FRAMEWORK = {
     # Planning a payment by hand: the dialog's fields are the forecast's own
     # words, and the framework already says them the way this app would.
     "Due Date", "Purpose", "Incoming", "Outgoing",
+    # The standing orders below the outgoing payments: "All" as a filter.
+    "All",
 }
 
 #: Words the framework already uses for something else. Translating them from
@@ -108,6 +110,8 @@ COVERED_CONTROLLERS = (
     # Correcting the forecast by hand -- three dialogs every page that shows
     # the forecast opens.
     "forecast_actions.js",
+    # The standing orders, shown below the outgoing payments.
+    "standing_orders_panel.js",
 )
 
 #: `__("a" + "b")` -- one message written across two lines. Matching only the
