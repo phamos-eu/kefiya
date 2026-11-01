@@ -772,3 +772,9 @@ msgstr "Zuletzt von der Bank gemeldet"
 
 msgid "When the bank last listed this order. Empty: the bank has never reported it."
 msgstr "Wann die Bank diesen Auftrag zuletzt gelistet hat. Leer: Die Bank hat ihn nie gemeldet."
+
+msgid "Sent to the Bank On"
+msgstr "An die Bank gesendet am"
+
+msgid "When the bank took the order. A dated order counts against the transfer limit on the day it is sent, not on the day it is executed."
+msgstr "Wann die Bank den Auftrag angenommen hat. Eine Terminüberweisung zählt am Sendetag gegen das Überweisungslimit, nicht am Ausführungstag."

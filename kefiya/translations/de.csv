@@ -608,3 +608,31 @@ Every part needs an amount above zero.,Jeder Teil braucht einen Betrag über nul
 No part can be dated before today.,Kein Teil darf vor heute liegen.
 Split into at least two parts.,Bitte in mindestens zwei Teile aufteilen.
 Part payment,Teilzahlung
+Pay in parts,In Teilzahlungen zahlen
+Show plan,Plan anzeigen
+Does not fit,Passt nicht
+Own account: {0},Eigenes Konto: {0}
+limit {0},Limit {0}
+no known limit,kein Limit bekannt
+Other accounts of the same company,Weitere Konten derselben Gesellschaft
+"{0} is paid backwards from {1}: the last part on that day, earlier parts on the banking days before it, never before today. Each day the transfer's own account is used first, then the accounts ticked below.","{0} wird rückwärts ab {1} gezahlt: der letzte Teil an diesem Tag, frühere Teile an den Banktagen davor, nie vor heute. An jedem Tag wird zuerst das eigene Konto der Überweisung genutzt, dann die unten angehakten Konten."
+"Every part becomes a draft transfer of its own, kept here until its date. Each is approved and sent with its own TAN.",Jeder Teil wird ein eigener Überweisungsentwurf und bis zu seinem Datum hier gehalten. Jeder wird einzeln freigegeben und mit eigener TAN gesendet.
+Only a draft can be paid in parts: after approval the amount is locked.,Nur ein Entwurf kann in Teilen gezahlt werden: nach der Freigabe ist der Betrag festgeschrieben.
+"Partial payments are planned for a transfer with one payment. Use ""Split over days"" for a collective order, or enter the large payment on a transfer of its own.","Teilzahlungen werden für eine Überweisung mit einer Zahlung geplant. Für einen Sammelauftrag ""Auf Tage verteilen"" nutzen oder die große Zahlung als eigene Überweisung erfassen."
+The payment has no amount.,Die Zahlung hat keinen Betrag.
+No transfer limit is known for {0}. It must be kept on the bank access before a payment can be planned in parts -- the limit is never guessed.,"Für {0} ist kein Überweisungslimit bekannt. Es muss am Bankzugang hinterlegt sein, bevor eine Zahlung in Teilen geplant werden kann – das Limit wird nie geraten."
+"{0} cannot be used for this payment: it belongs to another company, has no known limit, or is the recipient.","{0} kann für diese Zahlung nicht genutzt werden: es gehört zu einer anderen Gesellschaft, hat kein bekanntes Limit oder ist der Empfänger."
+"The execution date {0} has passed. Set the date by which the payment must be complete, then plan the parts.","Das Ausführungsdatum {0} ist vorbei. Das Datum eintragen, bis zu dem die Zahlung vollständig sein muss, dann die Teile planen."
+"{0} of {1} does not fit the limits between today and {2}. Nothing would be placed: pick another account, or set a later date.",{0} von {1} passen zwischen heute und {2} nicht in die Limits. Es würde nichts angelegt: ein weiteres Konto wählen oder ein späteres Datum setzen.
+{0} does not fit the limits between today and {1}. Nothing was changed.,{0} passen zwischen heute und {1} nicht in die Limits. Es wurde nichts geändert.
+Paid in {0} parts. Each part is a draft: approve and send it like any transfer.,In {0} Teile aufgeteilt. Jeder Teil ist ein Entwurf: wie jede Überweisung freigeben und senden.
+How the parts are paid,Wie die Teile gezahlt werden
+"Dated orders at the bank: all executed on the due date, sent on different days","Terminüberweisungen bei der Bank: alle am Fälligkeitstag ausgeführt, an verschiedenen Tagen gesendet"
+"Each part executed on its own day, kept here until then","Jeder Teil an seinem eigenen Tag ausgeführt, bis dahin hier gehalten"
+Send on,Senden am
+Executed on,Ausgeführt am
+Every part becomes a draft dated order for the due date. Send each to the bank on its day — the bank counts the limit on the day of sending. The day is noted on each part.,Jeder Teil wird ein Entwurf einer Terminüberweisung zum Fälligkeitstag. Jeden an seinem Tag an die Bank senden – die Bank zählt das Limit am Sendetag. Der Tag ist an jedem Teil vermerkt.
+"Every part becomes a draft transfer of its own, kept here until its date.",Jeder Teil wird ein eigener Überweisungsentwurf und bis zu seinem Datum hier gehalten.
+Each is approved and sent with its own TAN.,Jeder wird einzeln freigegeben und mit eigener TAN gesendet.
+Unknown way of paying in parts: {0},Unbekannte Art der Teilzahlung: {0}
+Part {0} of {1}: send to the bank on {2}. Executed by the bank on {3}.,Teil {0} von {1}: am {2} an die Bank senden. Ausführung durch die Bank am {3}.

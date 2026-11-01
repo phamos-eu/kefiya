@@ -121,8 +121,25 @@ def limit_window(limit_type, days, date):
     return None, None
 
 
+def limit_day(row, today=None):
+    """The day an order counts against the limit.
+
+    The day the bank took it, once it has: a dated order (Terminueberweisung)
+    is counted on the day it is sent, not on the day it is executed -- several
+    parts of one payment, sent on several days and all executed on the last,
+    is how a large payment is paid within the limit (01.11.2026). Until it is
+    sent, the day it is meant to leave: its execution date.
+    """
+    if row.get("sent_on"):
+        return getdate(row.get("sent_on"))
+    return getdate(row.get("execution_date") or today or now_datetime().date())
+
+
 def committed_amount(kefiya_login, start, end, exclude=None):
     """How much is already spoken for in a window, ignoring the given documents.
+
+    Each order counts on its limit_day: the day it was sent, or, not sent
+    yet, its execution date.
 
     :param exclude: one document name or a list of them -- the ones being
         judged right now, which must not be counted against themselves.
@@ -130,19 +147,27 @@ def committed_amount(kefiya_login, start, end, exclude=None):
     if isinstance(exclude, str):
         exclude = [exclude]
     exclude = [name for name in (exclude or []) if name]
+    start, end = getdate(start), getdate(end)
 
     filters = {
         "kefiya_login": kefiya_login,
         "docstatus": 1,
         "status": ("in", COMMITTED_STATUSES),
-        "execution_date": ("between", [getdate(start), getdate(end)]),
     }
     if exclude:
         filters["name"] = ("not in", exclude)
+    or_filters = [
+        ["execution_date", "between", [start, end]],
+        ["sent_on", "between", [str(start) + " 00:00:00",
+                                str(end) + " 23:59:59.999999"]],
+    ]
 
     rows = frappe.get_all("Kefiya Transfer", filters=filters,
-                          fields=["total_amount"])
-    return sum(flt(r.total_amount) for r in rows)
+                          or_filters=or_filters,
+                          fields=["total_amount", "execution_date",
+                                  "sent_on"])
+    return sum(flt(r.total_amount) for r in rows
+               if start <= limit_day(r) <= end)
 
 
 def check_transfer(doc):
@@ -150,8 +175,12 @@ def check_transfer(doc):
     return check_batch([doc])
 
 
-def check_batch(docs):
+def check_batch(docs, on=None):
     """The same question for several orders leaving together.
+
+    ``on`` is the day they count on. Sending, that is today -- also for a
+    dated order the bank executes later (see limit_day). Planning, it is
+    left empty and the execution date stands in.
 
     The limit applies to what leaves the ACCOUNT, not to one document, so a
     batch is measured as a whole. Judging each document on its own would wave
@@ -192,7 +221,8 @@ def check_batch(docs):
                 "available": limit, "total": total, "reason": None}
 
     start, end = limit_window(limit_type, login.transfer_limit_days,
-                              docs[0].execution_date or now_datetime().date())
+                              on or docs[0].execution_date
+                              or now_datetime().date())
     used = committed_amount(docs[0].kefiya_login, start, end,
                             exclude=[d.name for d in docs])
     available = limit - used
@@ -349,3 +379,324 @@ def _next_banking_day(start, offset):
         if date.weekday() < 5:
             moved += 1
     return date
+
+
+# ---------------------------------------------------------------------------
+# Partial payments: one payment in parts, over days and accounts.
+#
+# split_over_limit above moves whole payments of a collective order to later
+# days. It cannot help when one payment alone is larger than what the account
+# may send -- the case of a large repayment or a purchase price. The functions
+# below pay such a payment in parts: backwards from its date, on the
+# transfer's own account and on accounts of the same company the user picked,
+# each part a transfer of its own (agreed on 01.11.2026, see
+# partial_payment_plan for the rule).
+# ---------------------------------------------------------------------------
+
+
+def _limit_of(kefiya_login):
+    """(amount, type, days) of a login, or None when the limit is unknown."""
+    row = frappe.db.get_value(
+        "Kefiya Login", kefiya_login,
+        ["transfer_limit_amount", "transfer_limit_type",
+         "transfer_limit_days"],
+        as_dict=True)
+    if not row or flt(row.transfer_limit_amount) <= 0 \
+            or not row.transfer_limit_type:
+        return None
+    return (flt(row.transfer_limit_amount), row.transfer_limit_type,
+            cint(row.transfer_limit_days))
+
+
+def _windows_containing(limit_type, days, day):
+    """Every limit window a transfer on ``day`` counts in.
+
+    Day, week and month windows are a partition: one window per day. A period
+    of N days is rolling -- the bank looks back N days from each date -- so a
+    transfer on ``day`` also counts for the N-1 days after it.
+    """
+    if limit_type == LIMIT_PERIOD:
+        span = max(cint(days), 1)
+        return [limit_window(limit_type, days, add_days(day, k))
+                for k in range(span)]
+    return [limit_window(limit_type, days, day)]
+
+
+def _room_function(exclude):
+    """room_on(login, day, planned) for partial_payment_plan.plan_parts."""
+    committed = {}
+
+    def used_in(login, start, end):
+        key = (login, str(start), str(end))
+        if key not in committed:
+            committed[key] = committed_amount(login, start, end,
+                                              exclude=exclude)
+        return committed[key]
+
+    def room_on(login, day, planned):
+        limit = _limit_of(login)
+        if not limit:
+            return 0
+        amount, limit_type, days = limit
+        if limit_type == LIMIT_SINGLE:
+            # Per order: one part per account and day, each up to the limit.
+            taken = any(p[1] == login and getdate(p[0]) == getdate(day)
+                        for p in planned)
+            return 0 if taken else amount
+        free = None
+        for start, end in _windows_containing(limit_type, days, day):
+            start, end = getdate(start), getdate(end)
+            used = used_in(login, start, end) + sum(
+                p[2] for p in planned
+                if p[1] == login and start <= getdate(p[0]) <= end)
+            room = amount - used
+            free = room if free is None else min(free, room)
+        return max(free or 0, 0)
+
+    return room_on
+
+
+def _paying_iban(kefiya_login):
+    from kefiya.kefiya.doctype.kefiya_transfer.kefiya_transfer import (
+        normalize_iban,
+    )
+
+    account = frappe.db.get_value("Kefiya Login", kefiya_login,
+                                  "bank_account")
+    iban = frappe.db.get_value("Bank Account", account, "iban") \
+        if account else None
+    return normalize_iban(iban or "")
+
+
+def _partial_payment_source(transfer_name):
+    """The draft to be paid in parts, or an error message."""
+    frappe.has_permission("Kefiya Transfer", ptype="write",
+                          doc=transfer_name, throw=True)
+    doc = frappe.get_doc("Kefiya Transfer", transfer_name)
+    if doc.docstatus != 0:
+        return doc, _(
+            "Only a draft can be paid in parts: after approval the amount is"
+            " locked.")
+    if len(doc.items) != 1:
+        return doc, _(
+            "Partial payments are planned for a transfer with one payment."
+            " Use \"Split over days\" for a collective order, or enter the"
+            " large payment on a transfer of its own.")
+    if flt(doc.items[0].amount) <= 0:
+        return doc, _("The payment has no amount.")
+    if not _limit_of(doc.kefiya_login):
+        return doc, _(
+            "No transfer limit is known for {0}. It must be kept on the bank"
+            " access before a payment can be planned in parts -- the limit is"
+            " never guessed.").format(doc.kefiya_login)
+    return doc, None
+
+
+@frappe.whitelist()
+def partial_payment_accounts(transfer_name):
+    """The accounts a draft may be paid from in parts.
+
+    The transfer's own account first, then every other account of the SAME
+    company with a bank access -- the money of another company is never an
+    option. An account whose limit is unknown is listed but cannot be picked,
+    and the recipient's own account is left out.
+    """
+    doc, error = _partial_payment_source(transfer_name)
+    if error:
+        return {"status": "error", "message": error}
+
+    from kefiya.kefiya.doctype.kefiya_transfer.kefiya_transfer import (
+        normalize_iban,
+    )
+
+    recipient = normalize_iban(doc.items[0].recipient_iban or "")
+    accounts = []
+    for login in frappe.get_all(
+            "Kefiya Login", fields=["name", "bank_account"],
+            order_by="name", limit_page_length=500):
+        if not login.bank_account:
+            continue
+        company = frappe.db.get_value("Bank Account", login.bank_account,
+                                      "company")
+        if company != doc.company:
+            continue
+        if _paying_iban(login.name) == recipient:
+            continue
+        limit = _limit_of(login.name)
+        accounts.append({
+            "kefiya_login": login.name,
+            "bank_account": login.bank_account,
+            "own": login.name == doc.kefiya_login,
+            "limit": limit[0] if limit else None,
+            "limit_type": limit[1] if limit else None,
+            "usable": bool(limit),
+        })
+    accounts.sort(key=lambda a: (not a["own"], a["kefiya_login"]))
+    return {"status": "ok", "amount": flt(doc.items[0].amount),
+            "due": str(getdate(doc.execution_date or now_datetime().date())),
+            "accounts": accounts}
+
+
+#: How the parts reach the payee (agreed 01.11.2026, both on offer):
+#: "bank" -- dated orders (Terminueberweisung): every part carries the due
+#: date and is held by the bank; the parts are SENT on different days, and the
+#: bank counts the limit on the day of sending, executing all of them on the
+#: due date. "kefiya" -- each part is executed on its own day, kept here until
+#: then.
+MODE_BANK = "bank"
+MODE_KEFIYA = "kefiya"
+MODES = (MODE_BANK, MODE_KEFIYA)
+
+
+def _mode(mode):
+    mode = mode or MODE_BANK
+    if mode not in MODES:
+        frappe.throw(_("Unknown way of paying in parts: {0}").format(mode))
+    return mode
+
+
+def _plan(doc, extra_logins):
+    """Plan the parts of ``doc`` -- always on the server, from the database.
+
+    The accounts are checked again here: what the browser sends is a wish,
+    not a permission.
+    """
+    from kefiya.utils import partial_payment_plan
+
+    if isinstance(extra_logins, str):
+        extra_logins = frappe.parse_json(extra_logins or "[]")
+    allowed = {a["kefiya_login"] for a in
+               partial_payment_accounts(doc.name).get("accounts", [])
+               if a["usable"]}
+    logins = [doc.kefiya_login]
+    for login in extra_logins or []:
+        if login not in allowed:
+            frappe.throw(_(
+                "{0} cannot be used for this payment: it belongs to another"
+                " company, has no known limit, or is the recipient."
+            ).format(login))
+        if login not in logins:
+            logins.append(login)
+
+    due = getdate(doc.execution_date or now_datetime().date())
+    today = getdate(now_datetime().date())
+    if due < today:
+        frappe.throw(_(
+            "The execution date {0} has passed. Set the date by which the"
+            " payment must be complete, then plan the parts."
+        ).format(frappe.utils.formatdate(due)))
+
+    parts, rest = partial_payment_plan.plan_parts(
+        flt(doc.items[0].amount), due, today, logins,
+        _room_function(exclude=[doc.name]))
+    return parts, rest, due
+
+
+def _part_rows(parts, due, mode):
+    """Each part as shown: the day it is sent and the day it is executed."""
+    return [{"send_on": str(day),
+             "execution_date": str(due if mode == MODE_BANK else day),
+             "kefiya_login": login, "amount": amount}
+            for day, login, amount in parts]
+
+
+@frappe.whitelist()
+def plan_partial_payments(transfer_name, extra_logins=None, mode=None):
+    """What paying this draft in parts would place -- nothing is changed."""
+    mode = _mode(mode)
+    doc, error = _partial_payment_source(transfer_name)
+    if error:
+        return {"status": "error", "message": error}
+    parts, rest, due = _plan(doc, extra_logins)
+    result = {
+        "status": "ok" if rest <= 0.004 else "does_not_fit",
+        "mode": mode,
+        "due": str(due),
+        "parts": _part_rows(parts, due, mode),
+        "rest": rest,
+    }
+    if rest > 0.004:
+        result["message"] = _(
+            "{0} of {1} does not fit the limits between today and {2}."
+            " Nothing would be placed: pick another account, or set a later"
+            " date."
+        ).format(frappe.utils.fmt_money(rest),
+                 frappe.utils.fmt_money(doc.items[0].amount),
+                 frappe.utils.formatdate(due))
+    return result
+
+
+@frappe.whitelist()
+def split_into_partial_payments(transfer_name, extra_logins=None, mode=None):
+    """Pay a draft in parts: one draft transfer per part.
+
+    The plan is made again here rather than taken from the browser, so the
+    limits are those of this moment. All or nothing: when the amount does not
+    fit, nothing is changed. The first part stays on the original document,
+    so its name and anything referring to it survive; every part is a draft,
+    approved and sent like any transfer, each with its own TAN.
+
+    mode "bank": every part is a dated order for the due date, held by the
+    bank; the day to send it is written on it as a comment -- the bank counts
+    the limit on that day. mode "kefiya": every part is executed on its own
+    day and kept here until then (manage_due_date).
+    """
+    from kefiya.utils import partial_payment_plan
+
+    mode = _mode(mode)
+    doc, error = _partial_payment_source(transfer_name)
+    if error:
+        return {"status": "error", "message": error}
+    parts, rest, due = _plan(doc, extra_logins)
+    if rest > 0.004 or not parts:
+        return {"status": "error", "message": _(
+            "{0} does not fit the limits between today and {1}. Nothing was"
+            " changed."
+        ).format(frappe.utils.fmt_money(rest), frappe.utils.formatdate(due))}
+
+    row = doc.items[0].as_dict()
+    count = len(parts)
+    names = []
+    for index, (day, login, amount) in enumerate(parts, start=1):
+        item = _clean_row(row)
+        item["amount"] = amount
+        item["purpose"] = partial_payment_plan.part_purpose(
+            row.get("purpose"), index, count)
+        item["end_to_end_id"] = partial_payment_plan.part_end_to_end_id(
+            row.get("end_to_end_id"), index, count)
+        if index == 1:
+            target = doc
+            target.items = []
+        else:
+            target = frappe.new_doc("Kefiya Transfer")
+            target.company = doc.company
+            target.standing_order = doc.standing_order
+        target.kefiya_login = login
+        if mode == MODE_BANK:
+            # A dated order at the bank: not instant -- the bank holds it.
+            target.execution_date = str(due)
+            target.manage_due_date = 0
+            target.instant_payment = 0
+        else:
+            target.execution_date = str(day)
+            target.manage_due_date = 1
+            target.instant_payment = doc.instant_payment
+        target.append("items", item)
+        if index == 1:
+            target.save()
+        else:
+            target.insert()
+        if mode == MODE_BANK:
+            target.add_comment("Comment", _(
+                "Part {0} of {1}: send to the bank on {2}. Executed by the"
+                " bank on {3}."
+            ).format(index, count, frappe.utils.formatdate(day),
+                     frappe.utils.formatdate(due)))
+        names.append(target.name)
+
+    return {"status": "ok", "documents": names,
+            "parts": _part_rows(parts, due, mode),
+            "message": _(
+                "Paid in {0} parts. Each part is a draft: approve and send it"
+                " like any transfer."
+            ).format(count)}

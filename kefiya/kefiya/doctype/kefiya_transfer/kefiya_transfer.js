@@ -137,6 +137,17 @@ frappe.ui.form.on("Kefiya Transfer", {
 			);
 		}
 
+		// One payment larger than the account may send in a day is paid in
+		// parts -- over days and, if the user picks them, other accounts of
+		// the same company. Only a saved draft with one payment: after
+		// approval the amount is locked.
+		if (frm.doc.docstatus === 0 && !frm.is_new()
+				&& (frm.doc.items || []).length === 1) {
+			frm.add_custom_button(__("Pay in parts"), function () {
+				kefiya_partial_payment_dialog(frm);
+			});
+		}
+
 		kefiya_render_summary(frm);
 	},
 
@@ -531,4 +542,139 @@ function kefiya_confirm_and_send(frm) {
 		},
 	});
 	d.show();
+}
+
+/**
+ * Pay one payment in parts: pick accounts, see the plan, then create it.
+ *
+ * Two steps on purpose. The plan says which account pays how much on which
+ * day; the money is split only after the user has seen it. The server plans
+ * again when creating, with the limits of that moment -- the preview is a
+ * preview, not a promise.
+ */
+function kefiya_partial_payment_dialog(frm) {
+	const method = "kefiya.utils.transfer_limit.";
+	const run = function () {
+		frappe.call({
+			method: method + "partial_payment_accounts",
+			args: { transfer_name: frm.doc.name },
+		}).then(function (r) {
+			const res = (r && r.message) || {};
+			if (res.status !== "ok") {
+				frappe.msgprint({ title: __("Pay in parts"), indicator: "red",
+					message: frappe.utils.escape_html(res.message || "") });
+				return;
+			}
+			kefiya_partial_payment_pick(frm, res, method);
+		});
+	};
+	if (frm.is_dirty()) {
+		frm.save().then(run);
+	} else {
+		run();
+	}
+}
+
+function kefiya_partial_payment_pick(frm, res, method) {
+	const others = res.accounts.filter((a) => !a.own);
+	const fmt = (v) => format_currency(v, "EUR");
+	const options = others.map(function (a) {
+		return {
+			label: a.kefiya_login + (a.usable
+				? " · " + __("limit {0}", [fmt(a.limit)])
+				: " · " + __("no known limit")),
+			value: a.kefiya_login,
+			disabled: !a.usable,
+		};
+	});
+	const own = res.accounts.find((a) => a.own) || {};
+	const fields = [{
+		fieldtype: "Select",
+		fieldname: "mode",
+		label: __("How the parts are paid"),
+		options: [
+			{ value: "bank", label: __("Dated orders at the bank: all executed on the due date, sent on different days") },
+			{ value: "kefiya", label: __("Each part executed on its own day, kept here until then") },
+		],
+		default: "bank",
+		reqd: 1,
+	}, {
+		fieldtype: "HTML",
+		options: "<p>" + __("{0} is paid backwards from {1}: the last part on that day, earlier parts on the banking days before it, never before today. Each day the transfer's own account is used first, then the accounts ticked below.",
+			[fmt(res.amount), frappe.datetime.str_to_user(res.due)])
+			+ "</p><p>" + __("Own account: {0}", [frappe.utils.escape_html(own.kefiya_login || "")])
+			+ (own.limit ? " · " + __("limit {0}", [fmt(own.limit)]) : "")
+			+ "</p>",
+	}];
+	if (options.length) {
+		fields.push({
+			fieldtype: "MultiCheck",
+			fieldname: "extra",
+			label: __("Other accounts of the same company"),
+			options: options,
+			columns: 1,
+		});
+	}
+	const d = new frappe.ui.Dialog({
+		title: __("Pay in parts"),
+		fields: fields,
+		primary_action_label: __("Show plan"),
+		primary_action: function (values) {
+			const extra = (values && values.extra) || [];
+			const mode = (values && values.mode) || "bank";
+			frappe.call({
+				method: method + "plan_partial_payments",
+				args: { transfer_name: frm.doc.name, extra_logins: extra, mode: mode },
+			}).then(function (r) {
+				const plan = (r && r.message) || {};
+				d.hide();
+				kefiya_partial_payment_confirm(frm, plan, extra, mode, method);
+			});
+		},
+	});
+	d.show();
+}
+
+function kefiya_partial_payment_confirm(frm, plan, extra, mode, method) {
+	const fmt = (v) => format_currency(v, "EUR");
+	if (plan.status === "error") {
+		frappe.msgprint({ title: __("Pay in parts"), indicator: "red",
+			message: frappe.utils.escape_html(plan.message || "") });
+		return;
+	}
+	const rows = (plan.parts || []).map(function (p, i) {
+		return "<tr><td>" + (i + 1) + "</td><td>"
+			+ frappe.datetime.str_to_user(p.send_on) + "</td><td>"
+			+ frappe.datetime.str_to_user(p.execution_date) + "</td><td>"
+			+ frappe.utils.escape_html(p.kefiya_login) + "</td>"
+			+ "<td style='text-align:right'>" + fmt(p.amount) + "</td></tr>";
+	}).join("");
+	let html = "<table class='table table-bordered table-condensed'><thead><tr><th>#</th><th>"
+		+ __("Send on") + "</th><th>" + __("Executed on") + "</th><th>"
+		+ __("Account") + "</th><th>"
+		+ __("Amount") + "</th></tr></thead><tbody>" + rows + "</tbody></table>";
+	if (plan.status !== "ok") {
+		frappe.msgprint({ title: __("Does not fit"), indicator: "orange",
+			message: html + "<p>" + frappe.utils.escape_html(plan.message || "") + "</p>" });
+		return;
+	}
+	html += "<p>" + (mode === "bank"
+		? __("Every part becomes a draft dated order for the due date. Send each to the bank on its day — the bank counts the limit on the day of sending. The day is noted on each part.")
+		: __("Every part becomes a draft transfer of its own, kept here until its date.")
+	) + " " + __("Each is approved and sent with its own TAN.") + "</p>";
+	frappe.confirm(html, function () {
+		frappe.call({
+			method: method + "split_into_partial_payments",
+			args: { transfer_name: frm.doc.name, extra_logins: extra, mode: mode },
+			freeze: true,
+		}).then(function (r) {
+			const res = (r && r.message) || {};
+			frappe.msgprint({ title: __("Pay in parts"),
+				indicator: res.status === "ok" ? "green" : "red",
+				message: frappe.utils.escape_html(res.message || "")
+					+ (res.documents ? "<br>" + res.documents.map(
+						(n) => frappe.utils.escape_html(n)).join(", ") : "") });
+			frm.reload_doc();
+		});
+	});
 }
