@@ -15,6 +15,25 @@ anything is sent. An order that does not fit is not silently trimmed either:
 splitting money across days is a decision, so it happens on request and creates
 documents you can see, each with its own execution date.
 
+WHERE THE BANK NAMES NONE, and that is most accounts -- 24 of 59 on the
+instance this was measured on, all of them checked and all of them blank --
+the limit is entered by hand on the login. It is then used exactly like the
+bank's own; check_batch cannot tell them apart and must not.
+
+Who wins is settled, and it is not "the last writer": a value the bank
+REPORTS replaces what stands there, and a bank that reports nothing, or
+zero, leaves it alone. pick_binding_limit keeps only amounts above zero, so
+an empty answer never becomes `chosen`, and refresh_transfer_limit then
+stamps transfer_limit_checked_on and touches nothing else. That is what
+makes a hand-entered limit survive every nightly fetch.
+
+A blank limit is UNKNOWN, not unlimited. check_batch says so and lets the
+order through: nothing is blocked on a guess. The cost of that is the
+reason the hand entry exists -- an order over an unpublished limit is
+refused by the bank with a bare "9050 Die Nachricht enthaelt Fehler / 9010
+Der Auftrag wurde nicht ausgefuehrt", after the TAN was spent on it, with
+nothing in it that names a limit.
+
 FinTS Limitart:
     E   per single order
     T   per day

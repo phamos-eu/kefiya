@@ -252,20 +252,18 @@
   {
    "fieldname": "transfer_limit_section",
    "fieldtype": "Section Break",
-   "label": "Transfer Limit (from the bank)",
-   "description": "Read from the bank's HIUPD account information. Blank means the bank names no limit for this account -- which is not the same as no limit existing, so treat a blank as unknown."
+   "label": "Transfer Limit",
+   "description": "The limit that stops a transfer. Read from the bank's HIUPD account information where the bank names one -- and many do not. Where it does not, enter the limit here: the check before sending uses it exactly as it uses the bank's own. A value the bank reports replaces what stands here; a bank that reports nothing, or zero, leaves it alone. Blank means unknown, and unknown is not unlimited -- nothing is blocked on a guess."
   },
   {
    "fieldname": "transfer_limit_amount",
    "fieldtype": "Currency",
-   "label": "Limit Amount",
-   "read_only": 1
+   "label": "Limit Amount"
   },
   {
    "fieldname": "transfer_limit_type",
    "fieldtype": "Data",
    "label": "Limit Type",
-   "read_only": 1,
    "description": "FinTS Limitart: E per order, T per day, W per week, M per month, Z per period of the given number of days."
   },
   {
@@ -275,14 +273,14 @@
   {
    "fieldname": "transfer_limit_days",
    "fieldtype": "Int",
-   "label": "Limit Period (days)",
-   "read_only": 1
+   "label": "Limit Period (days)"
   },
   {
    "fieldname": "transfer_limit_checked_on",
    "fieldtype": "Datetime",
    "label": "Limit Read On",
-   "read_only": 1
+   "read_only": 1,
+   "description": "When the bank was last asked. A record of the fetch, not a setting."
   },
   {
    "fieldname": "stored_vop_state",
