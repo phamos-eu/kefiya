@@ -83,3 +83,21 @@ def sold_positions(previous_isins, current_isins):
     now = {str(isin).strip().upper()
            for isin in (current_isins or []) if str(isin or "").strip()}
     return sorted(before - now)
+
+
+def depot_fetch_due(last_fetch, now):
+    """Whether a depot is due: not yet tried on the calendar day of ``now``.
+
+    Holdings move with the market, not with bookings: one snapshot a day is
+    enough, and every extra HKWPD is another bank dialog that may ask for a
+    TAN. The gate used to be "20 hours since the last try". A fetch by hand
+    in the evening then blocked the scheduled one the next morning, and every
+    later click pushed the morning run further out. A calendar day keeps the
+    morning run with the bank fetch, whatever was pressed the day before.
+
+    :param last_fetch: datetime (or ISO string) of the last try, or None
+    :param now: datetime (or ISO string) of this run
+    """
+    if not last_fetch:
+        return True
+    return str(last_fetch)[:10] < str(now)[:10]

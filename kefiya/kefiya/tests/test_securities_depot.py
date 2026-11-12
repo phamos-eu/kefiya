@@ -21,7 +21,8 @@ from collections import namedtuple
 
 from kefiya.utils.securities_rows import (holding_rows,
                                           same_account_number,
-                                          sold_positions)
+                                          sold_positions,
+                                          depot_fetch_due)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.normpath(os.path.join(HERE, "..", ".."))
@@ -243,6 +244,28 @@ class TestTheScheduleFetchesDepots(unittest.TestCase):
             1, self.py.count('"Kefiya Login", login_name, '
                              '"enable_tan_authentication"'))
         self.assertIn("controller_class(login_name) \\", self.py)
+
+
+class TestOneDepotFetchPerCalendarDay(unittest.TestCase):
+    """A fetch by hand in the evening used to block the scheduled one the
+    next morning (20-hour gate). One fetch per calendar day keeps the
+    morning run with the bank fetch."""
+
+    def test_never_fetched_is_due(self):
+        self.assertTrue(depot_fetch_due(None, "2026-11-02 06:01:00"))
+
+    def test_evening_click_does_not_block_the_next_morning(self):
+        self.assertTrue(
+            depot_fetch_due("2026-11-01 21:26:10", "2026-11-02 06:01:00"))
+
+    def test_second_fetch_on_the_same_day_is_not_due(self):
+        self.assertFalse(
+            depot_fetch_due("2026-11-02 06:01:00", "2026-11-02 21:00:00"))
+
+    def test_the_schedule_uses_the_calendar_day_gate(self):
+        source = _read("utils", "securities.py")
+        self.assertIn("depot_fetch_due(last, now)", source)
+        self.assertNotIn("DEPOT_FETCH_MIN_HOURS", source)
 
 
 class TestDoctypes(unittest.TestCase):

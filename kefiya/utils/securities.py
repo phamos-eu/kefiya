@@ -14,16 +14,12 @@ series for portfolio reporting.
 import hashlib
 
 import frappe
-from frappe.utils import now_datetime, getdate, flt, time_diff_in_hours
+from frappe.utils import now_datetime, getdate, flt
 
-from kefiya.utils.securities_rows import sold_positions
+from kefiya.utils.securities_rows import depot_fetch_due, sold_positions
 
 DOCTYPE = "Kefiya Security Holding"
 ACCOUNT_DOCTYPE = "Kefiya Securities Account"
-
-#: Holdings move with the market, not with bookings: one snapshot a day is
-#: enough, and every extra HKWPD is another bank dialog that may ask for a TAN.
-DEPOT_FETCH_MIN_HOURS = 20
 
 SOURCE_BANK = "Bank"
 
@@ -251,8 +247,8 @@ def _close_sold_positions(kefiya_login, company, account, snapshot, now):
 def depots_due(kefiya_login, now=None):
     """The depots hanging off ``kefiya_login`` that are due for a fetch.
 
-    A depot is due when it is set to fetch holdings and was not tried within
-    ``DEPOT_FETCH_MIN_HOURS``.
+    A depot is due when it is set to fetch holdings and was not tried yet
+    on this calendar day (``securities_rows.depot_fetch_due``).
     """
     now = now or now_datetime()
     due = []
@@ -262,7 +258,7 @@ def depots_due(kefiya_login, now=None):
             fields=["name", "account_number", "subaccount_number",
                     "last_holdings_fetch"]):
         last = row.get("last_holdings_fetch")
-        if last and time_diff_in_hours(now, last) < DEPOT_FETCH_MIN_HOURS:
+        if not depot_fetch_due(last, now):
             continue
         due.append(row)
     return due

@@ -63,7 +63,7 @@ def _fetch_due_depots(login_name, controller_class):
     Zeitplan fuer diesen Zugang ohnehin hat.
 
     Was faellig ist, entscheidet depots_due: nur Depots mit "Bestand
-    abrufen", und erst wieder nach DEPOT_FETCH_MIN_HOURS. Ein Zugang ohne
+    abrufen", und einmal je Kalendertag (depot_fetch_due). Ein Zugang ohne
     faelliges Depot fasst die Bank gar nicht an -- die Verbindung wird erst
     im Schleifenkoerper von refresh_linked_depots gebaut, und der laeuft
     dann nicht.
