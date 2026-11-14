@@ -2,6 +2,7 @@
  "cards_label": "Reports & Masters",
  "category": "Modules",
  "charts": [],
+ "content": "[{\"id\": \"kefiyacard1\", \"type\": \"card\", \"data\": {\"card_name\": \"Integrations\", \"col\": 4}}, {\"id\": \"kefiyacard2\", \"type\": \"card\", \"data\": {\"card_name\": \"Tools\", \"col\": 4}}]",
  "creation": "2021-10-09 13:42:33.536589",
  "developer_mode_only": 0,
  "disable_user_customization": 0,
@@ -87,7 +88,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-10-27 19:50:00.000000",
+ "modified": "2026-11-14 10:30:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya",
