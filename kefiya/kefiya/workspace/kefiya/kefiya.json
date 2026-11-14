@@ -88,12 +88,13 @@
    "type": "Link"
   }
  ],
- "modified": "2026-11-14 10:30:00.000000",
+ "modified": "2026-11-14 11:00:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya",
  "owner": "Administrator",
  "pin_to_bottom": 0,
  "pin_to_top": 0,
- "shortcuts": []
+ "shortcuts": [],
+ "title": "Kefiya"
 }
