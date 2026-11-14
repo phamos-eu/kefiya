@@ -4,7 +4,7 @@ import frappe
 import json
 from erpnext import get_default_cost_center
 from erpnext.setup.utils import get_exchange_rate
-from frappe.utils import flt
+from frappe.utils import cstr, flt
 from frappe import _
 from erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool import (
     reconcile_vouchers,
@@ -24,6 +24,8 @@ def custom_create_journal_entry_bts(
     party=None,
     allow_edit=None,
 ):
+    _check_permissions(bank_transaction_name, party_type, party)
+
     # Create a new journal entry based on the bank transaction
     bank_transaction = frappe.db.get_values(
         "Bank Transaction",
@@ -215,3 +217,27 @@ def custom_create_journal_entry_bts(
     )
 
     return reconcile_vouchers(bank_transaction_name, vouchers)
+
+
+def _check_permissions(bank_transaction_name, party_type, party):
+    """The checks ERPNext 16's create_journal_entry_bts makes before it books.
+
+    This override replaces that method, so it has to make them itself:
+    write access to the Bank Transaction, and read access to the party.
+    ERPNext 15 has no such helpers, so they are written out here.
+    """
+    bank_transaction_name = cstr(bank_transaction_name)
+    if not bank_transaction_name or not frappe.has_permission(
+        "Bank Transaction", "write", doc=bank_transaction_name
+    ):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+    party = cstr(party)
+    if not party:
+        return
+    party_type = cstr(party_type)
+    if not frappe.db.exists("Party Type", party_type):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)
+    ptype = "select" if frappe.only_has_select_perm(party_type) else "read"
+    if not frappe.has_permission(party_type, ptype, doc=party):
+        frappe.throw(_("Not permitted"), frappe.PermissionError)

@@ -172,12 +172,29 @@ def get_open_transactions(company=None):
     rows = frappe.get_list(
         "Bank Transaction",
         filters=filters,
-        fields=["bank_account", "count(name) as count",
-                "sum(unallocated_amount) as amount", "min(date) as oldest",
-                "currency"],
+        fields=["bank_account", *_aggregate_fields(), "currency"],
         group_by="bank_account, currency",
     )
     return {d.bank_account: d for d in rows}
+
+
+def _aggregate_fields():
+    """Count, open amount and oldest date per bank account.
+
+    Frappe v16 rejects SQL functions written as strings and wants dicts;
+    v15's get_list only understands the string form.
+    """
+    if int(frappe.__version__.split(".")[0]) >= 16:
+        return [
+            {"COUNT": "name", "as": "count"},
+            {"SUM": "unallocated_amount", "as": "amount"},
+            {"MIN": "date", "as": "oldest"},
+        ]
+    return [
+        "count(name) as count",
+        "sum(unallocated_amount) as amount",
+        "min(date) as oldest",
+    ]
 
 
 def get_bank_account_summary(company, open_transactions):

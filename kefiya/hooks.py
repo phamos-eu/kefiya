@@ -10,6 +10,19 @@ app_title = "Kefiya"
 app_publisher = "Phamos GmbH"
 app_description = "FinTS Connector for ERPNext (Germany)"
 app_icon = "fa fa-university"
+app_logo_url = "/assets/kefiya/images/kefiya-logo.svg"
+# /app/... works on v15 and redirects to /desk/... on v16
+app_home = "/app/kefiya-hub"
+
+add_to_apps_screen = [
+	{
+		"name": app_name,
+		"logo": app_logo_url,
+		"title": app_title,
+		"route": app_home,
+		"has_permission": "kefiya.utils.permissions.check_app_permission",
+	}
+]
 app_color = "#3498db"
 app_email = "support@phamos.eu"
 app_license = "MIT"
