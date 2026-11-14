@@ -1,11 +1,12 @@
 import frappe
 
-# The roles the Kefiya pages are open to (see the "roles" of kefiya/kefiya/page/*/*.json)
-KEFIYA_ROLES = {"System Manager", "Accounts Manager", "Accounts User"}
-
 
 def check_app_permission():
-    """Whether the Kefiya tile shows on the apps screen for the current user."""
+    """Whether the Kefiya tile shows on the apps screen for the current user.
+
+    The tile opens Kefiya Hub, so it shows to whoever may open that page: its roles,
+    including what the site changed in "Role Permission for Page and Report".
+    """
     if frappe.session.user == "Administrator":
         return True
-    return bool(KEFIYA_ROLES & set(frappe.get_roles()))
+    return frappe.get_doc("Page", "kefiya-hub").is_permitted()

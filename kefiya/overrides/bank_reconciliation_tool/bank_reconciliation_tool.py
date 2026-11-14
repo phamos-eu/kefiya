@@ -218,6 +218,7 @@ def custom_create_journal_entry_bts(
 
     return reconcile_vouchers(bank_transaction_name, vouchers)
 
+
 def _check_permissions(bank_transaction_name, party_type, party):
     """The checks ERPNext 16's create_journal_entry_bts makes before it books.
 
