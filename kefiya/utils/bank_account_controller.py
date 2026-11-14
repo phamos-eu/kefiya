@@ -180,6 +180,9 @@ def has_page_permission(page_name):
 
 def validate_unique_iban(doc, method):
     """Bank Account IBAN should be unique."""
+    if not doc.iban:
+        # Accounts without an IBAN (cash, PayPal) don't collide with each other
+        return
     doctype = "Bank Account"
     bankAccountName = frappe.db.get_value(
         doctype,
