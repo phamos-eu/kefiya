@@ -1,6 +1,7 @@
 import frappe
 from frappe.model.document import Document
 import csv
+import io
 import os
 from frappe.utils import get_files_path
 from datetime import datetime
@@ -84,7 +85,9 @@ def parse_statement(rawdata, errors=None):
 class KefiyaBankStatementImport(Document):
 
 	def read_file(self) -> bytes:
-		with open(self.get_file_from_url(self.import_file), 'rb') as f:
+		# get_file_from_url returns only the path of a File the user may read, and only
+		# when it lies inside the site's files folders
+		with open(self.get_file_from_url(self.import_file), 'rb') as f:  # nosemgrep
 			return f.read()
 
 	@frappe.whitelist()
@@ -301,8 +304,10 @@ class KefiyaBankStatementImport(Document):
 					# A failed submit must not leave a half-written document behind
 					frappe.db.rollback(save_point=savepoint)
 					entry.update(status=importer.ERROR, message=strip_html(str(e)) or type(e).__name__)
+				# Each row is its own document: keep the rows done so far, even if the
+				# background job dies later, and let the progress shown in the form be true
 				if not frappe.flags.in_test:
-					frappe.db.commit()
+					frappe.db.commit()  # nosemgrep
 			if (index + 1) % PROGRESS_EVERY == 0 or index + 1 == total:
 				frappe.publish_realtime(
 					'kefiya_statement_import_progress',
@@ -339,14 +344,15 @@ class KefiyaBankStatementImport(Document):
 
 	def start_legacy_import(self, rawdata):
 		"""Files Kefiya has no mapping for: the old import by fixed column positions."""
-		file_path = self.get_file_from_url(self.import_file)
 		encoding = detect_format(rawdata)
 		bank_account, company = self.bank_account, self.company
-		total_rows = sum(1 for _ in open(file_path, mode='r', encoding=encoding))-7
+		# The file is read once (read_file); newline=None reads it as open() did
+		text = rawdata.decode(encoding or 'utf-8', errors='replace')
+		total_rows = sum(1 for _ in io.StringIO(text, newline=None))-7
 		self.db_set('payload_count', total_rows)
 
 		try:
-			with open(file_path, mode='r', encoding=encoding, errors='replace') as csvfile:
+			with io.StringIO(text, newline=None) as csvfile:
 				csv_reader = csv.reader(csvfile)
 				# Skip header (the first 7 rows)
 				for _row in range(7):
