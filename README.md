@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg"></a>
   <img alt="Frappe / ERPNext 15 and 16" src="https://img.shields.io/badge/ERPNext-v15%20%7C%20v16-0089ff">
 </p>
 
@@ -102,7 +102,7 @@ Kefiya is developed and maintained by [phamos GmbH](https://phamos.eu), an ERPNe
 
 ## Contributing
 
-Pull requests are welcome. Development happens at [git.phamos.eu/phamos/kefiya](https://git.phamos.eu/phamos/kefiya); issues and pull requests opened on GitHub are forwarded there automatically, and we answer on GitHub.
+Pull requests are welcome. Development happens at [git.phamos.eu/phamos/kefiya](https://git.phamos.eu/phamos/kefiya); issues and pull requests opened on GitHub are forwarded there automatically, and we answer on GitHub. By contributing, you agree that your contribution is published under the license of the project, AGPL-3.0.
 
 To run the tests on a development site:
 
@@ -112,6 +112,8 @@ bench --site your-test-site run-tests --app kefiya
 
 ## License
 
-Kefiya is free software under the [MIT License](LICENSE).
+Kefiya is free software under the [GNU Affero General Public License, version 3](LICENSE) (AGPL-3.0-only). You may use it, change it and pass it on. If you pass on a changed version, or let others use a changed version over a network, for example on a hosted ERPNext, you must publish your changes under the same license.
+
+The releases up to v16.0.0 (for ERPNext 16) and v0.6.3 (for ERPNext 15) were published under the MIT License and stay available under it; see [NOTICE](NOTICE).
 
 It builds on [python-fints](https://github.com/raphaelm/python-fints) (LGPL-3.0) and [mt-940](https://github.com/wolph/mt940) (BSD), which are installed as separate packages.
