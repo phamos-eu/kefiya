@@ -391,19 +391,17 @@ def get_bank_transaction_wizard_list(doctype, fields, filters, order_by, start, 
 	priority_filters = list(filters or []) + [[doctype, party_field, "in", list(priority_parties)]]
 	non_priority_filters = list(filters or []) + [[doctype, party_field, "not in", list(priority_parties)]]
 
-	# Count priority rows: pass only allowed args so "fields" is always a list of strings
-	_count_args = {
-		"doctype": doctype,
-		"fields": [f"`tab{doctype}`.name"],
-		"filters": priority_filters,
-		"order_by": None,
-		"start": 0,
-		"page_length": 0,
-		"run": 0,
-	}
-	partial_query = execute(**_count_args)
-	total_priority = int(
-		frappe.db.sql(f"""select count(*) from ( {partial_query} ) _p""")[0][0]
+	# Count priority rows with the same permission checks as the list. Not as
+	# count(*): Frappe 16 refuses SQL functions as strings, Frappe 15 needs them so.
+	total_priority = len(
+		execute(
+			doctype=doctype,
+			fields=[f"`tab{doctype}`.name"],
+			filters=priority_filters,
+			order_by=None,
+			start=0,
+			page_length=0,
+		)
 	)
 
 	if start >= total_priority:

@@ -10,6 +10,8 @@ import frappe
 from frappe import _
 from frappe.utils.csvutils import getlink
 
+from kefiya.utils.sql import read_query
+
 
 class BankAccountController:
     def __init__(self):
@@ -145,11 +147,7 @@ class BankAccountController:
         Query payment entries for missing bank accounts.
         :return: List of payment entry data
         """
-        file_path = os.path.join(self.cur_dir, './sql/bank_wizard.sql')
-        filehandle = open(file_path)
-        sqlQuery = filehandle.read()
-        filehandle.close()
-        return frappe.db.sql(sqlQuery, as_dict=True)
+        return frappe.db.sql(read_query("bank_wizard.sql"), as_dict=True)
 
 
 def has_page_permission(page_name):
