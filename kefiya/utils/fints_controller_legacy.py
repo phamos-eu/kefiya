@@ -118,7 +118,9 @@ class FinTSController:
             )
         except Exception as e:
             frappe.throw(
-                _("Could not conntect to fints server with error<br>{0}").format(e)
+                _("Could not conntect to fints server with error<br>{0}").format(
+                    escape_html(str(e))
+                )
             )
 
     def __init_tan_processing(self):
@@ -169,7 +171,7 @@ class FinTSController:
                     throw_tan_authentication_required(self.kefiya_login, get_bank_answer(e))
                 frappe.throw(_(
                     "Could not load sepa accounts with error:<br>{0}"
-                ).format(e))
+                ).format(escape_html(str(e))))
 
     def __get_fints_account_by_key(self, key, value):
         try:
