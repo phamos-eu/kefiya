@@ -63,6 +63,13 @@ doctype_js = {
 # automatically create page for each record of this doctype
 # website_generators = ["Web Page"]
 
+# Fixtures
+# --------
+
+fixtures = [
+    {"dt": "Custom Field", "filters": [["module", "=", "Kefiya"]]},
+]
+
 # Installation
 # ------------
 after_migrate = "kefiya.setup.install.after_migrate"
