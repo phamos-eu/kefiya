@@ -114,7 +114,7 @@ def export_request(payment_request_name):
 		return {"status": "error", "message": str(e)}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def send_sepa_xml_via_email(recipient_email, xml_content):
 	try:
 		subject = _("Moneyplex SEPA File")

@@ -4,6 +4,7 @@
 from __future__ import unicode_literals
 
 import frappe
+from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
 
 def _use_tan_authentication(kefiya_login) -> bool:
@@ -196,7 +197,7 @@ def create_mastercard_journal_entry_from_purchase_invoice(invoice_doc, bank_tran
         elif bt.withdrawal > 0:
             allocated_amount= -paid_amount # NEGATIVE to increase unallocated
     else: # create payment entry for normal purchase invoice
-        payment_entry_doc = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", "Purchase Invoice", invoice_doc.name)
+        payment_entry_doc = get_payment_entry("Purchase Invoice", invoice_doc.name)
         payment_entry_doc.payment_type = "Pay"
         payment_entry_doc.paid_amount = paid_amount
         payment_entry_doc.posting_date = bt.date
@@ -257,7 +258,7 @@ def create_payment_entry(bank_transaction_name, invoice_name, match_against):
         if unallocated_amount <= outstanding_amount:
             paid_amount = unallocated_amount
 
-        payment_entry = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", match_against, invoice_name)
+        payment_entry = get_payment_entry(match_against, invoice_name)
 
         payment_entry.paid_amount = paid_amount
         payment_entry.posting_date = bank_transaction.date

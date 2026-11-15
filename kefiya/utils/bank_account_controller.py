@@ -137,7 +137,7 @@ class BankAccountController:
         except Exception as e:
             frappe.throw(_(
                 "Could not create bank account with error: {0}"
-            ).format(e))
+            ).format(frappe.utils.escape_html(str(e))))
 
     def get_missing_bank_accounts(self):
         """Get possibly missing bank accounts.
