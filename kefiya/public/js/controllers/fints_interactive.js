@@ -31,7 +31,9 @@ kefiya.interactive = {
 	 */
 	use_tan_and_try_again: async function(kefiya_login) {
 		frappe.hide_msgprint();
-		const frm = cur_frm;
+		// The form on screen, if any: frappe.views.formview keeps one per doctype
+		const [view, doctype] = frappe.get_route();
+		const frm = view === "Form" ? frappe.views.formview[doctype]?.frm : null;
 
 		if (frm && frm.doctype === "Kefiya Login" && frm.docname === kefiya_login) {
 			// set_value + save keeps other unsaved edits on the form

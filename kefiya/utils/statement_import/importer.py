@@ -175,7 +175,7 @@ def make_journal_entry(transaction: dict, bank: frappe._dict, company: str, acco
     date = getdate(transaction["date"])
     amount = abs(flt(transaction["amount"]))
     deposit = transaction["amount"] > 0
-    remark = ": ".join(filter(None, [transaction["party_name"], transaction["description"]]))
+    remark = ": ".join(t for t in (transaction["party_name"], transaction["description"]) if t)
 
     doc = frappe.new_doc(JOURNAL_ENTRY)
     doc.update({
