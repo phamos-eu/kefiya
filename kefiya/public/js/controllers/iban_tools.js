@@ -88,7 +88,7 @@ kefiya.iban_tools = {
 				}
 			});
 		}else{
-			data = {
+			const data = {
 				valid: false,
 				messages: 'Invalid IBAN',
 				iban: iban,
