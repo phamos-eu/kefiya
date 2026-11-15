@@ -114,6 +114,6 @@ bench --site your-test-site run-tests --app kefiya
 
 Kefiya is free software under the [GNU Affero General Public License, version 3](LICENSE) (AGPL-3.0-only). You may use it, change it and pass it on. If you pass on a changed version, or let others use a changed version over a network, for example on a hosted ERPNext, you must publish your changes under the same license.
 
-The releases up to v16.0.1 (for ERPNext 16) and v0.6.5 (for ERPNext 15) were published under the MIT License and stay available under it; see [NOTICE](NOTICE).
+The releases up to v16.0.1 (for ERPNext 16) and v0.6.6 (for ERPNext 15) were published under the MIT License and stay available under it; see [NOTICE](NOTICE).
 
 It builds on [python-fints](https://github.com/raphaelm/python-fints) (LGPL-3.0) and [mt-940](https://github.com/wolph/mt940) (BSD), which are installed as separate packages.
