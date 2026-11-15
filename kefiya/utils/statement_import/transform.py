@@ -18,8 +18,15 @@ from frappe import _
 GERMAN_AMOUNT = re.compile(r"[-+]?(\d{1,3}(\.\d{3})+|\d+)(,\d+)?")
 ENGLISH_AMOUNT = re.compile(r"[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?")
 
-# Currency signs, codes and spaces around an amount, such as "12,50 €" or "EUR -3,20"
-AMOUNT_DECORATION = re.compile(r"^[^\d.,+-]+|[^\d.,+-]+$")
+# Currency signs, a three-letter code and spaces around an amount, such as "12,50 €" or
+# "EUR -3,20". Nothing else is stripped: "(12,50)", "12,50 S" or "12,50 DR" mark a
+# withdrawal, and stripping the mark would book it as a deposit, so they fail instead.
+CURRENCY_SIGNS = r"[\s€$£¥]*"
+LEADING_DECORATION = re.compile(rf"^{CURRENCY_SIGNS}(?:[A-Za-z]{{3}}(?![A-Za-z]))?{CURRENCY_SIGNS}")
+TRAILING_DECORATION = re.compile(rf"{CURRENCY_SIGNS}(?:(?<![A-Za-z])[A-Za-z]{{3}})?{CURRENCY_SIGNS}$")
+
+# ISO 4217 code, as ERPNext's Currency names are
+CURRENCY_CODE = re.compile(r"[A-Z]{3}")
 
 # Bank Transaction.transaction_id is a Data field
 MAX_ID_LENGTH = 140
@@ -48,7 +55,7 @@ def parse_english_amount(amount: str) -> float:
 def parse_amount(text: str, number_format: str) -> float:
     """Parse an amount cell; a currency sign or code around it is allowed, a trailing minus too."""
     text = (text or "").replace("\xa0", " ").strip()
-    core = AMOUNT_DECORATION.sub("", text)
+    core = TRAILING_DECORATION.sub("", LEADING_DECORATION.sub("", text, count=1), count=1)
     if core.endswith("-") and not core.startswith(("-", "+")):
         core = "-" + core[:-1].strip()
     parse = parse_german_amount if number_format == "de" else parse_english_amount
@@ -185,7 +192,11 @@ class Transform:
 
         base = {"date": date}
         if "currency" in columns:
-            base["currency"] = self.column(row, "currency")
+            currency = self.column(row, "currency").upper()
+            # Shown in the preview, so only a currency code is let through
+            if currency and not CURRENCY_CODE.fullmatch(currency):
+                raise ValueError(_("Not a currency code: {0}").format(currency))
+            base["currency"] = currency
 
         transaction = dict(
             base,

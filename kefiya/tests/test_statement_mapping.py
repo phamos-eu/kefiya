@@ -96,6 +96,16 @@ class TestAmounts(FrappeTestCase):
             with self.subTest(text=text), self.assertRaises(ValueError):
                 parse_amount(text, number_format)
 
+    def test_debit_marks_are_refused_not_dropped(self):
+        # Dropping the mark would book a withdrawal as a deposit
+        for text, number_format in [("(12,50)", "de"), ("12,50 S", "de"), ("12,50 Soll", "de"),
+                                    ("12.50 DR", "en"), ("(12.50)", "en")]:
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                parse_amount(text, number_format)
+
+    def test_currency_code_without_space(self):
+        self.assertEqual(parse_amount("12,50EUR", "de"), 12.5)
+
 
 class TestTransform(FrappeTestCase):
     def test_deposit_and_withdrawal_columns(self):
@@ -109,6 +119,14 @@ class TestTransform(FrappeTestCase):
         self.assertEqual(rows[1]["party_name"], "Office Supplies")  # payee of a withdrawal
         self.assertEqual(rows[1]["description"], "Paper,\nToner")
         self.assertEqual((rows[2]["currency"], rows[2]["reference_number"]), ("EUR", "R3"))
+
+    def test_currency_must_be_a_code(self):
+        # The currency is shown in the preview, so markup must not get through
+        rawdata = ENGLISH_CSV.replace(b",EUR,R1", b",<img src=x onerror=alert(1)>,R1").replace(b",EUR,R2", b",usd,R2")
+        result = run(rawdata, ENGLISH_MAPPING)
+        self.assertEqual([line for line, _message in result["errors"]], [5])
+        rows = [transaction for _line, transaction in result["transactions"]]
+        self.assertEqual([row["currency"] for row in rows], ["USD", "EUR"])
 
     def test_generic_ids_are_stable_and_unique(self):
         first = [t["transaction_id"] for _l, t in run(ENGLISH_CSV, ENGLISH_MAPPING)["transactions"]]
