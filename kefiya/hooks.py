@@ -3,6 +3,8 @@
 # For license information, please see license.txt
 from __future__ import unicode_literals
 
+from frappe import __version__ as _frappe_version
+
 from . import __version__ as app_version  # noqa: F401
 
 app_name = "kefiya"
@@ -12,14 +14,14 @@ app_description = "FinTS Connector for ERPNext (Germany)"
 app_icon = "fa fa-university"
 app_color = "#3498db"
 app_email = "support@phamos.eu"
-app_license = "MIT"
+app_license = "AGPL-3.0"
 
 # Includes in <head>
 # ------------------
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/kefiya/css/kefiya.css"
-# app_include_js = "/assets/kefiya/js/kefiya.js"
+app_include_js = "kefiya.bundle.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/kefiya/css/kefiya.css"
@@ -100,12 +102,18 @@ before_install = "kefiya.utils.install.before_install"
 
 # DocType Class
 # ---------------
-# Override standard doctype classes
+# Kefiya's classes for Journal Entry and Bank Transaction. Frappe 16 adds them
+# to the standard classes (extend_doctype_class), so other apps can extend the
+# same doctypes. Frappe 15 knows no extend_doctype_class, only the override.
 
-override_doctype_class = {
+_doctype_classes = {
     "Journal Entry": "kefiya.overrides.journal_entry.journal_entry.CustomJournalEntry",
     "Bank Transaction": "kefiya.overrides.bank_transaction.bank_transaction.CustomBankTransaction",
 }
+if int(_frappe_version.split(".")[0]) >= 16:
+    extend_doctype_class = _doctype_classes
+else:
+    override_doctype_class = _doctype_classes  # nosemgrep
 
 # Document Events
 # ---------------

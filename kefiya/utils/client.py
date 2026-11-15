@@ -4,6 +4,7 @@
 from __future__ import unicode_literals
 
 import frappe
+from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 
 
 def _use_tan_authentication(kefiya_login) -> bool:
@@ -196,7 +197,7 @@ def create_mastercard_journal_entry_from_purchase_invoice(invoice_doc, bank_tran
         elif bt.withdrawal > 0:
             allocated_amount= -paid_amount # NEGATIVE to increase unallocated
     else: # create payment entry for normal purchase invoice
-        payment_entry_doc = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", "Purchase Invoice", invoice_doc.name)
+        payment_entry_doc = get_payment_entry("Purchase Invoice", invoice_doc.name)
         payment_entry_doc.payment_type = "Pay"
         payment_entry_doc.paid_amount = paid_amount
         payment_entry_doc.posting_date = bt.date
@@ -257,7 +258,7 @@ def create_payment_entry(bank_transaction_name, invoice_name, match_against):
         if unallocated_amount <= outstanding_amount:
             paid_amount = unallocated_amount
 
-        payment_entry = frappe.call("erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry", match_against, invoice_name)
+        payment_entry = get_payment_entry(match_against, invoice_name)
 
         payment_entry.paid_amount = paid_amount
         payment_entry.posting_date = bank_transaction.date
@@ -390,19 +391,17 @@ def get_bank_transaction_wizard_list(doctype, fields, filters, order_by, start, 
 	priority_filters = list(filters or []) + [[doctype, party_field, "in", list(priority_parties)]]
 	non_priority_filters = list(filters or []) + [[doctype, party_field, "not in", list(priority_parties)]]
 
-	# Count priority rows: pass only allowed args so "fields" is always a list of strings
-	_count_args = {
-		"doctype": doctype,
-		"fields": [f"`tab{doctype}`.name"],
-		"filters": priority_filters,
-		"order_by": None,
-		"start": 0,
-		"page_length": 0,
-		"run": 0,
-	}
-	partial_query = execute(**_count_args)
-	total_priority = int(
-		frappe.db.sql(f"""select count(*) from ( {partial_query} ) _p""")[0][0]
+	# Count priority rows with the same permission checks as the list. Not as
+	# count(*): Frappe 16 refuses SQL functions as strings, Frappe 15 needs them so.
+	total_priority = len(
+		execute(
+			doctype=doctype,
+			fields=[f"`tab{doctype}`.name"],
+			filters=priority_filters,
+			order_by=None,
+			start=0,
+			page_length=0,
+		)
 	)
 
 	if start >= total_priority:

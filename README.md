@@ -46,4 +46,6 @@ If you want to upload your bank's statement file manually and its format is not 
 
 ### License
 
-MIT License
+Kefiya is free software under the [GNU Affero General Public License, version 3](LICENSE) (AGPL-3.0-only). If you pass on a changed version, or let others use a changed version over a network, you must publish your changes under the same license.
+
+The releases up to v16.0.1 (for ERPNext 16) and v0.6.5 (for ERPNext 15) were published under the MIT License and stay available under it; see [NOTICE](NOTICE).

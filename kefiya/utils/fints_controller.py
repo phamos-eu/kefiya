@@ -308,7 +308,9 @@ class FinTSController:
             )
         except Exception as e:
             frappe.throw(
-                _("Could not conntect to fints server with error<br>{0}").format(e)
+                _("Could not conntect to fints server with error<br>{0}").format(
+                    frappe.utils.escape_html(str(e))
+                )
             )
 
     @contextlib.contextmanager
@@ -487,7 +489,9 @@ class FinTSController:
                 for hint in dict.fromkeys(hints[code] for code, _text in error_log.bank_errors if code in hints):
                     message += "<br><br>" + hint
             else:
-                message = _("Could not load sepa accounts with error:<br>{0}").format(e)
+                message = _("Could not load sepa accounts with error:<br>{0}").format(
+                    frappe.utils.escape_html(str(e))
+                )
             if error_log.name:
                 # relative link: get_link_to_form uses the site's host_name, which
                 # can differ from the address the user opened the site with
