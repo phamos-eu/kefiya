@@ -46,7 +46,9 @@ jobs:
               echo "frappe=version-15"
               echo "python=3.10"
               echo "node=18"
-              echo "mariadb=10.6"
+              # The runner's MariaDB client insists on TLS, which the 10.6
+              # image does not offer. ERPNext's own v15 CI uses 11.8 too.
+              echo "mariadb=11.8"
             } >> "$GITHUB_OUTPUT"
           else
             {
