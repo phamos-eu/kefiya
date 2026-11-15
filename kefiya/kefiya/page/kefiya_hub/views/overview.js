@@ -8,11 +8,6 @@ const STEP_INDICATOR = {
 	todo: { color: "gray", label: __("Not set up") },
 };
 
-const LOGIN_INDICATOR = {
-	ok: { color: "green", label: __("Up to date") },
-	warning: { color: "orange", label: __("Needs attention") },
-	error: { color: "red", label: __("Connection failed") },
-};
 
 kefiya.hub.register_view(
 	new (class OverviewView {
@@ -141,7 +136,7 @@ kefiya.hub.register_view(
 	render_connect(d) {
 		const rows = d.logins
 			.map((l) => {
-				const s = LOGIN_INDICATOR[l.status];
+				const s = kefiya.hub.LOGIN_INDICATOR[l.status];
 				const schedule = l.schedule
 					? `${__(l.schedule.import_frequency)} ${l.schedule.hour ? l.schedule.hour + ":00" : ""}${
 							l.schedule.active ? "" : ` <span class="text-muted">(${__("paused")})</span>`

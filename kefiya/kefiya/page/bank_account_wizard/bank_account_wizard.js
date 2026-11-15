@@ -2,8 +2,6 @@
 // For license information, please see license.txt
 frappe.provide("kefiya.tools");
 
-{% include "kefiya/public/js/controllers/iban_tools.js" %}
-
 frappe.pages['bank_account_wizard'].on_page_load = function(wrapper) {
 	kefiya.tools.bankWizardObj = new kefiya.tools.bankWizard(
 		wrapper);

@@ -28,3 +28,6 @@ kefiya/docs/current
 !kefiya/tests/fixtures/*.csv
 # DKB names its exports DD-MM-YYYY_Umsatzliste_<account>.csv: ignored everywhere, fixtures included
 [0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9]_*msatzliste*.csv
+
+# Built by bench build
+kefiya/public/dist

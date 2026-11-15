@@ -5,6 +5,7 @@
 Create:  bench --site <site> execute kefiya.utils.demo_data.create --kwargs '{"company": "My Company"}'
 Remove:  bench --site <site> execute kefiya.utils.demo_data.delete
 All demo records are tagged with DEMO_TAG so they can be removed again.
+bench execute commits at the end, so the functions here don't.
 """
 
 import random
@@ -36,7 +37,6 @@ def create(company="My Company"):
     create_imports()
     create_transactions(company, bank_accounts)
     create_statement_import(company, bank_accounts)
-    frappe.db.commit()
     print("Kefiya demo data created for", company)
 
 
@@ -171,4 +171,3 @@ def delete():
             frappe.delete_doc("Kefiya Login", login, force=True)
     for name in frappe.get_all("Bank Account", filters={"branch_code": DEMO_TAG}, pluck="name"):
         frappe.delete_doc("Bank Account", name, force=True)
-    frappe.db.commit()

@@ -38,12 +38,10 @@ def execute():
 
         if not bt.expense_account:
             expense_account = next(
-                filter(
-                    None,
-                    (
-                        get_voucher_expense_account(pe.payment_document, pe.payment_entry, company_account)
-                        for pe in payment_entries
-                    ),
+                (
+                    account
+                    for pe in payment_entries
+                    if (account := get_voucher_expense_account(pe.payment_document, pe.payment_entry, company_account))
                 ),
                 None,
             )
