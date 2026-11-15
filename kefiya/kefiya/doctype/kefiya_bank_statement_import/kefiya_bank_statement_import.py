@@ -166,6 +166,9 @@ class KefiyaBankStatementImport(Document):
 		a DKB or PayPal export is imported by its built-in mapping, other files by the old
 		fixed-position import. With a mapping the import runs in the background.
 		"""
+		# frm.call sends the whole form, and run_doc_method builds this doc from it, so its
+		# file, bank account and company are the client's. Only the saved values count.
+		self.reload()
 		self.check_permission('write')
 		for value, fieldname in ((file_url, 'import_file'), (bank_account, 'bank_account'), (company, 'company')):
 			if value and value != self.get(fieldname):
@@ -602,7 +605,7 @@ def import_log_row(entry) -> dict:
 	}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def save_import_template(template_name, mapping, header_columns=None):
 	"""Save a column mapping as a template, or update the template of this name."""
 	if isinstance(header_columns, str):
