@@ -10,6 +10,7 @@ kefiya.hub.register_view = (view) => {
 };
 
 {% include "kefiya/kefiya/page/kefiya_hub/fints_session.js" %}
+{% include "kefiya/kefiya/page/kefiya_hub/statement_wizard.js" %}
 {% include "kefiya/kefiya/page/kefiya_hub/views/overview.js" %}
 {% include "kefiya/kefiya/page/kefiya_hub/views/connect.js" %}
 {% include "kefiya/kefiya/page/kefiya_hub/views/imports.js" %}

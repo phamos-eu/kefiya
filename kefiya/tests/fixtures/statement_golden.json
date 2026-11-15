@@ -1,0 +1,322 @@
+{
+ "dkb_giro_umsatzliste.csv": [
+  {
+   "amount": -450.0,
+   "date": "2026-10-30",
+   "description": "1234567890123456 30.10  LEASING RATE  KFZ BEISPIEL VERTRAG",
+   "party_iban": "DE89370400440532013000",
+   "party_name": "Beispiel Leasing GmbH",
+   "reference_number": "",
+   "transaction_id": "251121bfd1670818234bc8d34ad1f135"
+  },
+  {
+   "amount": 1190.0,
+   "date": "2026-10-29",
+   "description": "Rechnung RE-2026-0815 vielen Dank",
+   "party_iban": "DE02120300000000202051",
+   "party_name": "Erika Musterfrau",
+   "reference_number": "",
+   "transaction_id": "4c54e58b5f72ac123f1694007f569a66"
+  },
+  {
+   "amount": -49.99,
+   "date": "2026-10-28",
+   "description": "K1234567 R987654321 V123456789 Rechnung Oktober",
+   "party_iban": "DE02500105170137075030",
+   "party_name": "Beispiel Telekom AG",
+   "reference_number": "K1234567+R987654321",
+   "transaction_id": "92e909e0a4334c5fb77290bdea1e3f7c"
+  },
+  {
+   "amount": -19.9,
+   "date": "2026-10-27",
+   "description": "K1234567 R987654322 V123456789 monatlich",
+   "party_iban": "DE02500105170137075030",
+   "party_name": "Beispiel Telekom AG",
+   "reference_number": "K1234567+R987654322",
+   "transaction_id": "08d973185f92549c1c7f179f1d540579"
+  },
+  {
+   "amount": -1500.0,
+   "date": "2026-10-25",
+   "description": "Ausgleich Kreditkarte 4000 **** **** 0000",
+   "party_iban": "DE75512108001245126199",
+   "party_name": "DKB Kreditkarte",
+   "reference_number": "",
+   "transaction_id": "051e0d9007be5431833d4717014b4985"
+  },
+  {
+   "amount": 2380.5,
+   "date": "2026-10-24",
+   "description": "Zahlung zu Auftrag 4711 vom 01.10.26 Kundennr.: 1abcd234-5ef6-789a-01b2-34567890cd5e",
+   "party_iban": "DE12500105170648489890",
+   "party_name": "BEISPIEL KUNDE AG",
+   "reference_number": "20261024",
+   "transaction_id": "27ba810984031519505b5b030c7b4cbd"
+  },
+  {
+   "amount": -1234.56,
+   "date": "2026-10-22",
+   "description": "STEUERNR.12345/67890 UST.VA OKT.26 1.234,56 EUR",
+   "party_iban": "DE68210501700012345678",
+   "party_name": "Finanzamt Beispielstadt",
+   "reference_number": "12345/67890 UST.VOA1234567890123456",
+   "transaction_id": "43d3f62e62a132a031a63f36c42fcc47"
+  },
+  {
+   "amount": -312.4,
+   "date": "2026-10-20",
+   "description": "Beitrag Betriebshaftpflicht",
+   "party_iban": "DE91100000000123456789",
+   "party_name": "Beispiel Versicherung AG",
+   "reference_number": "A12345678901",
+   "transaction_id": "69e6bbcd52bbc5b945da9dd432155bdd"
+  },
+  {
+   "amount": 99.0,
+   "date": "2026-10-18",
+   "description": "1234567",
+   "party_iban": "DE02120300000000202051",
+   "party_name": "ERIKA MUSTERFRAU",
+   "reference_number": "",
+   "transaction_id": "8d793dd8c1e76eda6fa0eed0c28e041a"
+  },
+  {
+   "amount": -99.0,
+   "date": "2026-10-15",
+   "description": "K7654321 R123456789 V987654321 Lizenz",
+   "party_iban": "DE27100777770209299700",
+   "party_name": "BEISPIEL SOFTWARE",
+   "reference_number": "1234567890123456",
+   "transaction_id": "9f4fe95f73185c3cc5bc59f3dc4494e1"
+  },
+  {
+   "amount": -12.5,
+   "date": "2026-10-12",
+   "description": "K7654321 R123456790 V987654321 Bestellung",
+   "party_iban": "DE27100777770209299700",
+   "party_name": "Beispiel Buero Bedarf",
+   "reference_number": "",
+   "transaction_id": "2b3a5d33e8c52da9fece55a3ca65adc9"
+  },
+  {
+   "amount": -450.0,
+   "date": "2026-10-10",
+   "description": "1234567890123456 10.10  LEASING RATE  KFZ BEISPIEL VERTRAG",
+   "party_iban": "DE89370400440532013000",
+   "party_name": "Beispiel Leasing GmbH",
+   "reference_number": "",
+   "transaction_id": "6cbea6e962864a728ee7f0af86ac6a54"
+  }
+ ],
+ "dkb_visa_umsatzliste.csv": [
+  {
+   "amount": 1500.0,
+   "date": "2026-10-30",
+   "description": "Ausgleich Kreditkarte (Gutschrift)",
+   "party_name": "Ausgleich Kreditkarte",
+   "transaction_id": "3dc1cf0fe4cc819641d42d863c61e26b"
+  },
+  {
+   "amount": 250.0,
+   "date": "2026-10-28",
+   "description": "Ausgleich Kreditkarte (Gutschrift)",
+   "party_name": "Ausgleich Kreditkarte",
+   "transaction_id": "7207a119cfd8dddcfcc5d031b13ed8c1"
+  },
+  {
+   "amount": 12.5,
+   "date": "2026-10-26",
+   "description": "Ausgleich Kreditkarte (Gutschrift)",
+   "party_name": "Ausgleich Kreditkarte",
+   "transaction_id": "5df525121d4d449a30271e0649215fbd"
+  },
+  {
+   "amount": -23.4,
+   "date": "2026-10-24",
+   "description": "TANKSTELLE BEISPIEL (Im Geschäft)",
+   "party_name": "TANKSTELLE BEISPIEL",
+   "transaction_id": "5d2fbcc377405ce8d112f21a4675782a"
+  },
+  {
+   "amount": -7.0,
+   "date": "2026-10-22",
+   "description": "BEISPIEL MARKT KOELN (Im Geschäft)",
+   "party_name": "BEISPIEL MARKT KOELN",
+   "transaction_id": "467e3972e1357845bc2ebfe97fdc67b2"
+  },
+  {
+   "amount": -1234.56,
+   "date": "2026-10-20",
+   "description": "BEISPIEL MARKT KOELN (Im Geschäft)",
+   "party_name": "BEISPIEL MARKT KOELN",
+   "transaction_id": "308b6147fc39cec86c6f869ba80e5eb2"
+  },
+  {
+   "amount": -49.99,
+   "date": "2026-10-18",
+   "description": "CLOUD DIENST BEISPIEL (Onlinezahlung, -52,30 $)",
+   "party_name": "CLOUD DIENST BEISPIEL",
+   "transaction_id": "6cb7242e527933cdc8add013e2a43f7b"
+  },
+  {
+   "amount": -19.9,
+   "date": "2026-10-16",
+   "description": "EXAMPLE.COM/BILL (Onlinezahlung)",
+   "party_name": "EXAMPLE.COM/BILL",
+   "transaction_id": "f5ae8eb178ff244fd3adcd81a7878dc9"
+  },
+  {
+   "amount": -2000.0,
+   "date": "2026-10-14",
+   "description": "MUSTERSHOP ONLINE (Onlinezahlung)",
+   "party_name": "MUSTERSHOP ONLINE",
+   "transaction_id": "48a0b75ad6b338bf354e5c3f4d077def"
+  },
+  {
+   "amount": -0.96,
+   "date": "2026-10-12",
+   "description": "Auslandseinsatzentgelt (Entgelt)",
+   "party_name": "Auslandseinsatzentgelt",
+   "transaction_id": "224854c354dc23f68948640b8743a07c"
+  },
+  {
+   "amount": -1.05,
+   "date": "2026-10-10",
+   "description": "Auslandseinsatzentgelt (Entgelt)",
+   "party_name": "Auslandseinsatzentgelt",
+   "transaction_id": "594e95116b70ec01287a28ead2f13855"
+  },
+  {
+   "amount": -9.99,
+   "date": "2026-10-08",
+   "description": "BEISPIEL SERVICE *ABO (Unbekannt, -10,50 $)",
+   "party_name": "BEISPIEL SERVICE *ABO",
+   "transaction_id": "39bfe0aac6dddb1a9f79d32fa2e17d58"
+  },
+  {
+   "amount": -15.0,
+   "date": "2026-10-06",
+   "description": "BEISPIEL SERVICE *ABO (Unbekannt)",
+   "party_name": "BEISPIEL SERVICE *ABO",
+   "transaction_id": "e539add230112d555b06f7b93bda1d0a"
+  },
+  {
+   "amount": -4.8,
+   "date": "2026-10-04",
+   "description": "MUSTER CAFE BERLIN (Im Geschäft)",
+   "party_name": "MUSTER CAFE BERLIN",
+   "transaction_id": "1437743a81dcd920b741d18df4faa0ea"
+  }
+ ],
+ "paypal_auszug.csv": [
+  {
+   "amount": 59.9,
+   "currency": "EUR",
+   "date": "2026-08-01",
+   "description": "PayPal Express-Zahlung, Bestellung AB10001",
+   "party_name": "Max Mustermann",
+   "reference_number": "Bestellung AB10001",
+   "transaction_id": "1AB23456CD789012E"
+  },
+  {
+   "amount": -1.84,
+   "currency": "EUR",
+   "date": "2026-08-01",
+   "description": "PayPal Gebühr zu 1AB23456CD789012E",
+   "party_name": "PayPal",
+   "reference_number": "1AB23456CD789012E",
+   "transaction_id": "1AB23456CD789012E-fee"
+  },
+  {
+   "amount": 1234.56,
+   "currency": "EUR",
+   "date": "2026-08-02",
+   "description": "PayPal Express-Zahlung, Bestellung AB10002",
+   "party_name": "Erika Musterfrau",
+   "reference_number": "Bestellung AB10002",
+   "transaction_id": "2CD34567EF890123G"
+  },
+  {
+   "amount": -32.45,
+   "currency": "EUR",
+   "date": "2026-08-02",
+   "description": "PayPal Gebühr zu 2CD34567EF890123G",
+   "party_name": "PayPal",
+   "reference_number": "2CD34567EF890123G",
+   "transaction_id": "2CD34567EF890123G-fee"
+  },
+  {
+   "amount": -1500.0,
+   "currency": "EUR",
+   "date": "2026-08-03",
+   "description": "Allgemeine Abbuchung",
+   "party_name": "",
+   "reference_number": "",
+   "transaction_id": "3EF45678GH901234J"
+  },
+  {
+   "amount": -89.0,
+   "currency": "EUR",
+   "date": "2026-08-04",
+   "description": "Einbehaltung für offene Autorisierung, Lizenz 2026-08, zu 4GH56789JK012345L",
+   "party_name": "Beispiel Software GmbH",
+   "reference_number": "Lizenz 2026-08",
+   "transaction_id": "5JK67890LM123456N"
+  },
+  {
+   "amount": 89.0,
+   "currency": "EUR",
+   "date": "2026-08-05",
+   "description": "Rückbuchung allgemeiner Einbehaltung, Lizenz 2026-08, zu 5JK67890LM123456N",
+   "party_name": "Beispiel Software GmbH",
+   "reference_number": "Lizenz 2026-08",
+   "transaction_id": "6LM78901NP234567Q"
+  },
+  {
+   "amount": -89.0,
+   "currency": "EUR",
+   "date": "2026-08-05",
+   "description": "PayPal Express-Zahlung, Lizenz 2026-08, zu 4GH56789JK012345L",
+   "party_name": "Beispiel Software GmbH",
+   "reference_number": "Lizenz 2026-08",
+   "transaction_id": "7NP89012QR345678S"
+  },
+  {
+   "amount": -59.9,
+   "currency": "EUR",
+   "date": "2026-08-06",
+   "description": "Rückzahlung, Bestellung AB10001, zu 1AB23456CD789012E",
+   "party_name": "Max Mustermann",
+   "reference_number": "Bestellung AB10001",
+   "transaction_id": "8QR90123ST456789U"
+  },
+  {
+   "amount": 1.49,
+   "currency": "EUR",
+   "date": "2026-08-06",
+   "description": "PayPal Gebühr zu 8QR90123ST456789U",
+   "party_name": "PayPal",
+   "reference_number": "8QR90123ST456789U",
+   "transaction_id": "8QR90123ST456789U-fee"
+  },
+  {
+   "amount": 19.99,
+   "currency": "EUR",
+   "date": "2026-08-07",
+   "description": "PayPal Express-Zahlung, Bestellung AB10003",
+   "party_name": "John Doe",
+   "reference_number": "Bestellung AB10003",
+   "transaction_id": "9ST01234UV567890W"
+  },
+  {
+   "amount": -0.93,
+   "currency": "EUR",
+   "date": "2026-08-07",
+   "description": "PayPal Gebühr zu 9ST01234UV567890W",
+   "party_name": "PayPal",
+   "reference_number": "9ST01234UV567890W",
+   "transaction_id": "9ST01234UV567890W-fee"
+  }
+ ]
+}
