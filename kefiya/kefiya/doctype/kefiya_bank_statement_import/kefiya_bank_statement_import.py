@@ -7,11 +7,13 @@ from datetime import datetime
 from frappe import _
 import chardet
 import hashlib
+import io
 import locale
 import re
 
 DKB_VISA = "DKB VISA"
 DKB_GIRO = "DKB Girokonto"
+PAYPAL = "PayPal"
 
 # Header rows of the DKB "Umsatzliste" exports, by format
 DKB_HEADERS = {
@@ -27,8 +29,17 @@ DKB_HEADERS = {
 }
 
 
+# Columns the import needs from a German PayPal activity export ("Aktivitäten herunterladen").
+# Which other columns an export has depends on the download settings. The buyer's e-mail,
+# address and phone number are in the file too, but are not needed and not taken over.
+PAYPAL_COLUMNS = [
+	"Datum", "Name", "Typ", "Währung", "Brutto", "Gebühr",
+	"Transaktionscode", "Auswirkung auf Guthaben",
+]
+
+
 def detect_format(rawdata):
-	"""Return the DKB format of an export with a known header row, else the encoding chardet detects."""
+	"""Return the format of an export with a known header row, else the encoding chardet detects."""
 	statement_format, _header_index = find_header(rawdata)
 	if statement_format:
 		return statement_format
@@ -36,16 +47,21 @@ def detect_format(rawdata):
 
 
 def find_header(rawdata):
-	"""Return (format, index of the header row) for a known DKB header in the first lines, else (None, None)."""
+	"""Return (format, index of the header row) for a known header in the first lines, else (None, None)."""
 	try:
 		text = rawdata.decode('utf-8-sig')
 	except UnicodeDecodeError:
 		return None, None
-	for index, row in enumerate(csv.reader(text.splitlines()[:10], delimiter=';')):
+	lines = text.splitlines()[:10]
+	for index, row in enumerate(csv.reader(lines, delimiter=';')):
 		cells = [cell.strip() for cell in row]
 		for statement_format, header in DKB_HEADERS.items():
 			if cells == header:
 				return statement_format, index
+	# A PayPal export starts with its header row and is separated by commas
+	paypal_header = next(csv.reader(lines[:1]), [])
+	if set(PAYPAL_COLUMNS) <= {cell.strip() for cell in paypal_header}:
+		return PAYPAL, 0
 	return None, None
 
 
@@ -66,13 +82,16 @@ def parse_german_amount(amount):
 
 
 def parse_statement(rawdata, errors=None):
-	"""Return the booked rows of a DKB export as dicts.
+	"""Return the booked rows of a DKB or PayPal export as dicts.
 
-	Rows whose status is not 'Gebucht' (e.g. 'Vorgemerkt') are pending and left out.
+	DKB rows whose status is not 'Gebucht' (e.g. 'Vorgemerkt') are pending and left out.
 	A row that can't be read (bad date or amount, missing columns) raises, unless an
 	`errors` list is given: then the row is skipped and (file line, message) is appended.
 	"""
 	statement_format, header_index = find_header(rawdata)
+	if statement_format == PAYPAL:
+		return parse_paypal(rawdata, errors)
+
 	header = DKB_HEADERS[statement_format]
 	make_row = {DKB_VISA: dkb_visa_row, DKB_GIRO: dkb_giro_row}[statement_format]
 	lines = rawdata.decode('utf-8-sig').splitlines()[header_index + 1:]
@@ -133,6 +152,72 @@ def dkb_giro_row(row):
 	}
 
 
+def parse_paypal(rawdata, errors=None):
+	"""Return the rows of a PayPal export that change the balance, as dicts.
+
+	'Memo' rows (authorisations) move no money and are left out. All other rows count,
+	also pending ones: PayPal has already taken a hold off the balance and books it
+	back in a row of its own. Unreadable rows are handled as in parse_statement.
+	"""
+	# newline='' keeps line breaks inside quoted cells
+	reader = csv.DictReader(io.StringIO(rawdata.decode('utf-8-sig'), newline=''))
+	rows = []
+	for row in reader:
+		if not row['Datum'] or row['Auswirkung auf Guthaben'] == 'Memo':
+			continue
+
+		try:
+			rows.extend(paypal_rows(row))
+		except (ValueError, TypeError, AttributeError) as e:
+			if errors is None:
+				raise
+			errors.append((reader.line_num, str(e)))
+	return rows
+
+
+def paypal_rows(row):
+	"""Return the transactions of one PayPal row: the gross amount and, if there is one, the fee.
+
+	They are kept apart so that a payment matches its invoice in full; together they are
+	PayPal's net amount, so the balance stays the one PayPal shows.
+	"""
+	code = row['Transaktionscode'].strip()
+	if not code:
+		raise ValueError('Transaktionscode is missing')
+
+	transaction = {
+		'date': datetime.strptime(row['Datum'].strip(), '%d.%m.%Y').date(),
+		'currency': row['Währung'].strip(),
+	}
+	related_code = (row.get('Zugehöriger Transaktionscode') or '').strip()
+	details = [
+		row['Typ'].strip(),
+		(row.get('Betreff') or '').strip(),
+		"zu {0}".format(related_code) if related_code else '',
+	]
+	rows = [dict(
+		transaction,
+		amount=parse_german_amount(row['Brutto']),
+		party_name=row['Name'].strip(),
+		description=", ".join(filter(None, details)),
+		reference_number=(row.get('Rechnungsnummer') or '').strip(),
+		# PayPal's own code, so a row keeps its id when its status changes in a later export
+		transaction_id=code,
+	)]
+
+	fee = parse_german_amount(row['Gebühr'])
+	if fee:
+		rows.append(dict(
+			transaction,
+			amount=fee,
+			party_name='PayPal',
+			description="PayPal Gebühr zu {0}".format(code),
+			reference_number=code,
+			transaction_id="{0}-fee".format(code),
+		))
+	return rows
+
+
 class KefiyaBankStatementImport(Document):
 
 	@frappe.whitelist()
@@ -156,8 +241,8 @@ class KefiyaBankStatementImport(Document):
 			rawdata = f.read()
 
 		encoding = detect_format(rawdata)
-		if encoding in DKB_HEADERS:
-			self.import_dkb(rawdata, bank_account, company)
+		if encoding in DKB_HEADERS or encoding == PAYPAL:
+			self.import_statement(rawdata, bank_account, company)
 			return
 
 		total_rows = sum(1 for _ in open(file_path, mode='r', encoding=encoding))-7
@@ -192,7 +277,7 @@ class KefiyaBankStatementImport(Document):
 			self.update_status('Error')
 
 
-	def import_dkb(self, rawdata, bank_account, company):
+	def import_statement(self, rawdata, bank_account, company):
 		"""Create a Bank Transaction per booked row; rows imported before are skipped."""
 		errors = []
 		rows = parse_statement(rawdata, errors)
@@ -228,6 +313,9 @@ class KefiyaBankStatementImport(Document):
 					"reference_number": row.get('reference_number'),
 					"transaction_id": row['transaction_id'],
 				})
+				if row.get('currency'):
+					# Bank Transaction refuses a currency that is not the bank account's
+					bank_transaction.currency = row['currency']
 				bank_transaction.insert()
 				if self.submit_after_success:
 					bank_transaction.submit()
