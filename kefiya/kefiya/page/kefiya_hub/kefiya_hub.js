@@ -2,18 +2,8 @@
 // For license information, please see license.txt
 frappe.provide("kefiya.hub");
 
-// Every view registers itself here: { key, label, render($container, hub),
-// optional bind($container, hub) once, actions(page, hub) on each show }
-kefiya.hub.views = {};
-kefiya.hub.register_view = (view) => {
-	kefiya.hub.views[view.key] = view;
-};
-
-{% include "kefiya/kefiya/page/kefiya_hub/fints_session.js" %}
-{% include "kefiya/kefiya/page/kefiya_hub/views/overview.js" %}
-{% include "kefiya/kefiya/page/kefiya_hub/views/connect.js" %}
-{% include "kefiya/kefiya/page/kefiya_hub/views/imports.js" %}
-{% include "kefiya/kefiya/page/kefiya_hub/views/coming_next.js" %}
+// The views, the FinTS session and the statement wizard come in
+// kefiya_hub.bundle.js (kefiya/public/js), loaded when the page opens.
 
 // Sidebar: section title (none for the first) and its view keys
 const KEFIYA_HUB_SIDEBAR = [
@@ -25,10 +15,18 @@ const KEFIYA_HUB_SIDEBAR = [
 ];
 
 frappe.pages["kefiya-hub"].on_page_load = function (wrapper) {
-	kefiya.hub.instance = new kefiya.hub.KefiyaHub(wrapper);
+	frappe.require("kefiya_hub.bundle.js", () => {
+		kefiya.hub.instance = new kefiya.hub.KefiyaHub(wrapper);
+		kefiya.hub.show();
+	});
 };
 
+// The first show comes before the bundle has loaded; the load shows it then
 frappe.pages["kefiya-hub"].on_page_show = function () {
+	if (kefiya.hub.instance) kefiya.hub.show();
+};
+
+kefiya.hub.show = () => {
 	kefiya.hub.instance.show_route();
 	kefiya.hub.instance.refresh();
 };

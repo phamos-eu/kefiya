@@ -16,9 +16,22 @@
   "import_file",
   "column_break_ievsf",
   "submit_after_success",
+  "import_as",
+  "template",
+  "counter_account",
+  "fee_account",
   "status",
   "payload_count",
-  "imported_records"
+  "imported_records",
+  "skipped_records",
+  "failed_records",
+  "log_section",
+  "import_log_html",
+  "import_log",
+  "mapping_section",
+  "mapping",
+  "row_accounts",
+  "file_hash"
  ],
  "fields": [
   {
@@ -40,20 +53,6 @@
    "set_only_once": 1
   },
   {
-   "fetch_from": "bank_account.bank",
-   "fieldname": "bank",
-   "fieldtype": "Data",
-   "label": "Bank",
-   "read_only": 1
-  },
-  {
-   "fieldname": "import_file",
-   "fieldtype": "Attach",
-   "in_list_view": 1,
-   "label": "Import File",
-   "reqd": 1
-  },
-  {
    "fetch_from": "bank_account.party",
    "fieldname": "party",
    "fieldtype": "Data",
@@ -68,6 +67,24 @@
    "label": "Party Type"
   },
   {
+   "fetch_from": "bank_account.bank",
+   "fieldname": "bank",
+   "fieldtype": "Data",
+   "label": "Bank",
+   "read_only": 1
+  },
+  {
+   "fieldname": "import_file",
+   "fieldtype": "Attach",
+   "in_list_view": 1,
+   "label": "Import File",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_ievsf",
+   "fieldtype": "Column Break"
+  },
+  {
    "default": "1",
    "fieldname": "submit_after_success",
    "fieldtype": "Check",
@@ -75,8 +92,35 @@
    "set_only_once": 1
   },
   {
-   "fieldname": "column_break_ievsf",
-   "fieldtype": "Column Break"
+   "default": "Bank Transaction",
+   "fieldname": "import_as",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Import As",
+   "options": "Bank Transaction\nJournal Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "template",
+   "fieldtype": "Data",
+   "label": "Column Mapping Template",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.import_as==\"Journal Entry\"",
+   "fieldname": "counter_account",
+   "fieldtype": "Link",
+   "label": "Counter Account",
+   "options": "Account",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.import_as==\"Journal Entry\"",
+   "fieldname": "fee_account",
+   "fieldtype": "Link",
+   "label": "Fee Account",
+   "options": "Account",
+   "read_only": 1
   },
   {
    "default": "Not Started",
@@ -84,7 +128,7 @@
    "fieldtype": "Select",
    "hidden": 1,
    "label": "Status",
-   "options": "Not Started\nSuccess\nPartial Success\nError",
+   "options": "Not Started\nQueued\nIn Progress\nSuccess\nPartial Success\nError",
    "read_only": 1
   },
   {
@@ -100,11 +144,74 @@
    "hidden": 1,
    "label": "Imported Records",
    "read_only": 1
+  },
+  {
+   "fieldname": "skipped_records",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Skipped Records",
+   "read_only": 1
+  },
+  {
+   "fieldname": "failed_records",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Failed Records",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.import_log",
+   "fieldname": "log_section",
+   "fieldtype": "Section Break",
+   "label": "Import Log"
+  },
+  {
+   "fieldname": "import_log_html",
+   "fieldtype": "HTML",
+   "label": "Import Log"
+  },
+  {
+   "fieldname": "import_log",
+   "fieldtype": "Code",
+   "hidden": 1,
+   "label": "Import Log Data",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.mapping",
+   "fieldname": "mapping_section",
+   "fieldtype": "Section Break",
+   "label": "Column Mapping"
+  },
+  {
+   "fieldname": "mapping",
+   "fieldtype": "Code",
+   "label": "Column Mapping",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "row_accounts",
+   "fieldtype": "Code",
+   "hidden": 1,
+   "label": "Row Accounts",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "file_hash",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "File Hash",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-05-21 16:30:24.896644",
+ "modified": "2026-11-14 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Kefiya",
  "name": "Kefiya Bank Statement Import",

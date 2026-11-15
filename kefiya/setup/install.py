@@ -45,6 +45,31 @@ def get_custom_fields():
 		}
 	]
 
+	# The statement row a Journal Entry was imported from, so a re-import skips it
+	custom_fields_journal_entry = [
+		{
+			"label": "Statement Transaction ID",
+			"fieldname": "kefiya_transaction_id",
+			"fieldtype": "Data",
+			"insert_after": "cheque_date",
+			"read_only": 1,
+			"no_copy": 1,
+			"search_index": 1,
+			"depends_on": "eval:doc.kefiya_transaction_id",
+		},
+		{
+			"label": "Statement Bank Account",
+			"fieldname": "kefiya_bank_account",
+			"fieldtype": "Link",
+			"options": "Bank Account",
+			"insert_after": "kefiya_transaction_id",
+			"read_only": 1,
+			"no_copy": 1,
+			"depends_on": "eval:doc.kefiya_bank_account",
+		},
+	]
+
 	return {
-		"Payment Request": custom_fields_payment_request
+		"Payment Request": custom_fields_payment_request,
+		"Journal Entry": custom_fields_journal_entry,
 	}
