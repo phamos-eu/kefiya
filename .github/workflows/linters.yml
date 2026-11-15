@@ -1,0 +1,65 @@
+# Linters, as the Frappe Cloud Marketplace asks for.
+#
+# Ruff checks the whole app for what is plainly broken: syntax errors,
+# undefined names, invalid comparisons. Widen the rule set once the older
+# findings (unused imports and variables, style) are cleaned up.
+#
+# Semgrep runs Frappe's own rules, the ones the Marketplace review scans with.
+# `semgrep ci` reports only what a pull request adds, so it runs on pull
+# requests only. The findings the code base has today are not covered here.
+
+name: Linters
+
+on:
+  push:
+    branches:
+      - develop
+      - version-15
+      - version-16
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linters-kefiya-${{ github.event_name }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ruff:
+    name: Python errors
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - name: Check that all files compile
+        run: python -m compileall -q kefiya
+
+      - name: Run ruff
+        run: |
+          pip install ruff
+          ruff check --select E9,F63,F7,F82 --output-format github .
+
+  semgrep:
+    name: Semgrep rules
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - name: Download Semgrep rules
+        run: git clone --depth 1 https://github.com/frappe/semgrep-rules.git frappe-semgrep-rules
+
+      - name: Run Semgrep rules
+        run: |
+          pip install semgrep
+          semgrep ci --config ./frappe-semgrep-rules/rules --config r/python.lang.correctness
