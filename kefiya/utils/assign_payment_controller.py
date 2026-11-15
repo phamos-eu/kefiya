@@ -150,5 +150,5 @@ class AssignmentController:
             frappe.log_error(frappe.get_traceback())
             frappe.throw(_(
                 "Could not create payment reference: {0}"
-            ).format(e))
+            ).format(frappe.utils.escape_html(str(e))))
             return False

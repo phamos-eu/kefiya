@@ -153,7 +153,7 @@ def get_recent_imports(company=None, limit=8):
         "Kefiya Bank Statement Import",
         filters=statement_filters,
         fields=["name", "bank_account", "status", "payload_count",
-                "imported_records", "import_file", "creation", "owner"],
+                "imported_records", "import_file", "import_as", "creation", "owner"],
         order_by="creation desc",
         limit=limit,
     )

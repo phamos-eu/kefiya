@@ -378,7 +378,9 @@ class FinTSController:
             )
         except Exception as e:
             frappe.throw(
-                _("Could not conntect to fints server with error<br>{0}").format(e)
+                _("Could not conntect to fints server with error<br>{0}").format(
+                    frappe.utils.escape_html(str(e))
+                )
             )
 
     @contextlib.contextmanager
@@ -551,7 +553,9 @@ class FinTSController:
                 # resync needed); fints goes on anyway and only gets HTTP 400 back
                 message = bank_refusal_message(_("Your bank refused to load the accounts:"), error_log)
             else:
-                message = _("Could not load sepa accounts with error:<br>{0}").format(e)
+                message = _("Could not load sepa accounts with error:<br>{0}").format(
+                    frappe.utils.escape_html(str(e))
+                )
                 if error_log.name:
                     message += error_log_link(error_log.name)
             frappe.throw(message)

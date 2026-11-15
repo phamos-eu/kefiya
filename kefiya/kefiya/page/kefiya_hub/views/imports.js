@@ -2,6 +2,8 @@
 // For license information, please see license.txt
 
 const STATEMENT_STATUS_COLOR = {
+	Queued: "blue",
+	"In Progress": "blue",
 	Success: "green",
 	"Partial Success": "orange",
 	Error: "red",
@@ -104,6 +106,7 @@ kefiya.hub.register_view(
 				: [
 						[__("Bank Account"), esc(d.bank_account || "")],
 						[__("Status"), __(d.status || "Not Started")],
+						[__("Created as"), __(d.import_as || "Bank Transaction")],
 						[__("Records"), __("{0} of {1} imported", [d.imported_records || 0, d.payload_count || 0])],
 						[__("File"), d.import_file ? `<a href="${encodeURI(d.import_file)}" target="_blank" rel="noopener">${__("Download")}</a>` : "–"],
 				  ];
@@ -228,12 +231,12 @@ kefiya.hub.register_view(
 					},
 					{
 						fieldname: "submit_after_success",
-						label: __("Submit the bank transactions"),
+						label: __("Submit the created documents"),
 						fieldtype: "Check",
 						default: 1,
 					},
 				],
-				primary_action_label: __("Import"),
+				primary_action_label: __("Next"),
 				primary_action: async (values) => {
 					const r = await frappe.call({
 						method: "frappe.client.insert",
@@ -247,21 +250,12 @@ kefiya.hub.register_view(
 						freeze: true,
 					});
 					dialog.hide();
-					// start_import reports its progress with frappe.publish_progress
-					await frappe.call({
-						method: "run_doc_method",
-						args: {
-							dt: "Kefiya Bank Statement Import",
-							dn: r.message.name,
-							method: "start_import",
-							args: {
-								file_url: values.import_file,
-								bank_account: values.bank_account,
-								company: hub.company,
-							},
-						},
+					// columns, rows and target are chosen in the wizard; it runs the import
+					new kefiya.hub.StatementWizard({
+						docname: r.message.name,
+						company: hub.company,
+						on_done: () => hub.refresh(),
 					});
-					hub.refresh();
 				},
 			});
 			dialog.show();

@@ -288,3 +288,108 @@
 .kefiya-import-row:hover {
 	background: var(--subtle-fg);
 }
+
+/* Statement import wizard (statement_wizard.js) */
+.kefiya-wizard-stepper {
+	margin-bottom: var(--padding-md);
+}
+
+.kefiya-wizard-step {
+	display: flex;
+	flex-direction: column;
+	gap: var(--padding-sm);
+}
+
+.kefiya-wizard-settings {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--padding-sm) var(--padding-md);
+	align-items: flex-end;
+}
+
+.kefiya-wizard-setting {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 140px;
+	margin: 0;
+	font-size: var(--text-sm);
+}
+
+.kefiya-wizard-status {
+	margin: 0;
+}
+
+.kefiya-wizard-mapping td:first-child {
+	white-space: nowrap;
+	width: 1%;
+}
+
+.kefiya-wizard-mapping select {
+	min-width: 180px;
+}
+
+.kefiya-wizard-sample {
+	font-size: var(--text-sm);
+	overflow-wrap: anywhere;
+}
+
+.kefiya-wizard-scroll {
+	overflow: auto;
+	max-height: 360px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-md);
+}
+
+.kefiya-wizard-scroll .table {
+	margin-bottom: 0;
+}
+
+.kefiya-wizard-file th,
+.kefiya-wizard-file td {
+	white-space: nowrap;
+	font-size: var(--text-sm);
+}
+
+.kefiya-wizard-file-title {
+	margin: var(--padding-sm) 0 var(--padding-xs);
+}
+
+.kefiya-wizard-target {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--padding-sm) var(--padding-lg);
+	align-items: baseline;
+}
+
+.kefiya-wizard-choice {
+	display: flex;
+	gap: var(--padding-xs);
+	align-items: baseline;
+	margin: 0;
+	font-weight: normal;
+}
+
+.kefiya-wizard-accounts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: var(--padding-md);
+}
+
+.kefiya-wizard-totals {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--padding-xs) var(--padding-md);
+	align-items: center;
+}
+
+.kefiya-wizard-description {
+	max-width: 320px;
+	overflow-wrap: anywhere;
+}
+
+.kefiya-wizard-account {
+	padding: 0;
+	text-align: left;
+	white-space: normal;
+}
