@@ -1,0 +1,144 @@
+# Server tests on a fresh site with ERPNext, as the Frappe Cloud Marketplace
+# asks for.
+#
+# GitLab (https://git.phamos.eu/phamos/kefiya) is the primary repository and
+# pushes its protected branches to GitHub, so a push here is a merge there.
+# Pull requests are those of external contributors.
+#
+# The branch decides the Frappe and ERPNext version: version-15 is tested on
+# version-15, every other branch on version-16.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - develop
+      - version-15
+      - version-16
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-kefiya-${{ github.event_name }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  versions:
+    name: Pick versions
+    runs-on: ubuntu-latest
+    outputs:
+      frappe: ${{ steps.pick.outputs.frappe }}
+      python: ${{ steps.pick.outputs.python }}
+      node: ${{ steps.pick.outputs.node }}
+      mariadb: ${{ steps.pick.outputs.mariadb }}
+    steps:
+      - name: Pick versions for the branch
+        id: pick
+        env:
+          BRANCH: ${{ github.base_ref || github.ref_name }}
+        run: |
+          if [ "$BRANCH" = "version-15" ]; then
+            {
+              echo "frappe=version-15"
+              echo "python=3.10"
+              echo "node=18"
+              echo "mariadb=10.6"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "frappe=version-16"
+              echo "python=3.14"
+              echo "node=24"
+              echo "mariadb=11.8"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+  tests:
+    name: Server tests (${{ needs.versions.outputs.frappe }})
+    needs: versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      redis-cache:
+        image: redis:alpine
+        ports:
+          - 13000:6379
+      redis-queue:
+        image: redis:alpine
+        ports:
+          - 11000:6379
+      mariadb:
+        image: mariadb:${{ needs.versions.outputs.mariadb }}
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: --health-cmd="mariadb-admin ping" --health-interval=5s --health-timeout=2s --health-retries=3
+
+    env:
+      FRAPPE_BRANCH: ${{ needs.versions.outputs.frappe }}
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ needs.versions.outputs.python }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ needs.versions.outputs.node }}
+          check-latest: true
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ needs.versions.outputs.frappe }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ needs.versions.outputs.frappe }}-
+
+      - name: Install MariaDB client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mariadb-client
+
+      - name: Setup bench
+        run: |
+          pip install frappe-bench
+          bench init --skip-redis-config-generation --skip-assets --frappe-branch "$FRAPPE_BRANCH" --python "$(which python)" ~/frappe-bench
+          mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL character_set_server = 'utf8mb4'"
+          mariadb --host 127.0.0.1 --port 3306 -u root -proot -e "SET GLOBAL collation_server = 'utf8mb4_unicode_ci'"
+
+      - name: Install apps
+        working-directory: /home/runner/frappe-bench
+        run: |
+          bench get-app --skip-assets --branch "$FRAPPE_BRANCH" erpnext
+          # ERPNext's test records link to Payment Gateway, a doctype of payments
+          bench get-app --skip-assets --branch "$FRAPPE_BRANCH" payments
+          bench get-app --skip-assets kefiya "$GITHUB_WORKSPACE"
+          bench setup requirements --dev
+          bench new-site --db-root-password root --admin-password admin test_site
+          bench --site test_site install-app erpnext payments kefiya
+        env:
+          CI: 'Yes'
+
+      - name: Create test data
+        working-directory: /home/runner/frappe-bench
+        run: |
+          bench --site test_site set-config allow_tests true
+          bench --site test_site execute kefiya.tests.ci_setup.execute
+
+      - name: Run tests
+        working-directory: /home/runner/frappe-bench
+        run: bench --site test_site run-tests --app kefiya
+        env:
+          TYPE: server
