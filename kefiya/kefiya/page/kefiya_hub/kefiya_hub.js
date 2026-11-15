@@ -17,7 +17,8 @@ const KEFIYA_HUB_SIDEBAR = [
 frappe.pages["kefiya-hub"].on_page_load = function (wrapper) {
 	frappe.require("kefiya_hub.bundle.js", () => {
 		kefiya.hub.instance = new kefiya.hub.KefiyaHub(wrapper);
-		kefiya.hub.show();
+		// The user may have left the page while the bundle loaded
+		if (frappe.get_route()[0] === "kefiya-hub") kefiya.hub.show();
 	});
 };
 

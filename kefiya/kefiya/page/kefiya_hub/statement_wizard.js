@@ -353,7 +353,8 @@ kefiya.hub.StatementWizard = class StatementWizard {
 		const t = p.totals;
 		const je = this.import_as === "Journal Entry";
 		const date = (d) => (d ? frappe.datetime.str_to_user(d) : "");
-		const money = (v) => format_currency(v, this.currency());
+		// format_currency puts an unknown currency code in as it is, so the result is escaped
+		const money = (v) => frappe.utils.escape_html(format_currency(v, this.currency()));
 		const warning = t.other_transactions_in_period
 			? `<div class="kefiya-hint">${__(
 					"The bank account has {0} other Bank Transactions between {1} and {2} that no row of this file matches, for example from a FinTS import. Check that these rows are not booked twice.",
@@ -405,7 +406,7 @@ kefiya.hub.StatementWizard = class StatementWizard {
 					<td class="text-muted">${r.line}</td>
 					<td>${r.date ? frappe.datetime.str_to_user(r.date) : ""}</td>
 					<td class="text-right ${r.amount < 0 ? "text-danger" : ""}">${
-						r.amount !== undefined ? format_currency(r.amount, r.currency || this.currency()) : ""
+						r.amount !== undefined ? esc(format_currency(r.amount, r.currency || this.currency())) : ""
 					}</td>
 					<td>${esc(r.party_name || "")}</td>
 					<td class="kefiya-wizard-description">${esc(r.status === "Error" ? r.message : r.description || "")}</td>
@@ -609,7 +610,7 @@ kefiya.hub.StatementWizard = class StatementWizard {
 				<tbody>${problems
 					.map(
 						(r) => `<tr><td class="text-muted">${r.line || ""}</td><td>${__(r.status)}</td>
-							<td>${r.amount !== null && r.amount !== undefined ? format_currency(r.amount, this.currency()) : ""}</td>
+							<td>${r.amount !== null && r.amount !== undefined ? frappe.utils.escape_html(format_currency(r.amount, this.currency())) : ""}</td>
 							<td>${esc(r.message || "")}</td></tr>`
 					)
 					.join("")}</tbody></table></div>`
