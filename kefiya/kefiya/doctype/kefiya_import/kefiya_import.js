@@ -22,7 +22,7 @@ frappe.ui.form.on('Kefiya Import', {
 		);
 	},*/
 	refresh: function(frm) {
-		if(cur_frm.doc.__islocal == null){
+		if(frm.doc.__islocal == null){
 			frm.toggle_display("import_transaction",true);
 			if(frm.doc.kefiya_login && frm.doc.docstatus == 0){
 				frm.page.set_primary_action(__("Start Import"), function() {

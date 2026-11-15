@@ -20,12 +20,10 @@ class CustomBankTransaction(BankTransaction):
         company_account = frappe.get_value("Bank Account", self.bank_account, "account")
 
         self.expense_account = next(
-            filter(
-                None,
-                (
-                    get_voucher_expense_account(pe.payment_document, pe.payment_entry, company_account)
-                    for pe in self.payment_entries
-                ),
+            (
+                account
+                for pe in self.payment_entries
+                if (account := get_voucher_expense_account(pe.payment_document, pe.payment_entry, company_account))
             ),
             None,
         )
@@ -84,12 +82,10 @@ def get_voucher_expense_account(payment_document, payment_entry, company_account
             pluck="reference_name",
         )
         return next(
-            filter(
-                None,
-                (
-                    get_voucher_expense_account("Purchase Invoice", pi, company_account)
-                    for pi in purchase_invoices
-                ),
+            (
+                account
+                for pi in purchase_invoices
+                if (account := get_voucher_expense_account("Purchase Invoice", pi, company_account))
             ),
             None,
         )
