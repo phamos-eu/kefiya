@@ -94,6 +94,15 @@ class TestStartImportSecurity(FrappeTestCase):
         with self.assertRaises(frappe.ValidationError):
             doc.start_import("/files/../../site_config.json", doc.bank_account, COMPANY)
 
+    def test_values_sent_with_the_doc_do_not_count(self):
+        # frm.call sends the whole form; run_doc_method builds the doc from it, so a
+        # caller can send another bank account in the doc and the same in the arguments
+        doc = self.make_import()
+        doc.bank_account = self.other_bank_account
+        with self.assertRaises(frappe.ValidationError):
+            doc.start_import(doc.import_file, self.other_bank_account, doc.company)
+        self.assertEqual(self.transaction_count(self.other_bank_account), 0)
+
     def test_bank_account_of_another_company_is_rejected(self):
         doc = self.make_import()
         frappe.db.set_value("Bank Account", self.bank_account, "company", "_Test Company Elsewhere")
