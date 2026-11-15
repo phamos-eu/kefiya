@@ -4,39 +4,51 @@
 frappe.provide("kefiya.iban_tools");
 
 kefiya.iban_tools = {
-	// https://stackoverflow.com/questions/21928083/iban-validation-check
-	isValidIBANNumber: function(input) {
-		var CODE_LENGTHS = {
-			AD: 24, AE: 23, AT: 20, AZ: 28, BA: 20, BE: 16, BG: 22, BH: 22, BR: 29,
-			CH: 21, CR: 21, CY: 28, CZ: 24, DE: 22, DK: 18, DO: 28, EE: 20, ES: 24,
-			FI: 18, FO: 18, FR: 27, GB: 22, GI: 23, GL: 18, GR: 27, GT: 28, HR: 21,
-			HU: 28, IE: 22, IL: 23, IS: 26, IT: 27, JO: 30, KW: 30, KZ: 20, LB: 28,
-			LI: 21, LT: 20, LU: 20, LV: 21, MC: 27, MD: 24, ME: 22, MK: 19, MR: 27,
-			MT: 31, MU: 30, NL: 18, NO: 15, PK: 24, PL: 28, PS: 29, PT: 25, QA: 29,
-			RO: 24, RS: 22, SA: 24, SE: 24, SI: 19, SK: 24, SM: 27, TN: 24, TR: 26
-		};
-		// var iban = String(input).toUpperCase().replace(/[^A-Z0-9]/g, ''), // keep only alphanumeric characters
-		var iban = String(input).toUpperCase(), // keep only alphanumeric characters
-			code = iban.match(/^([A-Z]{2})(\\\\d{2})([A-Z\\\\d]+)$/), // match and capture (1) the country code, (2) the check digits, and (3) the rest
-			digits;
-		// check syntax and length
-		if (!code || iban.length !== CODE_LENGTHS[code[1]]) {
+	// Length of the IBAN per country, as listed in the SWIFT IBAN Registry
+	ibanLengths: {
+		15: ["NO"],
+		16: ["BE"],
+		18: ["DK", "FI", "FO", "GL", "NL"],
+		19: ["MK", "SI"],
+		20: ["AT", "BA", "EE", "KZ", "LT", "LU"],
+		21: ["CH", "CR", "HR", "LI", "LV"],
+		22: ["BG", "BH", "DE", "GB", "IE", "ME", "RS"],
+		23: ["AE", "GI", "IL"],
+		24: ["AD", "CZ", "ES", "MD", "PK", "RO", "SA", "SE", "SK", "TN"],
+		25: ["PT"],
+		26: ["IS", "TR"],
+		27: ["FR", "GR", "IT", "MC", "MR", "SM"],
+		28: ["AL", "AZ", "CY", "DO", "GT", "HU", "LB", "PL"],
+		29: ["BR", "PS", "QA"],
+		30: ["JO", "KW", "MU"],
+		31: ["MT"],
+	},
+
+	// Whether value is an IBAN of a known country with a correct check sum.
+	// Spaces are allowed, as IBANs are often written in groups of four.
+	isValidIBANNumber: function(value) {
+		const iban = String(value || "").replace(/\s+/g, "").toUpperCase();
+		if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/.test(iban)) {
 			return false;
 		}
-		// rearrange country code and check digits, and convert chars to ints
-		digits = (code[3] + code[1] + code[2]).replace(/[A-Z]/g, function (letter) {
-			return letter.charCodeAt(0) - 55;
-		});
-		// final check
-		return kefiya.iban_tools.mod97(digits);
-	},
-	mod97: function(string) {
-		var checksum = string.slice(0, 2), fragment;
-		for (var offset = 2; offset < string.length; offset += 7) {
-			fragment = String(checksum) + string.substring(offset, offset + 7);
-			checksum = parseInt(fragment, 10) % 97;
+		const country = iban.slice(0, 2);
+		const length = Object.keys(kefiya.iban_tools.ibanLengths).find(
+			(len) => kefiya.iban_tools.ibanLengths[len].includes(country)
+		);
+		if (Number(length) !== iban.length) {
+			return false;
 		}
-		return checksum;
+
+		// ISO 13616: country code and check digits go to the end, every letter
+		// becomes a number from 10 (A) to 35 (Z), and the whole number divided
+		// by 97 leaves 1. The remainder is taken digit by digit, as the number
+		// is too long for a JavaScript number.
+		let remainder = 0;
+		for (const char of iban.slice(4) + iban.slice(0, 4)) {
+			const number = parseInt(char, 36);
+			remainder = (remainder * (number < 10 ? 10 : 100) + number) % 97;
+		}
+		return remainder === 1;
 	},
 	// https://github.com/jquery-validation/jquery-validation/blob/master/src/additional/bic.js
 	isValidBic: function(value) {
