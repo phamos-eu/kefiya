@@ -136,13 +136,16 @@ def dkb_giro_row(row):
 
 class KefiyaBankStatementImport(Document):
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def start_import(self, file_url=None, bank_account=None, company=None):
 		"""Import this doc's file into this doc's bank account.
 
 		The arguments come from the client and are only checked against the doc,
 		so a caller cannot import another file or into another account.
 		"""
+		# frm.call sends the whole form, and run_doc_method builds this doc from it, so its
+		# file, bank account and company are the client's. Only the saved values count.
+		self.reload()
 		self.check_permission('write')
 		for value, fieldname in ((file_url, 'import_file'), (bank_account, 'bank_account'), (company, 'company')):
 			if value and value != self.get(fieldname):
