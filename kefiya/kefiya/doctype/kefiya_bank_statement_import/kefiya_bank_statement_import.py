@@ -153,7 +153,7 @@ class KefiyaBankStatementImport(Document):
 		preview['totals']['other_transactions_in_period'] = other_transactions_in_period(self.bank_account, entries)
 		return preview
 
-	@frappe.whitelist()
+	@frappe.whitelist(methods=["POST"])
 	def start_import(self, file_url=None, bank_account=None, company=None, mapping=None, template=None,
 					 import_as=None, counter_account=None, fee_account=None, row_accounts=None):
 		"""Import this doc's file into this doc's bank account.
