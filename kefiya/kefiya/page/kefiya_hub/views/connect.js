@@ -54,7 +54,7 @@ kefiya.hub.register_view(
 
 		card(l) {
 			const esc = frappe.utils.escape_html;
-			const status = LOGIN_INDICATOR[l.status];
+			const status = kefiya.hub.LOGIN_INDICATOR[l.status];
 			const logo = l.bank_logo
 				? `<img class="kefiya-bank-logo" src="${encodeURI(l.bank_logo)}" alt="">`
 				: `<span class="kefiya-bank-logo kefiya-bank-initial">${esc(l.name.charAt(0))}</span>`;

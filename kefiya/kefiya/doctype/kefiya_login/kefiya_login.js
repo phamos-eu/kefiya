@@ -1,8 +1,6 @@
 // Copyright (c) 2019, jHetzer and contributors
 // For license information, please see license.txt
 
-{% include "kefiya/public/js/controllers/fints_interactive.js" %}
-
 frappe.ui.form.on('Kefiya Login', {
 	onload: function(frm) {
 		kefiya.interactive.progressbar(frm);

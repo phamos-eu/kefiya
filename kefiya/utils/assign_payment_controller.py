@@ -8,6 +8,8 @@ import frappe
 import os
 from frappe import _
 
+from kefiya.utils.sql import read_query
+
 
 class AssignmentController:
     def __init__(self):
@@ -15,12 +17,7 @@ class AssignmentController:
 
     @staticmethod
     def __read_sqlFile(name):
-        cur_dir = os.path.dirname(__file__)
-        file_path = os.path.join(cur_dir, './sql/' + name)
-        with open(file_path) as file:
-            sqlQuery = file.read()
-
-        return sqlQuery
+        return read_query(name)
 
     def payment_to_saleInvoice(self):
         """Get one by one assignable payments.

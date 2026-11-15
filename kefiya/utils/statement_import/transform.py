@@ -63,12 +63,13 @@ def describe(values: list[str], formatter: str) -> str:
     if formatter == "dkb_visa" and values:
         # "MUSTER CAFE (Im Geschäft, -52,30 $)"
         details = [value.replace("\xa0", " ").strip() for value in values[1:]]
-        return "{0} ({1})".format(values[0], ", ".join(filter(None, details)))
+        return "{0} ({1})".format(values[0], ", ".join(d for d in details if d))
     if formatter == "paypal" and values:
         # "Rückzahlung, Bestellung AB10001, zu 1AB23456CD789012E": the last column is the related code
         related = values[-1]
-        return ", ".join(filter(None, values[:-1] + ["zu {0}".format(related) if related else ""]))
-    return ", ".join(filter(None, values))
+        parts = values[:-1] + ["zu {0}".format(related) if related else ""]
+        return ", ".join(p for p in parts if p)
+    return ", ".join(v for v in values if v)
 
 
 def short_id(value: str) -> str:
