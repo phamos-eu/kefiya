@@ -1,5 +1,5 @@
 include MANIFEST.in
-include requirements.txt
+include pyproject.toml
 include *.json
 include *.md
 include *.py
