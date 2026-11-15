@@ -14,7 +14,7 @@ app_description = "FinTS Connector for ERPNext (Germany)"
 app_icon = "fa fa-university"
 app_color = "#3498db"
 app_email = "support@phamos.eu"
-app_license = "AGPL-3.0"
+app_license = "AGPL-3.0-only"
 
 # Includes in <head>
 # ------------------
