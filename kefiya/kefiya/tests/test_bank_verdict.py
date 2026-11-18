@@ -378,3 +378,47 @@ class TestTheWholeMessageIsRead(unittest.TestCase):
         self.assertEqual([], fr.lines_in_message(None))
         self.assertEqual([], fr.lines_in_message(object()))
         self.assertEqual([], fr.lines_in_message(BankMessage([])))
+
+
+class TestTheBankMayWaiveTheSignature(unittest.TestCase):
+    """16.11.2026, a Volksbank account: 0020, 0010 and 3076 came back, no TAN
+    was asked, the bank booked the order -- and the app said "Not sent"."""
+
+    def test_waived_and_executing_is_sent(self):
+        self.assertTrue(fr.signature_waived(fr.verdict_of(Answer([
+            Line("0020", "Ausfuehrungsbestaetigung nach Namensabgleich"),
+            Line("0010", "Ihr SEPA-Auftrag befindet sich in Ausfuehrung"),
+            Line("3076", "Starke Kundenauthentifizierung nicht notwendig"),
+        ]))))
+
+    def test_3076_alone_is_not_enough(self):
+        self.assertFalse(fr.signature_waived(fr.verdict_of(Answer([
+            Line("3076", "Starke Kundenauthentifizierung nicht notwendig"),
+        ]))))
+
+    def test_an_execution_line_alone_is_not_enough(self):
+        """The 70,40 case: no TAN, no word about a waiver, never executed."""
+        self.assertFalse(fr.signature_waived(fr.verdict_of(Answer([
+            Line("0010", "Auftrag entgegengenommen"),
+        ]))))
+
+    def test_a_refusal_overrides_everything(self):
+        self.assertFalse(fr.signature_waived(fr.verdict_of(Answer([
+            Line("0010", "Ihr SEPA-Auftrag befindet sich in Ausfuehrung"),
+            Line("3076", "Starke Kundenauthentifizierung nicht notwendig"),
+            Line("9390", "Auftrag bereits eingereicht"),
+        ]))))
+
+    def test_nothing_said_waives_nothing(self):
+        self.assertFalse(fr.signature_waived(None))
+        self.assertFalse(fr.signature_waived(fr.verdict_of(object())))
+
+    def test_the_controller_asks_before_refusing(self):
+        import os
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__)))), "utils", "fints_controller.py")
+        with open(path, encoding="utf-8") as handle:
+            body = handle.read().split("def _refuse_unsigned(")[1].split(
+                "\n    def ")[0]
+        self.assertLess(body.index("fints_response.signature_waived(verdict)"),
+                        body.index("frappe.throw("))

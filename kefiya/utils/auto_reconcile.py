@@ -55,13 +55,29 @@ def run_after_import(kefiya_login, from_date, to_date):
     :param from_date: imported window start
     :param to_date: imported window end
     """
-    settings = frappe.get_single("Kefiya Settings")
-    if not settings.auto_reconcile_after_import:
-        return
-
     login = frappe.get_doc("Kefiya Login", kefiya_login)
     bank_account = login.bank_account
     if not bank_account:
+        return
+
+    # Before the settings gate: this books nothing, it only stops an order
+    # the bank has executed from being offered for sending again.
+    try:
+        from kefiya.utils import transfers_seen_at_bank
+
+        transfers_seen_at_bank.mark_seen(bank_account, from_date, to_date)
+        frappe.db.commit()
+    except Exception:
+        frappe.db.rollback()
+        frappe.log_error(
+            title="Kefiya: matching sent transfers to the statement failed",
+            message=frappe.get_traceback(),
+            reference_doctype="Kefiya Login",
+            reference_name=kefiya_login,
+        )
+
+    settings = frappe.get_single("Kefiya Settings")
+    if not settings.auto_reconcile_after_import:
         return
 
     bank_account_doc = frappe.get_doc("Bank Account", bank_account)

@@ -2328,6 +2328,14 @@ class FinTSController(TanSession):
         """
         from kefiya.utils import account_capabilities as capabilities
 
+        # The bank may waive the signature HIUPD asks for -- and says so with
+        # 3076. Where it says that AND confirms the execution, the order went
+        # through: refusing then reports "Not sent" for money that has left,
+        # and invites the second send that the bank rejects as a duplicate
+        # (9390) -- or, at another bank, executes. See signature_waived.
+        if fints_response.signature_waived(verdict):
+            return
+
         bank_account = getattr(self.kefiya_login, "bank_account", None)
         capability = capabilities.required_capability(
             payment_count=2 if multiple else 1,

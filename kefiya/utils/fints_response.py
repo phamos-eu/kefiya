@@ -239,6 +239,37 @@ def refused(verdict):
     return (verdict or {}).get("status") == ERROR
 
 
+#: "Starke Kundenauthentifizierung nicht notwendig" -- the bank exempts this
+#: order from the signature HIUPD otherwise demands (small amount, trusted
+#: payee, ...).
+SCA_WAIVED = "3076"
+
+#: The bank confirms it has taken the order into execution.
+#: 0010 "Ihr SEPA-Auftrag befindet sich in Ausfuehrung", 0020 "Auftrag
+#: ausgefuehrt" / "Ausfuehrungsbestaetigung nach Namensabgleich".
+EXECUTION_ACKNOWLEDGED = ("0010", "0020")
+
+
+def signature_waived(verdict):
+    """Did the bank say, in so many words, that it needs no signature here
+    AND that it is executing the order?
+
+    Both, never one alone. 3076 on its own can belong to the dialog rather
+    than to the order; a 0010/0020 on its own is what a bank also says about
+    the status query. Together, in an answer that refused nothing, they are
+    the bank's own statement that the unsigned order goes through.
+
+    Measured on 16.11.2026 at a Volksbank account: an instant payment of
+    20,83 EUR came back with 0020, 0010 and 3076, no TAN was asked -- and the
+    order was booked the same day. The app had called it "Not sent".
+    """
+    codes = {line.get("code") for line in (verdict or {}).get("lines", [])}
+    if refused(verdict):
+        return False
+    return SCA_WAIVED in codes and any(
+        code in codes for code in EXECUTION_ACKNOWLEDGED)
+
+
 def complaints(verdict):
     """The lines that say something went wrong, for a message to a person."""
     return [line for line in (verdict or {}).get("lines", [])
