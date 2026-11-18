@@ -315,7 +315,10 @@ function kefiya_show_account_standing(frm, bank_account) {
  * day.
  */
 function kefiya_reconcile_instant_with_the_date(frm) {
-	if (frm.doc.docstatus !== 0 || !frm.doc.instant_payment) return;
+	// An approved order keeps date, instant flag and who holds the date
+	// editable until it has gone to the bank -- the clash can arise there too.
+	if (frm.doc.docstatus === 2 || !frm.doc.instant_payment) return;
+	if (frm.doc.status === "Sent" || frm.doc.status === "Scheduled at Bank") return;
 	if (!frm.doc.execution_date || frm.doc.manage_due_date) return;
 	if (frappe.datetime.get_diff(frm.doc.execution_date,
 		frappe.datetime.get_today()) <= 0) return;

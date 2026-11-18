@@ -649,3 +649,5 @@ Fetch Holdings Now,Bestände jetzt abrufen
 Asking the bank for the holdings ...,Bestände werden bei der Bank abgefragt …
 Holdings not fetched,Bestände nicht abgerufen
 Enter Holding,Bestand erfassen
+"Instant payment switched off: the bank holds this order until {0}, and a bank cannot hold an instant payment. Sent as an ordinary dated transfer.","Echtzeitüberweisung abgeschaltet: Die Bank hält diesen Auftrag bis zum {0}, und eine Echtzeitüberweisung kann eine Bank nicht halten. Als gewöhnliche Terminüberweisung gesendet."
+"The bank cannot hold an instant payment until a future date. {0} therefore goes to the bank as an ordinary dated transfer.","Die Bank kann eine Echtzeitüberweisung nicht bis zu einem künftigen Termin halten. {0} geht deshalb als gewöhnliche Terminüberweisung an die Bank."

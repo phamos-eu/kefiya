@@ -336,6 +336,27 @@ class KefiyaTransfer(Document):
             self.manage_due_date = 1
             self.db_set("manage_due_date", 1, update_modified=False)
 
+        # validate() refuses an instant payment the BANK is to hold until a
+        # future date -- but validate() does not run on an approved order.
+        # Date, instant flag and who holds the date all stay editable after
+        # approval, so the same contradiction could be saved here and was only
+        # noticed at send: "An instant payment cannot be scheduled for a later
+        # date." Asked only when one of the three was touched, so an order
+        # saved before this check is not locked against unrelated edits; the
+        # send path turns such an order into an ordinary dated transfer.
+        if any(self.has_value_changed(field) for field in (
+                "execution_date", "instant_payment", "manage_due_date")) \
+                and self.execution_date and cint(self.instant_payment) \
+                and not cint(self.manage_due_date) \
+                and getdate(self.execution_date) > now_datetime().date():
+            frappe.throw(_(
+                "An instant payment is executed within seconds, so the"
+                " bank cannot hold it until {0}. Either let the date be"
+                " kept here -- the order is then sent as an instant"
+                " payment on the day -- or hand the date to the bank as an"
+                " ordinary transfer."
+            ).format(frappe.format(self.execution_date, "Date")))
+
     @frappe.whitelist()
     def set_hold(self, on_hold):
         """Hold an approved order back, or release it again.

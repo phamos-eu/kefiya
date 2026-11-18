@@ -1053,6 +1053,8 @@ def submit_kefiya_transfer(transfer_name, user_scope, confirmed=0):
         ).format(transfer_name, frappe.utils.formatdate(doc.execution_date))}
 
     scheduled = _bank_holds_the_date(doc)
+    if scheduled:
+        _held_by_the_bank_is_never_instant([doc])
 
     unsupported = _refuse_unsupported([doc], scheduled)
     if unsupported:
@@ -1340,6 +1342,42 @@ def _bank_holds_the_date(doc):
     return getdate(doc.execution_date or nowdate()) > getdate(nowdate())
 
 
+def _held_by_the_bank_is_never_instant(docs):
+    """Send a bank-held order with an instant flag as an ordinary dated one.
+
+    The form refuses the combination at entry, but an order saved before that
+    check -- or changed where it did not run -- still carries both. The
+    controller then refuses the whole send with "An instant payment cannot be
+    scheduled for a later date", and the order sits there until someone works
+    out which tick to remove.
+
+    The date is what the order was entered for; the instant flag only says how
+    fast the money travels once it is due. A bank-held order travels on its
+    date either way, so it goes as an ordinary dated transfer (HKCSE / HKCME).
+    Written onto the document and said out loud, never done silently.
+    """
+    from frappe.utils import cint
+
+    changed = []
+    for doc in docs:
+        if not cint(doc.instant_payment):
+            continue
+        doc.db_set("instant_payment", 0)
+        doc.add_comment("Info", _(
+            "Instant payment switched off: the bank holds this order until"
+            " {0}, and a bank cannot hold an instant payment. Sent as an"
+            " ordinary dated transfer."
+        ).format(frappe.utils.formatdate(doc.execution_date)))
+        changed.append(doc.name)
+
+    if changed:
+        frappe.msgprint(_(
+            "The bank cannot hold an instant payment until a future date."
+            " {0} therefore goes to the bank as an ordinary dated transfer."
+        ).format(", ".join(changed)),
+            title=_("Sent as an ordinary transfer"), indicator="orange")
+
+
 def _not_due_yet(doc):
     """True for an order we manage that has not reached its day."""
     from frappe.utils import cint, getdate, nowdate
@@ -1552,6 +1590,8 @@ def send_transfer_outbox(transfer_names, user_scope, confirmed=0,
             "A collective order carries one execution date. The selected"
             " transfers name different days -- send them separately."
         )}
+    if scheduled:
+        _held_by_the_bank_is_never_instant(docs)
 
     logins = {doc.kefiya_login for doc in docs}
     if len(logins) > 1:

@@ -144,3 +144,63 @@ class TestTheFormsSayItBeforeTheSave(unittest.TestCase):
         dialog = _read(*DIALOG)
         self.assertIn('const bank_holds_it = mode.value === "bank";', dialog)
         self.assertIn('dialog.set_value("instant_payment", 0)', dialog)
+
+
+CLIENT = ("utils", "client.py")
+
+
+class TestAnApprovedOrderIsAskedToo(unittest.TestCase):
+    """validate() does not run on an approved order, yet date, instant flag
+    and who holds the date all stay editable there. The contradiction was
+    saved after approval and only surfaced at send."""
+
+    def _body(self):
+        return _read(*DOC).split("def on_update_after_submit(")[1].split(
+            "\n    def ")[0]
+
+    def test_the_refusal_runs_after_approval(self):
+        body = self._body()
+        self.assertIn("not cint(self.manage_due_date)", body)
+        self.assertIn("cint(self.instant_payment)", body)
+        self.assertIn("bank cannot hold it until {0}", body)
+
+    def test_only_when_one_of_the_three_was_touched(self):
+        """An order saved before the check must stay editable otherwise."""
+        body = self._body()
+        self.assertIn("has_value_changed", body)
+        for field in ('"execution_date"', '"instant_payment"',
+                      '"manage_due_date"'):
+            self.assertIn(field, body)
+
+    def test_the_form_reconciles_an_approved_order_as_well(self):
+        body = _read(*FORM).split(
+            "function kefiya_reconcile_instant_with_the_date(frm) {")[1][:500]
+        self.assertNotIn("frm.doc.docstatus !== 0", body)
+        self.assertIn('frm.doc.status === "Scheduled at Bank"', body)
+
+
+class TestAnOrderAlreadySavedGoesAsADatedOne(unittest.TestCase):
+    """An order that carries both anyway is sent as an ordinary dated
+    transfer, not refused at the last step."""
+
+    def test_both_send_paths_turn_it_into_a_dated_transfer(self):
+        client = _read(*CLIENT)
+        single = client.split("def submit_kefiya_transfer(")[1].split(
+            "\ndef ")[0]
+        self.assertIn("_held_by_the_bank_is_never_instant([doc])", single)
+        self.assertLess(single.index("_held_by_the_bank_is_never_instant"),
+                        single.index("_refuse_unsupported("))
+        self.assertLess(single.index("_held_by_the_bank_is_never_instant"),
+                        single.index("submit_sepa_transfer("))
+        call = "        _held_by_the_bank_is_never_instant(docs)\n"
+        self.assertEqual(client.count(call), 1)
+        batch_at = client.index(call)
+        self.assertLess(batch_at, client.index(
+            "unsupported = _refuse_unsupported(docs, scheduled)"))
+
+    def test_the_change_is_recorded_and_said(self):
+        body = _read(*CLIENT).split(
+            "def _held_by_the_bank_is_never_instant(")[1].split("\ndef ")[0]
+        self.assertIn('doc.db_set("instant_payment", 0)', body)
+        self.assertIn("doc.add_comment(", body)
+        self.assertIn("frappe.msgprint(", body)
