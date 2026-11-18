@@ -183,6 +183,9 @@ scheduler_events = {
         # at all while the document service is switched off, which is its
         # state until someone configures one.
         "kefiya.utils.document_service.fetch_statements_scheduled",
+        # PayPal has no FinTS: its movements come from PayPal's API, for
+        # every enabled Kefiya PayPal Account. Nothing while there is none.
+        "kefiya.utils.paypal.fetch_all_accounts",
         # Standing orders kept here: their transfers go into the outgoing
         # payments on their date, approved. Never sent from here.
         "kefiya.utils.standing_order_execute.place_due_transfers",

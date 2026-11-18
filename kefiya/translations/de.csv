@@ -677,3 +677,25 @@ No split can be planned.,Keine Aufteilung planbar.
 Today's transfer limit has no room for this as a dated transfer -- the bank counts it on the day it is sent. It is kept here instead and presented for sending on its execution date ({0}). Nothing was sent.,Im heutigen Überweisungslimit ist dafür als Terminüberweisung kein Platz — die Bank zählt sie am Tag des Absendens. Sie wird stattdessen hier gehalten und am Ausführungstag ({0}) zum Senden vorgelegt. Es wurde nichts gesendet.
 Kept here until its date,Bis zum Termin hier gehalten
 The bank asks for a release,Die Bank verlangt eine Freigabe
+Kefiya PayPal Account,Kefiya PayPal-Konto
+PayPal app,PayPal-App
+Client ID,Client-ID
+Secret,Secret
+Sandbox,Sandbox
+Fetch From,Abrufen ab
+Fetched Until,Abgerufen bis
+Last run,Letzter Lauf
+Fetching from PayPal …,Abruf bei PayPal …
+Enter Client ID and Secret before enabling.,Vor dem Aktivieren Client-ID und Secret eintragen.
+PayPal could not be reached: {0},PayPal war nicht erreichbar: {0}
+"PayPal refused the credentials ({0}). Check Client ID and Secret, and whether the app is a Live app.",PayPal hat die Zugangsdaten abgelehnt ({0}). Bitte Client-ID und Secret prüfen und ob es eine Live-App ist.
+"PayPal does not allow this app to search transactions. Enable ""Transaction Search"" for the app in the PayPal developer portal.",PayPal erlaubt dieser App keine Umsatzsuche. Bitte im PayPal-Developer-Portal für die App „Transaction Search“ aktivieren.
+PayPal answered {0}: {1},PayPal antwortete {0}: {1}
+"{0} new, {1} already there, up to {2}","{0} neu, {1} schon vorhanden, bis {2}"
+"While this is off, the daily run leaves this account alone.","Solange das aus ist, lässt der tägliche Lauf dieses Konto in Ruhe."
+The Bank Account the PayPal movements are booked to.,"Das Bankkonto, auf das die PayPal-Umsätze gebucht werden."
+Nothing older than this is fetched. PayPal answers for at most the last three years.,Älteres wird nicht abgerufen. PayPal liefert höchstens die letzten drei Jahre.
+PayPal's test environment. Leave off for the real account.,PayPals Testumgebung. Für das echte Konto ausgeschaltet lassen.
+"From an app created under developer.paypal.com (Apps & Credentials, Live) with the feature ""Transaction Search"" enabled.","Aus einer App unter developer.paypal.com (Apps & Credentials, Live) mit aktivierter Funktion „Transaction Search“."
+Stored encrypted and never written to a log.,Verschlüsselt gespeichert und nie in ein Protokoll geschrieben.
+"The next run starts a few days before this, so transactions PayPal lists late are not missed.","Der nächste Lauf beginnt einige Tage davor, damit spät gelistete PayPal-Umsätze nicht verloren gehen."

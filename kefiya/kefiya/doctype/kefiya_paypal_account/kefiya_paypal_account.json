@@ -1,0 +1,135 @@
+{
+ "actions": [],
+ "autoname": "field:bank_account",
+ "creation": "2026-11-18 18:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "bank_account",
+  "fetch_from",
+  "column_break_main",
+  "sandbox",
+  "credentials_section",
+  "client_id",
+  "client_secret",
+  "state_section",
+  "fetched_until",
+  "last_run_on",
+  "column_break_state",
+  "last_run_summary"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "description": "While this is off, the daily run leaves this account alone.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "description": "The Bank Account the PayPal movements are booked to.",
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Bank Account",
+   "options": "Bank Account",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "Nothing older than this is fetched. PayPal answers for at most the last three years.",
+   "fieldname": "fetch_from",
+   "fieldtype": "Date",
+   "label": "Fetch From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "PayPal's test environment. Leave off for the real account.",
+   "fieldname": "sandbox",
+   "fieldtype": "Check",
+   "label": "Sandbox"
+  },
+  {
+   "description": "From an app created under developer.paypal.com (Apps & Credentials, Live) with the feature \"Transaction Search\" enabled.",
+   "fieldname": "credentials_section",
+   "fieldtype": "Section Break",
+   "label": "PayPal app"
+  },
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID"
+  },
+  {
+   "description": "Stored encrypted and never written to a log.",
+   "fieldname": "client_secret",
+   "fieldtype": "Password",
+   "label": "Secret"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "state_section",
+   "fieldtype": "Section Break",
+   "label": "Last run"
+  },
+  {
+   "description": "The next run starts a few days before this, so transactions PayPal lists late are not missed.",
+   "fieldname": "fetched_until",
+   "fieldtype": "Datetime",
+   "label": "Fetched Until",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_run_on",
+   "fieldtype": "Datetime",
+   "label": "Last Run On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_state",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_run_summary",
+   "fieldtype": "Small Text",
+   "label": "Last Run Summary",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-11-18 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Kefiya",
+ "name": "Kefiya PayPal Account",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Accounts Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
