@@ -668,241 +668,265 @@ def fetch_all(kefiya_login, user_scope=None):
             "new_count": len(created),
         }
 
-        # The FinTS-capability reads (balance, scheduled debits, statements, credit
-        # card) live on the new FinTSController regardless of the TAN toggle.
-        from kefiya.utils.fints_controller import FinTSController as FetchCtl
-        from kefiya.utils.fints_controller import _to_jsonable
+        return fetch_extras(kefiya_login, kefiya_import, summary)
 
-        from kefiya.utils import fetch_persistence
 
-        # 2) Balance incl. credit line -> Bank Account (best effort).
-        def _fetch_balance():
-            rows = _to_jsonable(FetchCtl(kefiya_login).get_fints_balance())
-            stored = fetch_persistence.store_balance(
-                kefiya_login, rows if isinstance(rows, list) else [])
-            stored["rows"] = rows
-            # The same number, counted backwards over the bookings that were
-            # just fetched: each of them gets the balance as it stood after it.
-            # Runs here and not in store_balance because only the caller knows
-            # which window the bank was asked for -- outside that window the
-            # backward count has no guarantee of being gap-free.
-            if stored.get("stored"):
-                stored["running"] = fetch_persistence.apply_running_balance(
-                    kefiya_login, stored.get("balance"),
-                    balance_date=stored.get("balance_date"),
-                    from_date=kefiya_import.from_date)
-            return stored
+def fetch_extras(kefiya_login, kefiya_import, summary, include_depots=True):
+    """Everything a fetch reads besides the bookings, best effort each.
 
-        summary["balance"] = _optional_fetch(
-            summary, "balance", "balance", _fetch_balance)
-        # Stored either way; shown only to whoever may see balances. The log
-        # still says that it was stored, so a missing balance is not mistaken
-        # for a failed fetch.
-        from kefiya.utils.balance_visibility import may_see_balances
+    Balance, pending entries, depot, dated debits and transfers, standing
+    orders, statements, credit card, limit and what the bank allows. Each
+    read is its own _optional_fetch: one that fails or that the bank refuses
+    costs only itself.
 
-        if summary["balance"] and not may_see_balances():
-            summary["balance"] = {
-                "stored": summary["balance"].get("stored"),
-                "reason": summary["balance"].get("reason"),
-                "hidden": 1,
-            }
+    Shared by the fetch by hand (fetch_all) and the nightly run
+    (kefiya_schedule). None of these reads ever asks anybody for a release:
+    where the bank wants one for a read, the read is given up and noted as
+    refused -- which is exactly what an unattended run needs (rule given on
+    18.11.2026: "fetch everything at night that works without a TAN").
 
-        # 2b) Pending entries (vorgemerkte Umsaetze) -> the forecast table.
-        #     A pending entry is a payment the bank accepted but has not booked
-        #     -- which is what Kefiya Planned Payment is for, and why its
-        #     payment_kind already carries a "Pending" option. Keeping them
-        #     there rather than as Bank Transaction drafts is also what makes
-        #     the reconciliation work by itself: when the booking finally
-        #     arrives, match_on_bank_transaction() removes the planned record it
-        #     fulfils, so the same payment is never counted twice.
-        def _fetch_pending():
-            from kefiya.utils.planned_payment import (
-                PENDING_KIND, normalize_pending_entries,
-                refresh_planned_payments,
-            )
+    :param include_depots: False where the caller fetches the depots by its
+        own rhythm, as the nightly run does (_fetch_due_depots)
+    :return: the summary, filled in
+    """
+    from frappe.utils import now_datetime
 
-            entries = FetchCtl(kefiya_login).get_fints_pending_transactions()
-            norm = normalize_pending_entries(entries)
-            result = refresh_planned_payments(
-                kefiya_login, norm["items"], payment_kinds=(PENDING_KIND,))
-            result["skipped"] = norm["skipped"]
-            return result
+    # The FinTS-capability reads (balance, scheduled debits, statements, credit
+    # card) live on the new FinTSController regardless of the TAN toggle.
+    from kefiya.utils.fints_controller import FinTSController as FetchCtl
+    from kefiya.utils.fints_controller import _to_jsonable
 
-        summary["pending"] = _optional_fetch(
-            summary, "pending", "pending_transactions", _fetch_pending)
+    from kefiya.utils import fetch_persistence
 
-        # 2c) Securities holdings (Depot) -> Kefiya Security Holding.
-        def _fetch_holdings():
-            from kefiya.utils.securities import refresh_holdings
+    # 2) Balance incl. credit line -> Bank Account (best effort).
+    def _fetch_balance():
+        rows = _to_jsonable(FetchCtl(kefiya_login).get_fints_balance())
+        stored = fetch_persistence.store_balance(
+            kefiya_login, rows if isinstance(rows, list) else [])
+        stored["rows"] = rows
+        # The same number, counted backwards over the bookings that were
+        # just fetched: each of them gets the balance as it stood after it.
+        # Runs here and not in store_balance because only the caller knows
+        # which window the bank was asked for -- outside that window the
+        # backward count has no guarantee of being gap-free.
+        if stored.get("stored"):
+            stored["running"] = fetch_persistence.apply_running_balance(
+                kefiya_login, stored.get("balance"),
+                balance_date=stored.get("balance_date"),
+                from_date=kefiya_import.from_date)
+        return stored
 
-            holdings = FetchCtl(kefiya_login).get_fints_holdings()
-            return refresh_holdings(kefiya_login, holdings)
+    summary["balance"] = _optional_fetch(
+        summary, "balance", "balance", _fetch_balance)
+    # Stored either way; shown only to whoever may see balances. The log
+    # still says that it was stored, so a missing balance is not mistaken
+    # for a failed fetch.
+    from kefiya.utils.balance_visibility import may_see_balances
 
-        summary["holdings"] = _optional_fetch(
-            summary, "holdings", "holdings", _fetch_holdings)
+    if summary["balance"] and not may_see_balances():
+        summary["balance"] = {
+            "stored": summary["balance"].get("stored"),
+            "reason": summary["balance"].get("reason"),
+            "hidden": 1,
+        }
 
-        # 2d) Depots that hang off this login by account number. A depot has
-        #     no IBAN at most banks, so 2c (which asks the login's own account)
-        #     never reaches it. Each depot records its own outcome.
-        def _fetch_depots():
-            from kefiya.utils.securities import refresh_linked_depots
+    # 2b) Pending entries (vorgemerkte Umsaetze) -> the forecast table.
+    #     A pending entry is a payment the bank accepted but has not booked
+    #     -- which is what Kefiya Planned Payment is for, and why its
+    #     payment_kind already carries a "Pending" option. Keeping them
+    #     there rather than as Bank Transaction drafts is also what makes
+    #     the reconciliation work by itself: when the booking finally
+    #     arrives, match_on_bank_transaction() removes the planned record it
+    #     fulfils, so the same payment is never counted twice.
+    def _fetch_pending():
+        from kefiya.utils.planned_payment import (
+            PENDING_KIND, normalize_pending_entries,
+            refresh_planned_payments,
+        )
 
-            return refresh_linked_depots(kefiya_login, FetchCtl)
+        entries = FetchCtl(kefiya_login).get_fints_pending_transactions()
+        norm = normalize_pending_entries(entries)
+        result = refresh_planned_payments(
+            kefiya_login, norm["items"], payment_kinds=(PENDING_KIND,))
+        result["skipped"] = norm["skipped"]
+        return result
 
+    summary["pending"] = _optional_fetch(
+        summary, "pending", "pending_transactions", _fetch_pending)
+
+    # 2c) Securities holdings (Depot) -> Kefiya Security Holding.
+    def _fetch_holdings():
+        from kefiya.utils.securities import refresh_holdings
+
+        holdings = FetchCtl(kefiya_login).get_fints_holdings()
+        return refresh_holdings(kefiya_login, holdings)
+
+    summary["holdings"] = _optional_fetch(
+        summary, "holdings", "holdings", _fetch_holdings)
+
+    # 2d) Depots that hang off this login by account number. A depot has
+    #     no IBAN at most banks, so 2c (which asks the login's own account)
+    #     never reaches it. Each depot records its own outcome.
+    def _fetch_depots():
+        from kefiya.utils.securities import refresh_linked_depots
+
+        return refresh_linked_depots(kefiya_login, FetchCtl)
+
+    if include_depots:
         summary["depots"] = _optional_fetch(
             summary, "depots", "securities_accounts", _fetch_depots)
 
-        # 3) Standing orders / scheduled debits -> forecast table (best effort).
-        def _fetch_planned():
-            from kefiya.utils.planned_payment import (
-                DEBIT_FETCH_KINDS, normalize_scheduled_debits,
-                refresh_planned_payments,
-            )
-            raw = _to_jsonable(FetchCtl(kefiya_login).get_fints_scheduled_debits())
-            norm = normalize_scheduled_debits(raw if isinstance(raw, list) else [])
-            # Scoped: without it this sweep would cancel the pending entries
-            # written just above, and the next one would cancel these back.
-            # And only the kind it writes: the dated transfers below are
-            # "Scheduled Transfer", and a sweep over both cancelled them.
-            planned = refresh_planned_payments(
-                kefiya_login, norm["items"],
-                payment_kinds=DEBIT_FETCH_KINDS)
-            planned["skipped"] = norm["skipped"]
-            return planned
+    # 3) Standing orders / scheduled debits -> forecast table (best effort).
+    def _fetch_planned():
+        from kefiya.utils.planned_payment import (
+            DEBIT_FETCH_KINDS, normalize_scheduled_debits,
+            refresh_planned_payments,
+        )
+        raw = _to_jsonable(FetchCtl(kefiya_login).get_fints_scheduled_debits())
+        norm = normalize_scheduled_debits(raw if isinstance(raw, list) else [])
+        # Scoped: without it this sweep would cancel the pending entries
+        # written just above, and the next one would cancel these back.
+        # And only the kind it writes: the dated transfers below are
+        # "Scheduled Transfer", and a sweep over both cancelled them.
+        planned = refresh_planned_payments(
+            kefiya_login, norm["items"],
+            payment_kinds=DEBIT_FETCH_KINDS)
+        planned["skipped"] = norm["skipped"]
+        return planned
 
-        summary["planned"] = _optional_fetch(
-            summary, "planned", "scheduled_debits", _fetch_planned)
+    summary["planned"] = _optional_fetch(
+        summary, "planned", "scheduled_debits", _fetch_planned)
 
-        # 3b) The dated TRANSFERS the bank holds (HKCSB) -> forecast table.
-        #     The step above asks for dated direct debits, which a payer
-        #     never has -- the forecast stayed empty at every bank while
-        #     StarMoney listed the same accounts' dated transfers.
-        def _fetch_scheduled_transfers():
-            from kefiya.utils import scheduled_transfers
-            from kefiya.utils.planned_payment import refresh_planned_payments
+    # 3b) The dated TRANSFERS the bank holds (HKCSB) -> forecast table.
+    #     The step above asks for dated direct debits, which a payer
+    #     never has -- the forecast stayed empty at every bank while
+    #     StarMoney listed the same accounts' dated transfers.
+    def _fetch_scheduled_transfers():
+        from kefiya.utils import scheduled_transfers
+        from kefiya.utils.planned_payment import refresh_planned_payments
 
-            segments = FetchCtl(kefiya_login).get_fints_scheduled_transfers()
-            norm = scheduled_transfers.items_from(segments)
-            result = refresh_planned_payments(
-                kefiya_login, norm["items"],
-                payment_kinds=(scheduled_transfers.KIND,))
-            result["skipped"] = norm["skipped"]
-            return result
+        segments = FetchCtl(kefiya_login).get_fints_scheduled_transfers()
+        norm = scheduled_transfers.items_from(segments)
+        result = refresh_planned_payments(
+            kefiya_login, norm["items"],
+            payment_kinds=(scheduled_transfers.KIND,))
+        result["skipped"] = norm["skipped"]
+        return result
 
-        summary["scheduled_transfers"] = _optional_fetch(
-            summary, "scheduled_transfers", "scheduled_transfers",
-            _fetch_scheduled_transfers)
+    summary["scheduled_transfers"] = _optional_fetch(
+        summary, "scheduled_transfers", "scheduled_transfers",
+        _fetch_scheduled_transfers)
 
-        # 3c) The standing orders the bank holds (HKCDB) -> forecast table,
-        #     one row per execution in the coming month. The schedule is read
-        #     by shape and still unconfirmed against a real answer; the raw
-        #     group stays on each order, and the bank's answer is written
-        #     down on the login (standing_order_evidence).
-        def _fetch_standing_orders():
-            from kefiya.utils import bank_held_orders
-            from kefiya.utils.planned_payment import refresh_planned_payments
+    # 3c) The standing orders the bank holds (HKCDB) -> forecast table,
+    #     one row per execution in the coming month. The schedule is read
+    #     by shape and still unconfirmed against a real answer; the raw
+    #     group stays on each order, and the bank's answer is written
+    #     down on the login (standing_order_evidence).
+    def _fetch_standing_orders():
+        from kefiya.utils import bank_held_orders
+        from kefiya.utils.planned_payment import refresh_planned_payments
 
-            rows = _to_jsonable(
-                FetchCtl(kefiya_login).get_fints_standing_orders())
-            rows = rows if isinstance(rows, list) else []
-            norm = bank_held_orders.items_from(rows, now_datetime().date())
-            result = refresh_planned_payments(
-                kefiya_login, norm["items"],
-                payment_kinds=(bank_held_orders.KIND,))
-            result.update({
-                "count": len(rows),
-                "skipped": norm["skipped"],
-                "orders": rows,
-                # Until the schedule's field order is confirmed against real
-                # orders, say so rather than let a number imply certainty.
-                "schedule_confirmed": False,
-            })
-            # And onto file, as Kefiya Standing Order with execution_mode
-            # Bank -- where the outgoing payments show them next to the ones
-            # kept here. Its own failure must not cost the forecast above.
-            try:
-                from kefiya.utils import bank_standing_orders
+        rows = _to_jsonable(
+            FetchCtl(kefiya_login).get_fints_standing_orders())
+        rows = rows if isinstance(rows, list) else []
+        norm = bank_held_orders.items_from(rows, now_datetime().date())
+        result = refresh_planned_payments(
+            kefiya_login, norm["items"],
+            payment_kinds=(bank_held_orders.KIND,))
+        result.update({
+            "count": len(rows),
+            "skipped": norm["skipped"],
+            "orders": rows,
+            # Until the schedule's field order is confirmed against real
+            # orders, say so rather than let a number imply certainty.
+            "schedule_confirmed": False,
+        })
+        # And onto file, as Kefiya Standing Order with execution_mode
+        # Bank -- where the outgoing payments show them next to the ones
+        # kept here. Its own failure must not cost the forecast above.
+        try:
+            from kefiya.utils import bank_standing_orders
 
-                result["on_file"] = bank_standing_orders.sync(
-                    kefiya_login, rows)
-            except Exception:
-                frappe.log_error(
-                    title="Kefiya: bank standing orders not put on file",
-                    message=frappe.get_traceback())
-            return result
+            result["on_file"] = bank_standing_orders.sync(
+                kefiya_login, rows)
+        except Exception:
+            frappe.log_error(
+                title="Kefiya: bank standing orders not put on file",
+                message=frappe.get_traceback())
+        return result
 
-        # Standing orders are a different business transaction from the
-        # scheduled debits above, and were never asked for at all.
-        summary["standing_orders"] = _optional_fetch(
-            summary, "standing_orders", "standing_orders",
-            _fetch_standing_orders)
+    # Standing orders are a different business transaction from the
+    # scheduled debits above, and were never asked for at all.
+    summary["standing_orders"] = _optional_fetch(
+        summary, "standing_orders", "standing_orders",
+        _fetch_standing_orders)
 
-        # 3d) One payment, one line. What the bank just reported replaces the
-        #     lines of lower stages that are the same payment -- the plan,
-        #     the invoice, our own order -- so the preview counts it once.
-        def _apply_stages():
-            from kefiya.utils.planned_payment import apply_stage_ladder
+    # 3d) One payment, one line. What the bank just reported replaces the
+    #     lines of lower stages that are the same payment -- the plan,
+    #     the invoice, our own order -- so the preview counts it once.
+    def _apply_stages():
+        from kefiya.utils.planned_payment import apply_stage_ladder
 
-            return apply_stage_ladder()
+        return apply_stage_ladder()
 
-        summary["stages"] = _optional_fetch(
-            summary, "stages", "forecast_stages", _apply_stages)
+    summary["stages"] = _optional_fetch(
+        summary, "stages", "forecast_stages", _apply_stages)
 
-        # 4) Electronic statements -> the documents themselves, attached to the
-        #    login. The list alone only says which ones exist; each has to be
-        #    fetched separately.
-        def _fetch_statements():
-            controller = FetchCtl(kefiya_login)
-            listing = controller.get_fints_statements()
-            return fetch_persistence.download_statements(
-                controller, kefiya_login,
-                listing if isinstance(listing, list) else [])
+    # 4) Electronic statements -> the documents themselves, attached to the
+    #    login. The list alone only says which ones exist; each has to be
+    #    fetched separately.
+    def _fetch_statements():
+        controller = FetchCtl(kefiya_login)
+        listing = controller.get_fints_statements()
+        return fetch_persistence.download_statements(
+            controller, kefiya_login,
+            listing if isinstance(listing, list) else [])
 
-        summary["statements"] = _optional_fetch(
-            summary, "statements", "statements", _fetch_statements)
+    summary["statements"] = _optional_fetch(
+        summary, "statements", "statements", _fetch_statements)
 
-        # 5) Credit-card transactions -> Bank Transactions, same as a booking.
-        def _fetch_credit_card():
-            cc = _to_jsonable(
-                FetchCtl(kefiya_login).get_fints_credit_card_transactions())
-            return fetch_persistence.store_credit_card_transactions(
-                kefiya_login, cc if isinstance(cc, list) else [])
+    # 5) Credit-card transactions -> Bank Transactions, same as a booking.
+    def _fetch_credit_card():
+        cc = _to_jsonable(
+            FetchCtl(kefiya_login).get_fints_credit_card_transactions())
+        return fetch_persistence.store_credit_card_transactions(
+            kefiya_login, cc if isinstance(cc, list) else [])
 
-        summary["credit_card"] = _optional_fetch(
-            summary, "credit_card", "credit_card", _fetch_credit_card)
+    summary["credit_card"] = _optional_fetch(
+        summary, "credit_card", "credit_card", _fetch_credit_card)
 
-        # 6) What the bank lets this account transfer. No extra command: the
-        #    limit rides on the account information sent at logon, so reading
-        #    it inside the shared session costs nothing -- and a limit read
-        #    once and never again is the one that silently goes stale and
-        #    starts rejecting payment runs.
-        def _fetch_limit():
-            from kefiya.utils.transfer_limit import refresh_transfer_limit
+    # 6) What the bank lets this account transfer. No extra command: the
+    #    limit rides on the account information sent at logon, so reading
+    #    it inside the shared session costs nothing -- and a limit read
+    #    once and never again is the one that silently goes stale and
+    #    starts rejecting payment runs.
+    def _fetch_limit():
+        from kefiya.utils.transfer_limit import refresh_transfer_limit
 
-            return refresh_transfer_limit(
-                kefiya_login, controller=FetchCtl(kefiya_login))
+        return refresh_transfer_limit(
+            kefiya_login, controller=FetchCtl(kefiya_login))
 
-        summary["transfer_limit"] = _optional_fetch(
-            summary, "transfer_limit", "transfer_limit", _fetch_limit)
+    summary["transfer_limit"] = _optional_fetch(
+        summary, "transfer_limit", "transfer_limit", _fetch_limit)
 
-        # 7) What the bank ALLOWS on each account -- same segment as the limit,
-        #    same free ride inside the shared session. Read every time for the
-        #    same reason: a bank that enables (or withdraws) a transaction on
-        #    an account says so at the next logon and nowhere else, so a list
-        #    read once would keep hiding a button the bank has since offered.
-        def _fetch_capabilities():
-            from kefiya.utils.account_capabilities import (
-                refresh_account_capabilities,
-            )
+    # 7) What the bank ALLOWS on each account -- same segment as the limit,
+    #    same free ride inside the shared session. Read every time for the
+    #    same reason: a bank that enables (or withdraws) a transaction on
+    #    an account says so at the next logon and nowhere else, so a list
+    #    read once would keep hiding a button the bank has since offered.
+    def _fetch_capabilities():
+        from kefiya.utils.account_capabilities import (
+            refresh_account_capabilities,
+        )
 
-            return refresh_account_capabilities(
-                kefiya_login, controller=FetchCtl(kefiya_login))
+        return refresh_account_capabilities(
+            kefiya_login, controller=FetchCtl(kefiya_login))
 
-        summary["capabilities"] = _optional_fetch(
-            summary, "capabilities", "account_capabilities",
-            _fetch_capabilities)
+    summary["capabilities"] = _optional_fetch(
+        summary, "capabilities", "account_capabilities",
+        _fetch_capabilities)
 
-        return summary
+    return summary
 
 
 @frappe.whitelist()
@@ -1052,6 +1076,7 @@ def submit_kefiya_transfer(transfer_name, user_scope, confirmed=0):
             " ourselves\"."
         ).format(transfer_name, frappe.utils.formatdate(doc.execution_date))}
 
+    _due_dated_goes_today([doc])
     scheduled = _bank_holds_the_date(doc)
     if scheduled:
         _held_by_the_bank_is_never_instant([doc])
@@ -1062,6 +1087,8 @@ def submit_kefiya_transfer(transfer_name, user_scope, confirmed=0):
 
     over = _refuse_over_limit([doc])
     if over:
+        if scheduled:
+            return _keep_here_instead([doc])
         return over
     # And no more than the account holds -- unless the bank keeps the date
     # or a standing order placed it; those the bank refuses itself.
@@ -1185,6 +1212,17 @@ def present_due_transfers():
     """
     from frappe.utils import formatdate, nowdate
 
+    # A dated order the bank was to hold, still here on or after its day, is
+    # an ordinary transfer for today -- presented like any order that is due.
+    for name in frappe.get_all(
+            "Kefiya Transfer",
+            filters={"docstatus": 1, "status": "Approved",
+                     "manage_due_date": 0,
+                     "execution_date": ("<=", nowdate())},
+            pluck="name"):
+        frappe.db.set_value("Kefiya Transfer", name, "manage_due_date", 1,
+                            update_modified=False)
+
     names = frappe.get_all(
         "Kefiya Transfer",
         filters={
@@ -1264,7 +1302,12 @@ def _refuse_over_limit(docs):
     if verdict["ok"]:
         return None
 
+    # Names and whether a split can be offered, so the page can open the
+    # table of proposals right in the refusal (limit_way_out). One order with
+    # one payment is what a table of parts can describe.
     return {"status": "error", "over_limit": True,
+            "names": [d.name for d in docs],
+            "can_split": len(docs) == 1 and len(docs[0].items or []) == 1,
             "limit": verdict.get("limit"),
             "available": verdict.get("available"),
             "message": verdict["reason"] + " " + _(
@@ -1340,6 +1383,54 @@ def _bank_holds_the_date(doc):
     if cint(doc.manage_due_date):
         return False
     return getdate(doc.execution_date or nowdate()) > getdate(nowdate())
+
+
+def _due_dated_goes_today(docs):
+    """A dated order for today or a day gone by is an ordinary one for today.
+
+    No bank files an order for a day that has arrived, and nothing is gained
+    by pretending it might: the order goes out now as an ordinary transfer.
+    _bank_holds_the_date already answered "no" for such an order; this writes
+    it down, so the page stops calling it a dated transfer (rule given on
+    18.11.2026).
+    """
+    from frappe.utils import cint, getdate, nowdate
+
+    today = getdate(nowdate())
+    for doc in docs:
+        if cint(doc.manage_due_date) or not doc.execution_date:
+            continue
+        if getdate(doc.execution_date) <= today:
+            doc.db_set("manage_due_date", 1)
+            doc.manage_due_date = 1
+
+
+def _keep_here_instead(docs):
+    """A dated order over today's limit waits here instead of at the bank.
+
+    The bank counts a dated order against the limit of the day it is SENT,
+    whatever day it executes. Handing it over today is therefore impossible
+    when today's limit is used up -- and not needed: kept here, it is
+    presented on its date and goes out then, against that day's limit (rule
+    given on 18.11.2026). Nothing is sent now.
+    """
+    from frappe.utils import formatdate
+
+    for doc in docs:
+        doc.db_set("manage_due_date", 1)
+        doc.manage_due_date = 1
+        doc.add_comment("Info", _(
+            "Over today's transfer limit as a dated transfer at the bank. Kept"
+            " here instead and sent on its execution date, {0}."
+        ).format(formatdate(doc.execution_date)))
+    return {"status": "kept_here", "names": [d.name for d in docs],
+            "message": _(
+                "Today's transfer limit has no room for this as a dated"
+                " transfer -- the bank counts it on the day it is sent. It is"
+                " kept here instead and presented for sending on its"
+                " execution date ({0}). Nothing was sent."
+            ).format(", ".join(sorted({formatdate(d.execution_date)
+                                       for d in docs})))}
 
 
 def _held_by_the_bank_is_never_instant(docs):
@@ -1578,6 +1669,7 @@ def send_transfer_outbox(transfer_names, user_scope, confirmed=0,
     # One message carries one execution date, so a batch cannot mix orders the
     # bank is to hold with orders that go out now -- the bank would apply one
     # date to all of them.
+    _due_dated_goes_today(docs)
     scheduling = {_bank_holds_the_date(doc) for doc in docs}
     if len(scheduling) > 1:
         return {"status": "error", "message": _(
@@ -1612,6 +1704,8 @@ def send_transfer_outbox(transfer_names, user_scope, confirmed=0,
     # ten orders that each fit and together do not.
     over = _refuse_over_limit(docs)
     if over:
+        if scheduled:
+            return _keep_here_instead(docs)
         return over
     # Measured as a whole, like the limit: what leaves the account together.
     from kefiya.utils import funds_check

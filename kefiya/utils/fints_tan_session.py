@@ -52,6 +52,16 @@ from kefiya.utils.fints_errors import (
 )
 
 
+
+def note_on_login(login_name, message):
+    """One Info entry in the timeline of the Kefiya Login. Never raises."""
+    try:
+        frappe.get_doc("Kefiya Login", login_name).add_comment(
+            "Info", _("The bank asks for a release") + ":<br>"
+            + frappe.utils.escape_html(message).replace("\n", "<br>"))
+    except Exception:
+        pass
+
 class TanSession:
     """Die TAN-Strecke eines FinTSController."""
 
@@ -204,6 +214,8 @@ class TanSession:
         which is not a question anybody can answer.
         """
         challenge = tan_challenge.challenge_of(response)
+        self._note_release_request(response, attended=True,
+                                   challenge_text=challenge.get("text", ""))
 
         if response.decoupled if decoupled is None else decoupled:
             self.interactive.request_mfa_confirmation(
@@ -215,6 +227,39 @@ class TanSession:
                 possible_tan_modes=possible_tan_modes,
                 possible_tan_mediums=possible_tan_mediums,
                 challenge=challenge)
+
+    def _note_release_request(self, response, attended,
+                              challenge_text=None):
+        """Write down what the bank wants released -- see release_trigger.
+
+        Never raises: a line in a log must not be what stops a fetch or an
+        order.
+        """
+        try:
+            from frappe.utils import nowdate
+
+            from kefiya.utils import release_trigger
+
+            if challenge_text is None:
+                challenge_text = tan_challenge.challenge_of(
+                    response).get("text", "")
+            earlier = frappe.db.count("Kefiya Import", {
+                "kefiya_login": self.kefiya_login.name, "docstatus": 1,
+                "creation": (">=", nowdate() + " 00:00:00")})
+            message = release_trigger.describe(
+                response, login=self.kefiya_login.name,
+                attended=attended, earlier_today=earlier,
+                challenge_text=challenge_text or "")
+            # Unattended, the run rolls back right after this and the note
+            # would go with it; the schedule writes it after the rollback
+            # (kefiya_schedule._log_tan_wanted). Attended, it goes straight
+            # onto the login's timeline -- not the Error Log, which is for
+            # errors, and a request for a release is none.
+            frappe.flags.kefiya_release_trigger = message
+            if attended:
+                note_on_login(self.kefiya_login.name, message)
+        except Exception:
+            pass
 
     def _cannot_note_the_challenge(self):
         """The bank is holding a dialog open and nothing wrote it down.

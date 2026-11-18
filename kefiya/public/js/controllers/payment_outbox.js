@@ -935,6 +935,7 @@ kefiya.payment_outbox = function (root) {
 	// handled in one place or in none -- never in one of two.
 	function sendOutcome(m) {
 		if (!m || m.status === "error") return "error";
+		if (m.status === "kept_here") return "kept";
 		if (m.status === "vop_mismatch") return "payee";
 		if (m.status === "tan_required") {
 			return (m.decoupled && kefiya.await_release) ? "release" : "tan";
@@ -953,6 +954,16 @@ kefiya.payment_outbox = function (root) {
 				},
 				changed: load,
 			});
+		} else if (outcome === "kept") {
+			// Over today's limit as a dated transfer: kept here and sent on
+			// its day instead. Not an error -- and not "handed to the bank".
+			frappe.msgprint({ title: __("Kept here until its date"),
+				indicator: "orange", message: esc(m.message || "") });
+		} else if (outcome === "error" && m.over_limit && m.can_split
+				&& kefiya.limit_way_out) {
+			// Over the bank's limit: the refusal comes with a table of parts
+			// to edit and place, rather than a sum to work out by hand.
+			kefiya.limit_way_out(m, { changed: load });
 		} else if (outcome === "error") {
 			frappe.msgprint({ title: __("Not sent"), indicator: "red",
 				message: esc(m.message || "") });

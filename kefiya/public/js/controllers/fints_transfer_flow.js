@@ -21,6 +21,12 @@ function kefiya_handle_transfer_response(frm, msg) {
     if (msg.status === "submitted") {
         frappe.show_alert({ message: __("Transfer submitted."), indicator: "green" });
         frm.reload_doc();
+    } else if (msg.status === "kept_here") {
+        // Over today's limit as a dated transfer: kept here and sent on its
+        // date instead. Nothing went to the bank.
+        frappe.msgprint({ title: __("Kept here until its date"),
+            indicator: "orange", message: msg.message || "" });
+        frm.reload_doc();
     } else if (msg.status === "tan_required") {
         // Nothing to open. The server published the release box before it
         // answered -- the same box the collective fetch uses, which shows the

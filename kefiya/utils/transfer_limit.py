@@ -57,9 +57,12 @@ LIMIT_PERIOD = "Z"
 #: does not.
 TRANSFER_SEGMENTS = ("HKCCS", "HKCCM", "HKCSE", "HKCME", "HKIPZ", "HKIPM")
 
-#: Statuses that will still reach the bank, so their money is already spoken
-#: for. "On Hold" is deliberately absent: a held order is not going out.
-COMMITTED_STATUSES = ("Approved", "Due", "Scheduled at Bank", "Sent")
+#: Orders the bank has TAKEN -- the only ones its limit counts. The bank adds
+#: up what was sent to it on a day, whenever it executes it: a dated order
+#: sent today counts today, a dated order sent last week and executed today
+#: does not (rule given on 18.11.2026). An approved order that has not gone
+#: out is no part of any day's limit yet; it will be when it is sent.
+COMMITTED_STATUSES = ("Scheduled at Bank", "Sent")
 
 
 def refresh_transfer_limit(kefiya_login, controller=None):
@@ -157,8 +160,7 @@ def limit_day(row, today=None):
 def committed_amount(kefiya_login, start, end, exclude=None):
     """How much is already spoken for in a window, ignoring the given documents.
 
-    Each order counts on its limit_day: the day it was sent, or, not sent
-    yet, its execution date.
+    Only orders the bank has taken count, each on the day it was sent.
 
     :param exclude: one document name or a list of them -- the ones being
         judged right now, which must not be counted against themselves.
@@ -168,21 +170,21 @@ def committed_amount(kefiya_login, start, end, exclude=None):
     exclude = [name for name in (exclude or []) if name]
     start, end = getdate(start), getdate(end)
 
+    # Sent orders only, on the day they were sent. Counting an approved order
+    # on its execution date, as this did, charged today's limit with orders
+    # that had not gone anywhere -- and a dated order the bank executes today
+    # was never part of today's limit at all.
     filters = {
         "kefiya_login": kefiya_login,
         "docstatus": 1,
         "status": ("in", COMMITTED_STATUSES),
+        "sent_on": ("between", [str(start) + " 00:00:00",
+                                str(end) + " 23:59:59.999999"]),
     }
     if exclude:
         filters["name"] = ("not in", exclude)
-    or_filters = [
-        ["execution_date", "between", [start, end]],
-        ["sent_on", "between", [str(start) + " 00:00:00",
-                                str(end) + " 23:59:59.999999"]],
-    ]
 
     rows = frappe.get_all("Kefiya Transfer", filters=filters,
-                          or_filters=or_filters,
                           fields=["total_amount", "execution_date",
                                   "sent_on"])
     return sum(flt(r.total_amount) for r in rows

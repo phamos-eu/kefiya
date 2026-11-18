@@ -54,6 +54,49 @@ def _log_import_failure(login_name):
             pass
 
 
+def _fetch_extras_unattended(login_name, kefiya_import):
+    """Alles ausser den Umsaetzen -- nachts, ohne jemanden, der freigibt.
+
+    Regel vom 18.11.2026: "rufe auch nachts automatisch alle Daten ab, die
+    ohne TAN moeglich sind." Dieselben Abfragen wie der Abruf von Hand
+    (client.fetch_extras), in EINEM Dialog fuer den Zugang. Keine davon
+    fragt nach einer Freigabe: verlangt die Bank eine, wird die Abfrage
+    aufgegeben und steht im Protokoll als abgelehnt -- die Umsaetze sind
+    zu dem Zeitpunkt schon gebucht und committed.
+
+    Nach dem commit der Umsaetze und mit eigenem Fang, aus demselben Grund
+    wie _fetch_due_depots. Die Depots bleiben dort, in ihrem eigenen
+    Rhythmus.
+    """
+    try:
+        from kefiya.utils import client
+
+        summary = {"errors": []}
+        with client._fetch_session([login_name]):
+            client.fetch_extras(login_name, kefiya_import, summary,
+                                include_depots=False)
+        frappe.db.commit()
+    except TanInteractionRequired:
+        # Schon der Dialog fuer die Zusatzabfragen will eine Freigabe. Die
+        # Umsaetze sind da; der Rest wartet auf den naechsten Lauf.
+        try:
+            frappe.db.rollback()
+        except Exception:
+            pass
+    except Exception:
+        try:
+            frappe.db.rollback()
+        except Exception:
+            pass
+        frappe.log_error(
+            title="Kefiya: scheduled extra reads failed",
+            message="login={0}\n\n{1}".format(
+                login_name, frappe.get_traceback()),
+            reference_doctype="Kefiya Login",
+            reference_name=login_name,
+        )
+
+
 def _fetch_due_depots(login_name, controller_class):
     """Die faelligen Depots dieses Zugangs abrufen -- nachrangig, folgenlos.
 
@@ -124,6 +167,15 @@ def _log_tan_wanted(login_name):
     in einer Banking-App. Ein Traceback je Konto hat zehn Zeilen Rauschen
     je Nacht erzeugt und die echten Fehlschlaege darin begraben.
     """
+    # Was die Bank freigegeben haben wollte -- vor dem Rollback notiert
+    # (fints_tan_session._note_release_request), hier in den Verlauf des
+    # Zugangs geschrieben, nicht ins Error Log: es ist kein Fehler.
+    trigger = frappe.flags.pop("kefiya_release_trigger", None)
+    if trigger:
+        from kefiya.utils.fints_tan_session import note_on_login
+
+        note_on_login(login_name, trigger)
+
     try:
         frappe.log_error(
             title=("Kefiya Schedule: this access wants a TAN, nobody is"
@@ -336,6 +388,13 @@ def scheduled_import_fints_payments(manual=None):
 
             # Die Depots dieses Zugangs mitnehmen -- NACH dem commit.
             _fetch_due_depots(login_name, controller_class)
+
+            # Und alles andere, was ohne TAN zu haben ist: Saldo,
+            # Vormerkungen, Terminueberweisungen, Dauerauftraege, Auszuege,
+            # Limit ... -- bisher nur am Knopf. Wer es haben wollte, musste
+            # von Hand abrufen, und der Abruf von Hand am selben Tag war es,
+            # der die Freigaben kostete (18.11.2026).
+            _fetch_extras_unattended(login_name, kefiya_import)
         except TanInteractionRequired:
             # Kein Fehler, eine Lage: die Bank will eine Freigabe, und ein
             # Zeitplan hat niemanden, der sie gibt. Geparkt wird dabei

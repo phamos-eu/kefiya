@@ -53,6 +53,7 @@ import "./controllers/standing_orders_panel";
 // The way out of "the account does not cover this": a dated transfer, or
 // the amount split into parts. Offered by the outgoing payments and the form.
 import "./controllers/funds_way_out";
+import "./controllers/limit_way_out";
 import "./controllers/payment_outbox";
 // Correcting the forecast by hand. The form, the list and any page that shows
 // the forecast use the same three dialogs.

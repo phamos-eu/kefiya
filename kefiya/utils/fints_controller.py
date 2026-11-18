@@ -694,7 +694,10 @@ class FinTSController(TanSession):
         if not isinstance(response, NeedTANResponse):
             return False
 
+        # Unattended, nobody is asked -- but what the bank wanted released is
+        # written down all the same (release_trigger).
         if not self.interactive.enabled:
+            self._note_release_request(response, False)
             return True
 
         self.ask_for_tan(response)
@@ -1037,6 +1040,16 @@ class FinTSController(TanSession):
 
             # if the request already claimed a tan, persist state and ask for tan
             if self.fints_connection.init_tan_response and self.fints_connection._standing_dialog:
+                # Unattended: nobody gives the release, so nothing is parked
+                # and nobody's phone is woken -- the same rule as
+                # is_tan_required_and_requested. This path asked regardless,
+                # and the nightly extra reads (kefiya_schedule
+                # ._fetch_extras_unattended) would have hit it.
+                if not self.interactive.enabled:
+                    self._note_release_request(
+                        self.fints_connection.init_tan_response,
+                        attended=False)
+                    return False
                 # (Only!) If the tan request opened a dialog, which can be paused for later (continue after user-interaction)
                 # If not, it needs to be skipped (leads to multiple requests on the phone, but there is now option to persist the state, and it works)
                 self.ask_for_tan(self.fints_connection.init_tan_response, possible_tan_modes=[tan_mode], possible_tan_mediums=medium_names)

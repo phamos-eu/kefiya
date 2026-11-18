@@ -92,11 +92,15 @@ class TestNothingLeavesOverTheLimit(unittest.TestCase):
         self.assertIn("committed_amount(", source)
         self.assertIn("available = limit - used", source)
 
-    def test_a_held_order_is_not_counted(self):
-        """It is not going out, so its money is not spoken for."""
-        self.assertNotIn("On Hold", transfer_limit.COMMITTED_STATUSES)
-        for status in ("Approved", "Due", "Scheduled at Bank", "Sent"):
-            self.assertIn(status, transfer_limit.COMMITTED_STATUSES)
+    def test_only_what_the_bank_has_taken_counts(self):
+        """Rule given on 18.11.2026: the limit counts what was SENT on a
+        day, whenever it executes. An approved order that has not gone out
+        is no part of it, nor is one on hold."""
+        self.assertEqual(set(transfer_limit.COMMITTED_STATUSES),
+                         {"Scheduled at Bank", "Sent"})
+        source = inspect.getsource(transfer_limit.committed_amount)
+        self.assertIn('"sent_on": ("between"', source)
+        self.assertNotIn('["execution_date", "between"', source)
 
     def test_the_documents_being_judged_do_not_count_against_themselves(self):
         source = inspect.getsource(transfer_limit.check_batch)

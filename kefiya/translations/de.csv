@@ -651,3 +651,29 @@ Holdings not fetched,Bestände nicht abgerufen
 Enter Holding,Bestand erfassen
 "Instant payment switched off: the bank holds this order until {0}, and a bank cannot hold an instant payment. Sent as an ordinary dated transfer.","Echtzeitüberweisung abgeschaltet: Die Bank hält diesen Auftrag bis zum {0}, und eine Echtzeitüberweisung kann eine Bank nicht halten. Als gewöhnliche Terminüberweisung gesendet."
 "The bank cannot hold an instant payment until a future date. {0} therefore goes to the bank as an ordinary dated transfer.","Die Bank kann eine Echtzeitüberweisung nicht bis zu einem künftigen Termin halten. {0} geht deshalb als gewöhnliche Terminüberweisung an die Bank."
+Only an order with one payment can be split into parts here. Select its payments one by one.,Hier lässt sich nur ein Auftrag mit einer Zahlung in Teile aufteilen. Wählen Sie seine Zahlungen einzeln aus.
+"No transfer limit is known for {0}, so no split can be planned.","Für {0} ist kein Überweisungslimit bekannt, deshalb lässt sich keine Aufteilung planen."
+"Own account, day by day","Eigenes Konto, Tag für Tag"
+"Several accounts, as early as possible","Mehrere Konten, so früh wie möglich"
+{0} is approved. It has to be cancelled and entered again to be split -- confirm that first.,{0} ist freigegeben. Zum Aufteilen muss er storniert und neu angelegt werden — bitte zuerst bestätigen.
+Entered again from {0} to be paid in {1} parts within the bank's limit.,"Neu angelegt aus {0}, um in {1} Teilen innerhalb des Banklimits bezahlt zu werden."
+"On {0}, {1} has only {2} left within its limit.",Am {0} sind auf {1} innerhalb des Limits nur noch {2} frei.
+"{0} cannot pay this order: it belongs to another company, has no known limit, or is the recipient.","{0} kann diesen Auftrag nicht bezahlen: Das Konto gehört zu einer anderen Gesellschaft, hat kein bekanntes Limit oder ist das Empfängerkonto."
+Over the bank's limit — split into parts,Über dem Banklimit — in Teile aufteilen
+Loading proposals …,Vorschläge werden geladen …
+Place parts,Teilüberweisungen anlegen
+(this order),(dieser Auftrag)
+Proposals:,Vorschläge:
+No proposal fits within the next banking days. Enter the parts yourself.,In den nächsten Bankarbeitstagen passt kein Vorschlag. Bitte die Teile selbst eintragen.
+Left that day,An dem Tag noch frei
+"Each part becomes a draft of its own, kept here until its day and then approved and sent like any order, each with its own TAN. The purpose says which part it is.","Jeder Teil wird ein eigener Entwurf, bleibt bis zu seinem Tag hier und wird dann wie jeder Auftrag freigegeben und mit eigener TAN gesendet. Der Verwendungszweck nennt den Teil."
+"{0} is approved. To split it, it is cancelled and entered again as a draft — you will be asked to confirm.",{0} ist freigegeben. Zum Aufteilen wird er storniert und als Entwurf neu angelegt — Sie werden vorher gefragt.
+{0} was cancelled.,{0} wurde storniert.
+{0} drafts: {1}. Approve and send each of them on its day.,{0} Entwürfe: {1}. Jeden an seinem Tag freigeben und senden.
+"{0} is approved. It will be cancelled and entered again as {1} drafts, one per part. Each of them has to be approved and sent again. Continue?","{0} ist freigegeben. Er wird storniert und als {1} Entwürfe neu angelegt, einer je Teil. Jeder muss erneut freigegeben und gesendet werden. Fortfahren?"
+No split can be planned.,Keine Aufteilung planbar.
+"Booked by the bank on {0} ({1}, End-To-End ID {2}). Marked as sent from the account statement.","Von der Bank am {0} gebucht ({1}, End-To-End-ID {2}). Laut Kontoauszug als gesendet markiert."
+"Over today's transfer limit as a dated transfer at the bank. Kept here instead and sent on its execution date, {0}.","Als Terminüberweisung bei der Bank über dem heutigen Limit. Stattdessen hier gehalten und am Ausführungstag, {0}, gesendet."
+Today's transfer limit has no room for this as a dated transfer -- the bank counts it on the day it is sent. It is kept here instead and presented for sending on its execution date ({0}). Nothing was sent.,Im heutigen Überweisungslimit ist dafür als Terminüberweisung kein Platz — die Bank zählt sie am Tag des Absendens. Sie wird stattdessen hier gehalten und am Ausführungstag ({0}) zum Senden vorgelegt. Es wurde nichts gesendet.
+Kept here until its date,Bis zum Termin hier gehalten
+The bank asks for a release,Die Bank verlangt eine Freigabe
