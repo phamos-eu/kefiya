@@ -700,8 +700,13 @@ class FinTSController:
                 except Exception as e:
                     frappe.throw(_("Failed to attach file"), e)
 
-                curr_doc.start_date = tansactions[0]["date"]
-                curr_doc.end_date = tansactions[-1]["date"]
+                # Some banks (CAMT) nest one list of transactions per statement
+                # instead of returning one flat list (MT940), so tansactions[0]
+                # can itself be a list -> guard against both shapes here.
+                first_txn = tansactions[0][0] if isinstance(tansactions[0], list) else tansactions[0]
+                last_txn = tansactions[-1][-1] if isinstance(tansactions[-1], list) else tansactions[-1]
+                curr_doc.start_date = first_txn.get("date") or first_txn.get("ValueDate.Date")
+                curr_doc.end_date = last_txn.get("date") or last_txn.get("ValueDate.Date")
 
                 importer = ImportBankTransaction(self.kefiya_login, self.interactive)
                 importer.old_kefiya_import(tansactions)
