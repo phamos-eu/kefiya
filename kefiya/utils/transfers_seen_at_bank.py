@@ -63,32 +63,113 @@ def mark_seen(bank_account, from_date=None, to_date=None):
     items = frappe.get_all(
         "Kefiya Transfer Item",
         filters={"parent": ("in", open_orders),
-                 "parenttype": "Kefiya Transfer",
-                 "end_to_end_id": ("!=", "")},
-        fields=["parent", "end_to_end_id", "amount"],
+                 "parenttype": "Kefiya Transfer"},
+        fields=["parent", "end_to_end_id", "amount", "recipient_iban",
+                "purpose"],
         parent_doctype="Kefiya Transfer")
     if not items:
         return []
+    # One booking per order: without the ID, only an order of ONE payment can
+    # be told apart by IBAN, amount and purpose.
+    payments = {}
+    for item in items:
+        payments[item.parent] = payments.get(item.parent, 0) + 1
+    dates = dict(frappe.get_all(
+        "Kefiya Transfer", filters={"name": ("in", open_orders)},
+        fields=["name", "execution_date"], as_list=True))
 
     start = add_days(nowdate(), -LOOK_BACK_DAYS)
     if from_date and getdate(from_date) < getdate(start):
         start = from_date
     txns = frappe.get_all(
         "Bank Transaction",
-        filters={"bank_account": bank_account, "docstatus": 1,
+        # Drafts too: a booking is the bank's word whether or not somebody
+        # has submitted it here yet.
+        filters={"bank_account": bank_account, "docstatus": ("<", 2),
                  "withdrawal": (">", 0), "date": (">=", getdate(start))},
         fields=["name", "date", "withdrawal", "description",
-                "reference_number"])
+                "reference_number", "bank_party_iban"])
 
-    marked = []
+    marked, used = [], set()
     for item in items:
         if item.parent in marked:
             continue
-        txn = find_booking(item.end_to_end_id, item.amount, txns)
+        free = [t for t in txns if t.get("name") not in used]
+        txn = find_booking(item.end_to_end_id, item.amount, free)
+        how = item.end_to_end_id
+        if not txn and payments.get(item.parent) == 1:
+            txn = find_booking_without_id(
+                item.recipient_iban, item.amount, item.purpose,
+                dates.get(item.parent), free)
+            how = None
         if txn:
-            _mark(item.parent, item.end_to_end_id, txn)
+            _mark(item.parent, how, txn)
             marked.append(item.parent)
+            used.add(txn.get("name"))
     return marked
+
+
+#: How far a booking may lie from the order's execution date and still be
+#: that order: a few days before (the bank executed on release, ahead of the
+#: date) and a week after (weekends, holidays, a late fetch).
+DAYS_BEFORE = 5
+DAYS_AFTER = 7
+
+
+def _compact(text):
+    """Letters and digits only, upper case: how a purpose is compared."""
+    return re.sub(r"[^0-9A-Z]", "", str(text or "").upper())
+
+
+def find_booking_without_id(iban, amount, purpose, execution_date, txns):
+    """The one withdrawal that is this order although it names no ID, or None.
+
+    Not every bank writes the End-To-End ID into the statement. On
+    18.11.2026 a BW Bank order was released in the bank's app four minutes
+    after kefiya had stopped asking, booked the next morning -- and stayed
+    "Due" here, because its booking carried no ID to recognise it by. The
+    one action that invited then was a second send of the same money.
+
+    All four have to agree, and only one booking may qualify:
+
+    * the counter IBAN is the recipient's,
+    * the amount is the same to the cent,
+    * the booking text contains the purpose (compared on letters and digits
+      -- banks drop spaces, cut lines and append their own date),
+    * the booking date lies around the execution date.
+
+    A purpose too short to tell anything apart (under 8 characters) is no
+    evidence: a recurring payment of the same amount to the same payee
+    would match it.
+    """
+    import datetime
+
+    target = _compact(iban)
+    words = _compact(purpose)[:40]
+    if not target or len(words) < 8 or not execution_date:
+        return None
+    try:
+        due = datetime.date.fromisoformat(str(execution_date)[:10])
+    except ValueError:
+        return None
+    lower = due - datetime.timedelta(days=DAYS_BEFORE)
+    upper = due + datetime.timedelta(days=DAYS_AFTER)
+    found = []
+    for txn in txns:
+        if _compact(txn.get("bank_party_iban")) != target:
+            continue
+        if abs(_number(txn.get("withdrawal")) - _number(amount)) > 0.005:
+            continue
+        try:
+            day = datetime.date.fromisoformat(str(txn.get("date"))[:10])
+        except ValueError:
+            continue
+        if not lower <= day <= upper:
+            continue
+        if words not in _compact(txn.get("description")):
+            continue
+        found.append(txn)
+    return found[0] if len(found) == 1 else None
 
 
 def find_booking(end_to_end_id, amount, txns):
@@ -127,15 +208,25 @@ def _mark(transfer_name, end_to_end_id, txn):
 
     doc = frappe.get_doc("Kefiya Transfer", transfer_name)
     doc.db_set("status", "Sent")
+    # Held back here, but the bank has it: holding means nothing any more.
+    if doc.get("on_hold"):
+        doc.db_set("on_hold", 0)
     if not doc.sent_on:
         doc.db_set("sent_on", getdate(txn.get("date")))
     if doc.get("vop_pending"):
         doc.db_set("vop_pending", 0)
-    doc.add_comment("Info", _(
-        "Booked by the bank on {0} ({1}, End-To-End ID {2}). Marked as sent"
-        " from the account statement."
-    ).format(frappe.utils.formatdate(txn.get("date")), txn.get("name"),
-             end_to_end_id))
+    if end_to_end_id:
+        doc.add_comment("Info", _(
+            "Booked by the bank on {0} ({1}, End-To-End ID {2}). Marked as"
+            " sent from the account statement."
+        ).format(frappe.utils.formatdate(txn.get("date")), txn.get("name"),
+                 end_to_end_id))
+    else:
+        doc.add_comment("Info", _(
+            "Booked by the bank on {0} ({1}): recipient IBAN, amount and"
+            " purpose agree, the bank's statement names no End-To-End ID."
+            " Marked as sent from the account statement."
+        ).format(frappe.utils.formatdate(txn.get("date")), txn.get("name")))
 
     # The reminders to release it are answered: the money is gone.
     for todo in frappe.get_all(

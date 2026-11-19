@@ -710,3 +710,4 @@ Release in your banking app,Freigabe in Ihrer Banking-App
 Stop waiting,Nicht mehr warten
 The bank is waiting for your release in its app.,Die Bank wartet auf Ihre Freigabe in ihrer App.
 This page keeps asking for {0} more seconds.,Diese Seite fragt noch {0} Sekunden lang nach.
+"Booked by the bank on {0} ({1}): recipient IBAN, amount and purpose agree, the bank's statement names no End-To-End ID. Marked as sent from the account statement.","Von der Bank am {0} gebucht ({1}): Empfänger-IBAN, Betrag und Verwendungszweck stimmen überein, der Kontoauszug nennt keine End-To-End-ID. Laut Kontoauszug als gesendet markiert."

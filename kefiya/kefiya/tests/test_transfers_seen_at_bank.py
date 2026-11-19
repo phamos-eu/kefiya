@@ -10,7 +10,10 @@
 import os
 import unittest
 
-from kefiya.utils.transfers_seen_at_bank import find_booking
+from kefiya.utils.transfers_seen_at_bank import (
+    find_booking,
+    find_booking_without_id,
+)
 
 
 def txn(description, withdrawal, reference_number="", name="BT-1"):
@@ -75,3 +78,61 @@ class TestItRunsAfterEveryImport(unittest.TestCase):
         source = _read("utils", "transfers_seen_at_bank.py")
         self.assertIn('"ToDo"', source)
         self.assertIn('"Closed"', source)
+
+
+IBAN = "DE89999999990001111111"
+
+
+def plain(description, withdrawal=10000.0, date="2026-11-19", iban=IBAN,
+          name="BT-9"):
+    return {"name": name, "description": description,
+            "withdrawal": withdrawal, "date": date,
+            "bank_party_iban": iban, "reference_number": "a1b2"}
+
+
+class TestWithoutTheId(unittest.TestCase):
+    """18.11.2026: a bank writes no End-To-End ID into its statement. The
+    order was released in the app, booked, and stayed "Due" here."""
+
+    def find(self, txns, purpose="Geldtransit an Sparkasse",
+             due="2026-11-19", amount=10000.0, iban=IBAN):
+        return find_booking_without_id(iban, amount, purpose, due, txns)
+
+    def test_iban_amount_purpose_and_date_find_it(self):
+        booking = plain("Geldtransit an SparkasseDATUM 18.11.2026, 19.43 UHR")
+        self.assertIs(self.find([booking]), booking)
+
+    def test_another_iban_is_another_payment(self):
+        booking = plain("Geldtransit an Sparkasse",
+                        iban="DE58999999990002222222")
+        self.assertIsNone(self.find([booking]))
+
+    def test_another_amount_is_another_payment(self):
+        self.assertIsNone(self.find([plain("Geldtransit an Sparkasse",
+                                           withdrawal=9999.99)]))
+
+    def test_the_purpose_has_to_be_there(self):
+        self.assertIsNone(self.find([plain("Miete November")]))
+
+    def test_a_short_purpose_is_no_evidence(self):
+        self.assertIsNone(self.find([plain("Miete")], purpose="Miete"))
+
+    def test_far_from_the_date_is_not_it(self):
+        self.assertIsNone(self.find([plain("Geldtransit an Sparkasse",
+                                           date="2026-10-01")]))
+
+    def test_two_candidates_are_no_answer(self):
+        self.assertIsNone(self.find([
+            plain("Geldtransit an Sparkasse", name="a"),
+            plain("Geldtransit an Sparkasse", name="b")]))
+
+
+class TestOnlyWhereItCanBeToldApart(unittest.TestCase):
+
+    def test_only_an_order_with_one_payment(self):
+        source = _read("utils", "transfers_seen_at_bank.py")
+        self.assertIn("payments.get(item.parent) == 1", source)
+
+    def test_a_booking_is_used_once(self):
+        source = _read("utils", "transfers_seen_at_bank.py")
+        self.assertIn("used.add(txn.get(\"name\"))", source)
