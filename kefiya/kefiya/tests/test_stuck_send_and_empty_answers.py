@@ -127,3 +127,20 @@ class TestTheWaitIsVisible(unittest.TestCase):
         self.assertIn("The bank is waiting for your release in its app.",
                       box)
         self.assertIn("This page keeps asking for {0} more seconds.", box)
+
+
+class TestARefusalIsNoError(unittest.TestCase):
+    """19.11.2026: 13 Error Log entries a night for accounts that simply do
+    not offer standing orders or dated transfers (9380)."""
+
+    def test_the_bestand_refusal_counts_as_refused(self):
+        body = _body(_read("utils", "client.py"), "_is_refused_by_the_bank")
+        self.assertIn("isinstance(exc, BankRefusedQuery)", body)
+        self.assertLess(body.index("BankRefusedQuery"),
+                        body.index("from fints.exceptions import"))
+
+    def test_the_refusal_keeps_the_banks_words(self):
+        body = _body(_read("utils", "client.py"), "_optional_fetch")
+        self.assertIn('getattr(exc, "said", None)', body)
+        self.assertLess(body.index("_is_refused_by_the_bank(exc)"),
+                        body.index("frappe.log_error("))

@@ -529,7 +529,9 @@ def _optional_fetch(summary, key, label, fn):
             return None
         if _is_refused_by_the_bank(exc):
             summary.setdefault("unsupported", []).append(label)
-            summary.setdefault("unsupported_details", {})[label] = _(
+            # The bank's own words where it gave them, for the fetch log.
+            said = "; ".join(getattr(exc, "said", None) or [])
+            summary.setdefault("unsupported_details", {})[label] = said or _(
                 "the bank refuses this query for this account")
             return None
         summary["errors"].append(label)
@@ -562,6 +564,18 @@ def _is_refused_by_the_bank(exc):
     That the dialog survives is not an assumption: every retrieval AFTER the
     refused one answered normally in the same session.
     """
+    # The bestand queries (standing orders, dated transfers) say it in so
+    # many words: a 9xxx answer to the segment, raised as BankRefusedQuery so
+    # "refused" and "holds nothing" read differently. Read here as what it
+    # is. Logged as a failure, it put 13 Error Log entries a night there for
+    # accounts that simply do not offer these queries ("9380 Berechtigung
+    # fuer diesen Geschaeftsvorfall nicht ausreichend", 19.11.2026).
+    try:
+        from kefiya.utils.bank_held_orders import BankRefusedQuery
+        if isinstance(exc, BankRefusedQuery):
+            return True
+    except Exception:
+        pass
     try:
         from fints.exceptions import (
             FinTSClientError, FinTSClientPINError, FinTSSCARequiredError,
