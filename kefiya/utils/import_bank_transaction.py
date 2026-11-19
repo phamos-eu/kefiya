@@ -39,12 +39,45 @@ class ImportBankTransaction:
 
         for idx, t in enumerate(flat_transactions):
             try:
-                # Status conversion
-                raw_status = t.get("CreditDebitIndicator")  # DBIT / CRDT
-                status = 'd' if raw_status == 'DBIT' else 'c'
+                if isinstance(t.get('amount'), dict):
+                    # Some banks mix MT940-shaped records into an otherwise
+                    # CAMT-shaped response.
+                    amount = abs(float(t['amount']['amount']))
+                    status = t['status'].lower()
+                    date = t['date']
+                    applicant_name = t.get('applicant_name')
+                    posting_text = t.get('posting_text')
+                    purpose = t.get('purpose')
+                    applicant_iban = t.get('applicant_iban')
+                    applicant_bin = t.get('applicant_bin')
+                else:
+                    # Status conversion
+                    raw_status = t.get("CreditDebitIndicator")  # DBIT / CRDT
+                    status = 'd' if raw_status == 'DBIT' else 'c'
 
-                # Amount extraction
-                amount = abs(float(t["amount"][0]))
+                    # Amount extraction
+                    amount = abs(float(t["amount"][0]))
+
+                    # Dates
+                    date = t.get("date") or t.get("ValueDate.Date")
+
+                    # Purpose (Unstructured)
+                    purpose = (
+                        t.get("purpose")
+                        or t.get("EntryDetails.TransactionDetails.RemittanceInformation.Unstructured")
+                    )
+
+                    posting_text = t.get("AdditionalEntryInformation")
+
+                    # Debtor / Creditor logic
+                    if status == 'd':   # outgoing: Creditor is receiver
+                        applicant_name = t.get("EntryDetails.TransactionDetails.RelatedParties.Creditor.Party.Name")
+                        applicant_iban = t.get("EntryDetails.TransactionDetails.RelatedParties.CreditorAccount.Identification.IBAN")
+                    else:               # incoming: Debtor is sender
+                        applicant_name = t.get("EntryDetails.TransactionDetails.RelatedParties.Debtor.Party.Name")
+                        applicant_iban = t.get("EntryDetails.TransactionDetails.RelatedParties.DebtorAccount.Identification.IBAN")
+
+                    applicant_bin = None  # CAMT does not include BIN
 
                 if amount == 0:
                     continue
@@ -57,27 +90,6 @@ class ImportBankTransaction:
                 progress = (idx + 1) / total_transactions * 100
                 msg = _('Query transaction {0} of {1}').format(idx + 1, total_transactions)
                 self.interactive.show_progress_realtime(msg, progress, reload=False)
-
-                # Dates
-                date = t.get("date") or t.get("ValueDate.Date")
-
-                # Purpose (Unstructured)
-                purpose = (
-                    t.get("purpose")
-                    or t.get("EntryDetails.TransactionDetails.RemittanceInformation.Unstructured")
-                )
-
-                posting_text = t.get("AdditionalEntryInformation")
-
-                # Debtor / Creditor logic
-                if status == 'd':   # outgoing: Creditor is receiver
-                    applicant_name = t.get("EntryDetails.TransactionDetails.RelatedParties.Creditor.Party.Name")
-                    applicant_iban = t.get("EntryDetails.TransactionDetails.RelatedParties.CreditorAccount.Identification.IBAN")
-                else:               # incoming: Debtor is sender
-                    applicant_name = t.get("EntryDetails.TransactionDetails.RelatedParties.Debtor.Party.Name")
-                    applicant_iban = t.get("EntryDetails.TransactionDetails.RelatedParties.DebtorAccount.Identification.IBAN")
-
-                applicant_bin = None  # CAMT does not include BIN
 
                 # Unique hash
                 uniquestr = "{0},{1},{2},{3},{4}".format(
@@ -138,9 +150,37 @@ class ImportBankTransaction:
 
         for idx, t in enumerate(fints_transaction):
             try:
-                # Convert to positive value if required
-                amount = abs(float(t['amount']['amount']))
-                status = t['status'].lower()
+                if isinstance(t.get('amount'), dict):
+                    # MT940-style transaction
+                    amount = abs(float(t['amount']['amount']))
+                    status = t['status'].lower()
+                    date = t['date']
+                    # Counterparty fields are optional in MT940 (see #158). A
+                    # missing applicant_iban on every transaction means mt-940 5.x
+                    # parsed it into applicant_name; pyproject pins 4.x (#48)
+                    applicant_name = t.get('applicant_name')
+                    posting_text = t.get('posting_text')
+                    purpose = t.get('purpose')
+                    applicant_iban = t.get('applicant_iban')
+                    applicant_bin = t.get('applicant_bin')
+                else:
+                    # Some banks mix CAMT-shaped records (e.g. SEPA direct-debit
+                    # returns/refunds) into an otherwise MT940-shaped response.
+                    amount = abs(float(t['amount'][0]))
+                    status = 'd' if t.get('CreditDebitIndicator') == 'DBIT' else 'c'
+                    date = t.get('date') or t.get('ValueDate.Date')
+                    posting_text = t.get('AdditionalEntryInformation')
+                    purpose = (
+                        t.get('purpose')
+                        or t.get('EntryDetails.TransactionDetails.RemittanceInformation.Unstructured')
+                    )
+                    if status == 'd':   # outgoing: Creditor is receiver
+                        applicant_name = t.get('EntryDetails.TransactionDetails.RelatedParties.Creditor.Party.Name')
+                        applicant_iban = t.get('EntryDetails.TransactionDetails.RelatedParties.CreditorAccount.Identification.IBAN')
+                    else:               # incoming: Debtor is sender
+                        applicant_name = t.get('EntryDetails.TransactionDetails.RelatedParties.Debtor.Party.Name')
+                        applicant_iban = t.get('EntryDetails.TransactionDetails.RelatedParties.DebtorAccount.Identification.IBAN')
+                    applicant_bin = None  # CAMT does not include a BIN
 
                 if amount == 0:
                     continue
@@ -161,17 +201,6 @@ class ImportBankTransaction:
                 self.interactive.show_progress_realtime(
                     message, progress, reload=False
                 )
-
-                # date is in YYYY.MM.DD (json)
-                date = t['date']
-                # Counterparty fields are optional in MT940 (see #158). A
-                # missing applicant_iban on every transaction means mt-940 5.x
-                # parsed it into applicant_name; pyproject pins 4.x (#48)
-                applicant_name = t.get('applicant_name')
-                posting_text = t.get('posting_text')
-                purpose = t.get('purpose')
-                applicant_iban = t.get('applicant_iban')
-                applicant_bin = t.get('applicant_bin')
 
                 remarkType = ''
                 paid_to = None
