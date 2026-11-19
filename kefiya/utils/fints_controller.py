@@ -434,6 +434,45 @@ class FinTSController(TanSession):
                _("Connection established"), 100, reload=False
             )
 
+    def _note_empty_answer(self, from_date, to_date):
+        """Write down what the bank said when it delivered no bookings.
+
+        From 16.11.2026 every fetch of both comdirect accounts came back
+        empty -- not even the bookings of the same window that earlier fetches
+        had delivered -- and nothing anywhere said why: no error, no TAN
+        request, just "No transaction found". Whether the bank sent nothing,
+        refused quietly or asked for something kefiya did not read could not
+        be told apart, because its answer was not kept.
+
+        Now its lines (return codes and texts, as fints_vop_client keeps them)
+        go onto the login's timeline -- once a day, not on every fetch.
+        Never raises.
+        """
+        try:
+            from frappe.utils import nowdate
+
+            from kefiya.utils.fints_tan_session import note_on_login
+
+            cache = frappe.cache()
+            if not cache.set(cache.make_key("kefiya_empty_note:{0}:{1}".format(
+                    self.kefiya_login.name, nowdate())), 1, ex=86400,
+                    nx=True):
+                return
+            said = getattr(self.fints_connection, "last_said", None) or ()
+            lines = ["{0} {1}{2}".format(
+                code or "", text or "",
+                " [Segment {0}]".format(ref) if ref else "")
+                for code, text, ref in list(said)[-12:]]
+            note_on_login(self.kefiya_login.name, "\n".join(
+                [_("Period {0} to {1}.").format(
+                    frappe.utils.formatdate(from_date),
+                    frappe.utils.formatdate(to_date)),
+                 _("What the bank said:")]
+                + (lines or [_("(nothing recorded)")])),
+                heading=_("The bank delivered no bookings"))
+        except Exception:
+            pass
+
     def _refuse_a_refused_order(self, response=None):
         """Stop where the bank turned the order down. Answers the verdict.
 
@@ -2508,6 +2547,7 @@ class FinTSController(TanSession):
             
             if(len(tansactions) == 0):
                 frappe.msgprint(_("No transaction found"))
+                self._note_empty_answer(curr_doc.from_date, curr_doc.to_date)
             else:
                 try:
                     save_file(

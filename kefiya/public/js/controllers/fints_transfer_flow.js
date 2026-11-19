@@ -35,10 +35,13 @@ function kefiya_handle_transfer_response(frm, msg) {
         // mandatory TAN field even for a decoupled procedure that produces no
         // code. Two boxes for one question, and only one of them could ever
         // be right.
+        // Pressed Send again while the bank still waits for the release:
+        // said in full, then waited for once more -- not "Transfer failed".
         frappe.show_alert({
-            message: __("The bank asks for a release."),
+            message: msg.still_waiting && msg.message
+                ? msg.message : __("The bank asks for a release."),
             indicator: "orange"
-        }, 8);
+        }, msg.still_waiting ? 15 : 8);
         // A decoupled release is confirmed in the banking app. Nobody asked
         // the bank afterwards whether it had been, so this form asks -- in
         // later requests -- and the server marks the order sent.

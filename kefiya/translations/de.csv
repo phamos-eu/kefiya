@@ -699,3 +699,14 @@ PayPal's test environment. Leave off for the real account.,PayPals Testumgebung.
 "From an app created under developer.paypal.com (Apps & Credentials, Live) with the feature ""Transaction Search"" enabled.","Aus einer App unter developer.paypal.com (Apps & Credentials, Live) mit aktivierter Funktion „Transaction Search“."
 Stored encrypted and never written to a log.,Verschlüsselt gespeichert und nie in ein Protokoll geschrieben.
 "The next run starts a few days before this, so transactions PayPal lists late are not missed.","Der nächste Lauf beginnt einige Tage davor, damit spät gelistete PayPal-Umsätze nicht verloren gehen."
+(nothing recorded),(nichts aufgezeichnet)
+Period {0} to {1}.,Zeitraum {0} bis {1}.
+The bank delivered no bookings,Die Bank hat keine Umsätze geliefert
+{0} is waiting for your release in the banking app (requested at {1}). Release it there -- the order is marked as sent as soon as the bank confirms. It is not sent a second time.,"{0} wartet auf Ihre Freigabe in der Banking-App (angefordert um {1}). Bitte dort freigeben — der Auftrag wird als gesendet markiert, sobald die Bank bestätigt. Er wird nicht ein zweites Mal gesendet."
+"{0} is already being sent. Wait until that send has finished; the lock against sending it twice ends after ten minutes at the latest. Before sending again, check in your online banking whether the order arrived.","{0} wird bereits gesendet. Bitte warten, bis dieser Vorgang abgeschlossen ist; die Sperre gegen doppeltes Senden endet spätestens nach zehn Minuten. Vor einem erneuten Senden im Online-Banking prüfen, ob der Auftrag angekommen ist."
+A transfer for this Payment Request is already in progress.,Für diese Zahlungsanforderung läuft bereits eine Überweisung.
+A transfer for this document is already in progress.,Für diesen Beleg läuft bereits eine Überweisung.
+Release in your banking app,Freigabe in Ihrer Banking-App
+Stop waiting,Nicht mehr warten
+The bank is waiting for your release in its app.,Die Bank wartet auf Ihre Freigabe in ihrer App.
+This page keeps asking for {0} more seconds.,Diese Seite fragt noch {0} Sekunden lang nach.

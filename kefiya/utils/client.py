@@ -410,6 +410,53 @@ def _say(run, login, summary, error=None):
         pass
 
 
+#: How long a release the bank asked for counts as still open. Banks keep a
+#: decoupled challenge for minutes; past this the send lock has expired too.
+RELEASE_STILL_OPEN_MINUTES = 15
+
+
+def _already_on_its_way(kefiya_login, transfer_name):
+    """What to say when a send of this order is still under way.
+
+    "A transfer for this document is already in progress." was all a person
+    got -- in English, as "Transfer failed", for an order that had not
+    failed at all: on 18.11.2026 the bank had asked for a release in its app,
+    the page had waited three minutes for it, and the next press of Send ran
+    into the lock that keeps one order from going out twice.
+
+    Where the bank is still waiting for that release, the answer is the
+    release again: the page goes back to waiting for it, and the order is
+    marked sent the moment the bank confirms. Nothing is sent a second time.
+    Otherwise it says how long the lock holds.
+    """
+    from frappe.utils import cint, get_datetime, now_datetime
+
+    row = frappe.db.get_value(
+        "Kefiya Login", kefiya_login,
+        ["stored_tan_state", "stored_tan_state_decoupled",
+         "tan_state_updated"], as_dict=True) or {}
+    parked_at = row.get("tan_state_updated")
+    if row.get("stored_tan_state") and cint(
+            row.get("stored_tan_state_decoupled")) and parked_at and (
+            now_datetime() - get_datetime(parked_at)).total_seconds() \
+            < RELEASE_STILL_OPEN_MINUTES * 60:
+        return {"status": "tan_required", "decoupled": True,
+                "docname": kefiya_login, "still_waiting": True,
+                "message": _(
+                    "{0} is waiting for your release in the banking app"
+                    " (requested at {1}). Release it there -- the order is"
+                    " marked as sent as soon as the bank confirms. It is not"
+                    " sent a second time."
+                ).format(transfer_name, frappe.utils.format_time(
+                    get_datetime(parked_at)))}
+    return {"status": "error", "message": _(
+        "{0} is already being sent. Wait until that send has finished; the"
+        " lock against sending it twice ends after ten minutes at the"
+        " latest. Before sending again, check in your online banking whether"
+        " the order arrived."
+    ).format(transfer_name)}
+
+
 def _claim_send_lock(lock_key, seconds=600):
     """Claim a send lock atomically, or report that someone else holds it.
 
@@ -1111,9 +1158,7 @@ def submit_kefiya_transfer(transfer_name, user_scope, confirmed=0):
         frappe.session.user,
     )
     if not _claim_send_lock(lock_key):
-        return {"status": "error", "message": _(
-            "A transfer for this document is already in progress."
-        )}
+        return _already_on_its_way(doc.kefiya_login, transfer_name)
 
     from kefiya.utils.fints_controller import FinTSController
     interactive = {"docname": user_scope, "enabled": True}
@@ -1770,10 +1815,9 @@ def send_transfer_outbox(transfer_names, user_scope, confirmed=0,
             continue
         for done in claimed:
             frappe.cache().delete_value(done)
-        return {"status": "error", "approved": approved, "refused": refused,
-                "message": _(
-                    "A send is already in progress for: {0}"
-                ).format(key.split(":", 1)[1])}
+        answer = _already_on_its_way(kefiya_login, key.split(":", 1)[1])
+        answer.update({"approved": approved, "refused": refused})
+        return answer
 
     from kefiya.utils.fints_controller import (
         FinTSController,

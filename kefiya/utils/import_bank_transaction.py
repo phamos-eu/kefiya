@@ -124,6 +124,23 @@ def make_transaction_id(date, amount, applicant_name, posting_text, purpose):
         date, amount, applicant_name, posting_text, purpose)
 
 
+
+def iban_or_number(value):
+    """(iban, account_number): a valid IBAN as such, anything else as number.
+
+    Checked by the IBAN's own mod-97 checksum -- the check ERPNext applies
+    when the Bank Transaction is saved, done here first so a bank's account
+    number in the IBAN field costs a field, not the booking.
+    """
+    raw = re.sub(r"\s+", "", str(value or "")).upper()
+    if not raw:
+        return None, None
+    if re.match(r"^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$", raw):
+        digits = "".join(str(int(c, 36)) for c in raw[4:] + raw[:4])
+        if int(digits) % 97 == 1:
+            return raw, None
+    return None, raw
+
 class ImportBankTransaction:
     def __init__(self, kefiya_login, interactive, allow_error=False):
         self.allow_error = allow_error
@@ -334,6 +351,9 @@ class ImportBankTransaction:
                     withdrawal = amount
 
                 party, party_type, bank_party_account_number = self.get_bank_account_data(applicant_iban)
+                applicant_iban, kontonummer = iban_or_number(applicant_iban)
+                if kontonummer and not bank_party_account_number:
+                    bank_party_account_number = kontonummer
 
                 # Create Bank Transaction
                 bank_transaction = frappe.get_doc({
@@ -467,6 +487,16 @@ class ImportBankTransaction:
 
       
                 party, party_type, bank_party_account_number = self.get_bank_account_data(applicant_iban)         
+
+                # A booking the bank makes itself -- loan interest, fees --
+                # names its counter account by NUMBER in the IBAN field.
+                # ERPNext rejects that as "not a valid IBAN", and the booking
+                # was lost on every fetch: loan interest at a Sparkasse, from
+                # 16.11.2026 on. The number goes where a
+                # number belongs; the hash above keeps the raw value.
+                applicant_iban, kontonummer = iban_or_number(applicant_iban)
+                if kontonummer and not bank_party_account_number:
+                    bank_party_account_number = kontonummer
 
                 bank_transaction = frappe.get_doc({
                     'doctype': 'Bank Transaction',

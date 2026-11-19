@@ -359,14 +359,28 @@ frappe.provide("kefiya");
         var started = Date.now(), stopped = false;
         awaitingRelease[login] = true;
 
+        // The wait has to be SEEN. On 18.11.2026 the bank's app asked for the
+        // release while the page showed nothing but an eight-second alert that
+        // had already gone -- on a phone, nothing at all. The box that asks for
+        // a release travels by realtime event and did not arrive there; this
+        // one belongs to the wait itself, so it is there whenever the wait is.
+        var waitBox = (openBoxes[scope] || openBoxes[login]) ? null
+            : waitingBox(login, names, ceiling, function () {
+                finish("timeout");
+            });
+
         function finish(status, message) {
             if (stopped) return;
             stopped = true;
             delete awaitingRelease[login];
+            if (waitBox) {
+                try { waitBox.close(); } catch (ignored) {}
+            }
             if (opts.done) opts.done(status, message);
         }
         function ask() {
             if (stopped) return;
+            if (waitBox) waitBox.tick(Date.now() - started);
             if (Date.now() - started > ceiling) {
                 finish("timeout");
                 return;
@@ -394,6 +408,38 @@ frappe.provide("kefiya");
         } };
     }
     kefiya.await_release = awaitRelease;
+
+    // A box that stays while a release is awaited: what to do, for which
+    // orders, and how long this page keeps asking. "Stop waiting" ends only
+    // the asking -- a release given later still reaches the bank, and the
+    // statement marks the order sent once it is booked.
+    function waitingBox(login, names, ceiling, onStop) {
+        var esc = frappe.utils.escape_html;
+        var closing = false;
+        var d = new frappe.ui.Dialog({
+            title: __("Release in your banking app"),
+            fields: [{ fieldtype: "HTML", fieldname: "body" }],
+            primary_action_label: __("Stop waiting"),
+            primary_action: function () { onStop(); },
+        });
+        d.fields_dict.body.$wrapper.html(
+            "<p>" + __("The bank is waiting for your release in its app.")
+            + "</p><p class='text-muted small'>" + esc(login)
+            + (names.length ? " · " + names.map(esc).join(", ") : "")
+            + "</p><p class='small' data-left></p>");
+        d.$wrapper.on("hidden.bs.modal", function () {
+            if (!closing) onStop();
+        });
+        d.show();
+        return {
+            tick: function (elapsed) {
+                var left = Math.max(0, Math.round((ceiling - elapsed) / 1000));
+                d.$wrapper.find("[data-left]").text(
+                    __("This page keeps asking for {0} more seconds.", [left]));
+            },
+            close: function () { closing = true; d.hide(); },
+        };
+    }
 
     // Exported on its own as well: the Kefiya Login form builds its own box
     // (it has the form's docname where this one has a login from a run) and

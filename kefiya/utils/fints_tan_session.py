@@ -53,11 +53,14 @@ from kefiya.utils.fints_errors import (
 
 
 
-def note_on_login(login_name, message):
-    """One Info entry in the timeline of the Kefiya Login. Never raises."""
+def note_on_login(login_name, message, heading=None):
+    """One Info entry in the timeline of the Kefiya Login. Never raises.
+
+    :param heading: first line; "The bank asks for a release" when omitted
+    """
     try:
         frappe.get_doc("Kefiya Login", login_name).add_comment(
-            "Info", _("The bank asks for a release") + ":<br>"
+            "Info", (heading or _("The bank asks for a release")) + ":<br>"
             + frappe.utils.escape_html(message).replace("\n", "<br>"))
     except Exception:
         pass
@@ -256,7 +259,17 @@ class TanSession:
             # onto the login's timeline -- not the Error Log, which is for
             # errors, and a request for a release is none.
             frappe.flags.kefiya_release_trigger = message
-            if attended:
+            # Once per request kind and quarter of an hour. While the page
+            # waits for a decoupled release it asks the bank every few
+            # seconds, and each answer is the same open request: on
+            # 18.11.2026 that wrote 48 identical lines in three minutes.
+            cache = frappe.cache()
+            fresh = cache.set(
+                cache.make_key("kefiya_release_note:{0}:{1}".format(
+                    self.kefiya_login.name,
+                    release_trigger.segment_of(response))),
+                1, ex=900, nx=True)
+            if attended and fresh:
                 note_on_login(self.kefiya_login.name, message)
         except Exception:
             pass

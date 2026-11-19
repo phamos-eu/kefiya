@@ -986,8 +986,9 @@ kefiya.payment_outbox = function (root) {
 			});
 			return;
 		} else if (outcome === "release" || outcome === "tan") {
-			frappe.show_alert({ message: __("The bank asks for a release."),
-				indicator: "orange" }, 8);
+			frappe.show_alert({ message: m.still_waiting && m.message
+				? m.message : __("The bank asks for a release."),
+				indicator: "orange" }, m.still_waiting ? 15 : 8);
 			// A decoupled release is given in the banking app, and nobody
 			// asked the bank afterwards whether it had been: the order stayed
 			// "Due" with no error at all. So this page asks, in later
