@@ -146,9 +146,20 @@ class ImportBankTransaction:
     def old_kefiya_import(self, fints_transaction):
         # F841 total_items = len(fints_transaction)
         self.interactive.progress = 0
-        total_transactions = len(fints_transaction)
 
-        for idx, t in enumerate(fints_transaction):
+        # Some banks wrap individual transactions in their own extra list
+        # (inconsistently, alongside plain dicts) -> flatten one level so
+        # every item is a dict, as kefiya_import() already does for CAMT.
+        flat_transactions = []
+        for lvl1 in fints_transaction:
+            if isinstance(lvl1, list):
+                flat_transactions.extend(lvl1)
+            else:
+                flat_transactions.append(lvl1)
+
+        total_transactions = len(flat_transactions)
+
+        for idx, t in enumerate(flat_transactions):
             try:
                 if isinstance(t.get('amount'), dict):
                     # MT940-style transaction
